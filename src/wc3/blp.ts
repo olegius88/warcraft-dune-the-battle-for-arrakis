@@ -46,4 +46,148 @@ function writeBlpPaletted(width: number, height: number, rgbAt: (x: number, y: n
   return Buffer.concat([header, pal, indices]);
 }
 
-export { writeBlpPaletted };
+/** A full-colour image (RGBA, row 0 = top). */
+export interface RgbaImage {
+  width: number;
+  height: number;
+  rgba: Uint8Array;
+}
+
+/** Median-cut palette of at most 256 colours for the opaque-ish pixels of an image. */
+function medianCut(rgba: Uint8Array, maxColours = 256): Rgb[] {
+  const pixels: Rgb[] = [];
+  for (let i = 0; i < rgba.length; i += 4) pixels.push([rgba[i] as number, rgba[i + 1] as number, rgba[i + 2] as number]);
+  if (!pixels.length) return [[0, 0, 0]];
+  let boxes: Rgb[][] = [pixels];
+  while (boxes.length < maxColours) {
+    // split the box with the widest channel range
+    let best = -1, bestRange = 0, bestCh = 0;
+    boxes.forEach((box, i) => {
+      if (box.length < 2) return;
+      for (let ch = 0; ch < 3; ch++) {
+        let lo = 255, hi = 0;
+        for (const p of box) { const v = p[ch] as number; if (v < lo) lo = v; if (v > hi) hi = v; }
+        if (hi - lo > bestRange) { bestRange = hi - lo; best = i; bestCh = ch; }
+      }
+    });
+    if (best < 0) break;
+    const box = (boxes[best] as Rgb[]).sort((a, b) => (a[bestCh] as number) - (b[bestCh] as number));
+    const mid = box.length >> 1;
+    boxes = [...boxes.slice(0, best), box.slice(0, mid), box.slice(mid), ...boxes.slice(best + 1)];
+  }
+  return boxes.map((box) => {
+    const s = [0, 0, 0];
+    for (const p of box) { s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; }
+    return [Math.round((s[0] as number) / box.length), Math.round((s[1] as number) / box.length), Math.round((s[2] as number) / box.length)] as Rgb;
+  });
+}
+
+/** Bilinear resample to width x height (sides that are not powers of two -> the next one). */
+function resize(img: RgbaImage, width: number, height: number): RgbaImage {
+  if (img.width === width && img.height === height) return img;
+  const out = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    const fy = Math.max(0, Math.min(img.height - 1, ((y + 0.5) * img.height) / height - 0.5));
+    const y0 = Math.floor(fy), y1 = Math.min(img.height - 1, y0 + 1), ty = fy - y0;
+    for (let x = 0; x < width; x++) {
+      const fx = Math.max(0, Math.min(img.width - 1, ((x + 0.5) * img.width) / width - 0.5));
+      const x0 = Math.floor(fx), x1 = Math.min(img.width - 1, x0 + 1), tx = fx - x0;
+      for (let c = 0; c < 4; c++) {
+        const p = (xx: number, yy: number): number => img.rgba[(yy * img.width + xx) * 4 + c] as number;
+        const top = p(x0, y0) * (1 - tx) + p(x1, y0) * tx;
+        const bottom = p(x0, y1) * (1 - tx) + p(x1, y1) * tx;
+        out[(y * width + x) * 4 + c] = Math.round(top * (1 - ty) + bottom * ty);
+      }
+    }
+  }
+  return { width, height, rgba: out };
+}
+
+/** The next power of two >= n. */
+const pow2Ceil = (n: number): number => 2 ** Math.ceil(Math.log2(Math.max(1, n)));
+
+/** Next level of a mipmap chain: 2x2 box filter (a 1-pixel side stays 1). */
+function halve(img: RgbaImage): RgbaImage {
+  const w = Math.max(1, img.width >> 1), h = Math.max(1, img.height >> 1);
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      for (let c = 0; c < 4; c++) {
+        let s = 0, n = 0;
+        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+          const sx = Math.min(img.width - 1, x * 2 + dx), sy = Math.min(img.height - 1, y * 2 + dy);
+          s += img.rgba[(sy * img.width + sx) * 4 + c] as number; n++;
+        }
+        out[(y * w + x) * 4 + c] = Math.round(s / n);
+      }
+    }
+  }
+  return { width: w, height: h, rgba: out };
+}
+
+/**
+ * BLP1 with palette content for any image: median-cut palette, a full mipmap chain (textures need
+ * it; WC3 samples smaller levels at a distance), 8-bit alpha after the indices of each level when
+ * `alpha` (layout: mdx-m3-viewer src/parsers/blp/image.ts getMipmap). Sides must be powers of two.
+ */
+function writeBlpImage(img: RgbaImage, { alpha = false, mipmaps = true }: { alpha?: boolean; mipmaps?: boolean } = {}): Buffer {
+  const pow2 = (n: number): boolean => n > 0 && (n & (n - 1)) === 0;
+  if (!pow2(img.width) || !pow2(img.height)) throw new Error(`BLP sides must be powers of two, got ${img.width}x${img.height}`);
+  const palette = medianCut(img.rgba);
+  const cache = new Map<number, number>();
+  const nearest = (r: number, g: number, b: number): number => {
+    const key = (r << 16) | (g << 8) | b;
+    let idx = cache.get(key);
+    if (idx !== undefined) return idx;
+    let bd = Infinity;
+    idx = 0;
+    palette.forEach(([pr, pg, pb], i) => { const d = (pr - r) ** 2 + (pg - g) ** 2 + (pb - b) ** 2; if (d < bd) { bd = d; idx = i; } });
+    cache.set(key, idx);
+    return idx;
+  };
+  const levels: Buffer[] = [];
+  let cur = img;
+  for (;;) {
+    const n = cur.width * cur.height;
+    const data = Buffer.alloc(alpha ? n * 2 : n);
+    for (let i = 0; i < n; i++) {
+      data[i] = nearest(cur.rgba[i * 4] as number, cur.rgba[i * 4 + 1] as number, cur.rgba[i * 4 + 2] as number);
+      if (alpha) data[n + i] = cur.rgba[i * 4 + 3] as number;
+    }
+    levels.push(data);
+    if (!mipmaps || (cur.width === 1 && cur.height === 1) || levels.length === 16) break;
+    cur = halve(cur);
+  }
+  const header = Buffer.alloc(156);
+  header.writeInt32LE(BLP1_MAGIC, 0);
+  header.writeInt32LE(CONTENT_PALETTE, 4);
+  header.writeInt32LE(alpha ? 8 : 0, 8);
+  header.writeInt32LE(img.width, 12);
+  header.writeInt32LE(img.height, 16);
+  // picture type: 5 as in real minimaps; 4 with alpha is an assumption (mdx-m3-viewer does not read it)
+  header.writeInt32LE(alpha ? 4 : 5, 20);
+  header.writeInt32LE(mipmaps ? 1 : 0, 24);
+  let offset = 156 + 1024;
+  levels.forEach((l, i) => { header.writeInt32LE(offset, 28 + i * 4); header.writeInt32LE(l.length, 92 + i * 4); offset += l.length; });
+  const pal = Buffer.alloc(1024);
+  palette.forEach(([r, g, b], i) => { pal[i * 4] = b; pal[i * 4 + 1] = g; pal[i * 4 + 2] = r; });
+  return Buffer.concat([header, pal, ...levels]);
+}
+
+/** Decode one level of a palette BLP1 (tests; the inverse of writeBlpImage). */
+function readBlpPaletted(buf: Buffer, level = 0): RgbaImage {
+  if (buf.readInt32LE(0) !== BLP1_MAGIC || buf.readInt32LE(4) !== CONTENT_PALETTE) throw new Error('not a palette BLP1');
+  const alphaBits = buf.readInt32LE(8);
+  const width = Math.max(1, buf.readInt32LE(12) >> level), height = Math.max(1, buf.readInt32LE(16) >> level);
+  const offset = buf.readInt32LE(28 + level * 4);
+  const n = width * height;
+  const rgba = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    const p = 156 + (buf[offset + i] as number) * 4;
+    rgba[i * 4] = buf[p + 2] as number; rgba[i * 4 + 1] = buf[p + 1] as number; rgba[i * 4 + 2] = buf[p] as number;
+    rgba[i * 4 + 3] = alphaBits === 8 ? buf[offset + n + i] as number : 255;
+  }
+  return { width, height, rgba };
+}
+
+export { writeBlpPaletted, writeBlpImage, readBlpPaletted, medianCut, resize, pow2Ceil };

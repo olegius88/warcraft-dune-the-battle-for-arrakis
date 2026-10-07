@@ -45,7 +45,8 @@ const out = opt('--out', CAMPAIGN_OUT);
 const all = loadAll();
 // music lives once in the campaign archive; maps get playlists of archive paths
 const music = loadMusic();
-const campaignImports: Record<string, Buffer> = {};
+// command card icons live once in the campaign archive too (the object data of every map refers to them)
+const campaignImports: Record<string, Buffer> = { ...all.units.icons };
 const useMusic = (paths: string[]): string[] => {
   for (const p of paths) {
     const t = music && [...music.tracks.values()].find((x) => x.path === p);
@@ -114,7 +115,7 @@ for (const h of houses) {
       meta: metaOf(mapNeedle), ...all, name: title, playerHouse: player, kind, hubMap: hub,
       territoryBattle: kind === 'attack' || kind === 'defend', briefing: scripts[0] ? briefing(scripts[0].name) : '',
       debugName: fileName.replace(/\.w3x$/, ''), ...(autoTest ? { autoWinSeconds: CP.AUTOTEST_WIN_SECONDS } : {}),
-      music: useMusic(music ? music.battle(h) : []), ...extra,
+      music: useMusic(music ? music.battle(h) : []), iconsInMap: false, ...extra,
     });
     add(fileName, m.buffer, title, '', false, m.script);
     return fileName;
@@ -176,7 +177,7 @@ for (const h of houses) {
 {
   const m = buildMission({ scripts: [{ tok: tok(TUTORIAL_SCRIPT), phase: 0, name: TUTORIAL_SCRIPT }], meta: metaOf(TUTORIAL_MAP), ...all,
     name: CP.TUTORIAL_TITLE, playerHouse: 'Atreides', kind: 'tutorial', territoryBattle: false, briefing: briefing(TUTORIAL_SCRIPT), debugName: 'Tutorial',
-    music: useMusic(music ? music.battle('AT') : []) });
+    music: useMusic(music ? music.battle('AT') : []), iconsInMap: false });
   add(CP.MAP_FILE.tutorial, m.buffer, CP.TUTORIAL_TITLE, '', false, m.script);
 }
 

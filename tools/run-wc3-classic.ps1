@@ -11,7 +11,7 @@
 # It reports how often each happened ("watchdog: focus taken back N, cursor released M, minimised K").
 # Menus of this client accept posted keys/clicks (tools/wc3-key.ps1, tools/wc3-click.ps1);
 # campaign mission buttons do not (they need the real cursor).
-# Usage: pwsh tools/run-wc3-classic.ps1 -Map build\x.w3x [-Seconds 40] [-Keep] [-Capture out.png]
+# Usage: pwsh tools/run-wc3-classic.ps1 -Map build\x.w3x [-Seconds 40] [-Keep] [-Capture out.png] [-Size 1280x560]
 param(
   [Parameter(Mandatory = $true)][string]$Map,
   [int]$Seconds = 40,
@@ -20,6 +20,7 @@ param(
   [string]$FramesPrefix = '',   # capture the window every -FrameEvery seconds to <prefix>000.png, 001... (GIF frames)
   [int]$FrameEvery = 3,
   [string]$Capture = '',
+  [string]$Size = '',          # window size WxH for captures, e.g. 1280x560
   [string]$Exe = 'G:\Games\Warcraft III\x86_64\Warcraft III.exe'
 )
 Add-Type -Namespace W -Name Guard3 -MemberDefinition @'
@@ -105,6 +106,13 @@ while ((Get-Date) -lt $deadline -and -not $p.HasExited) {
   if ([W.Guard3]::GetClipCursor([ref]$r) -and ($r.L -gt $vx -or $r.T -gt $vy -or $r.R -lt $vr -or $r.B -lt $vb)) {
     [void][W.Guard3]::ClipCursor([IntPtr]::Zero); $clipReleased++
     if ($Trace) { "  {0:n1}s cursor clip released" -f ((Get-Date) - $since).TotalSeconds }
+  }
+  # -Size WxH: resize the window once (kept at the bottom of the z-order, not activated) so captures
+  # show the whole screen; the classic client renders the configured aspect into the window
+  if ($Size -and -not $resized -and $p.MainWindowHandle -ne [IntPtr]::Zero -and -not [W.Guard3]::IsIconic($p.MainWindowHandle)) {
+    $sw, $sh = $Size -split 'x' | ForEach-Object { [int]$_ }
+    [void][W.Guard3]::SetWindowPos($p.MainWindowHandle, [IntPtr]1, 0, 0, $sw, $sh, 0x12) # SWP_NOMOVE|SWP_NOACTIVATE
+    $resized = $true
   }
   if ($FramesPrefix -and (Get-Date) -ge $nextFrame -and -not [W.Guard3]::IsIconic($p.MainWindowHandle)) {
     & (Join-Path $PSScriptRoot 'wc3-window.ps1') -Action Capture -Out ('{0}{1:d3}.png' -f $FramesPrefix, $frame) | Out-Null

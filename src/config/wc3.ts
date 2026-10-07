@@ -37,6 +37,9 @@ export const UNIT_FIELD = {
   tintRed: 'uclr',
   tintGreen: 'uclg',
   tintBlue: 'uclb',
+  /** Art - Icon - Game Interface (command card; code from memory, checked in game by
+   * src/smoke/build-icon-probe.ts) */
+  icon: 'uico',
 } as const;
 
 /** Ability object data fields (war3map.w3a). */
@@ -122,6 +125,16 @@ export const STORED_UNCOMPRESSED = /\.(bik|mp3|ogg|flac|blp|dds)$/i;
 /** Folders for files imported into a map. */
 export const IMPORT_DIR = {
   speech: 'war3mapImported\\speech\\',
+} as const;
+
+/** Command card icons converted from Emperor (ArtIni.txt Icon / IconGrey): the enabled icon and
+ * the disabled one at the paths the stock icons use (CommandButtons\BTN* and
+ * CommandButtonsDisabled\DISBTN*), so the game can find the grey one next to the coloured one
+ * (assumption until seen in game). */
+export const ICON_SIZE = 64;
+export const ICON_PATH = {
+  enabled: (name: string): string => `ReplaceableTextures\\CommandButtons\\BTNEmp${name}.blp`,
+  disabled: (name: string): string => `ReplaceableTextures\\CommandButtonsDisabled\\DISBTNEmp${name}.blp`,
 } as const;
 
 /** Icons (JASS paths, through str()). */

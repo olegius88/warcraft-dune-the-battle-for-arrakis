@@ -10,6 +10,7 @@
 import { writeObjects, idAllocator } from '../wc3/objects.ts';
 import type { ObjectDef, ObjectMod } from '../wc3/objects.ts';
 import type { Rules, RulesObject, Warhead } from './rules.ts';
+import type { IconSet } from './icons.ts';
 import { HOUSE_CODES, HOUSE_BY_CODE, HOUSE_RACE } from '../config/houses.ts';
 import type { Wc3Race } from '../config/houses.ts';
 import { UNIT_FIELD as F, ABILITY_FIELD, ABILITY, UNIT, CUSTOM_ID } from '../config/wc3.ts';
@@ -45,6 +46,8 @@ export interface UnitData {
   misc: string;
   w3u: Buffer;
   w3a: Buffer;
+  /** command card icons the object data refers to: archive path -> BLP (import once per campaign) */
+  icons: Record<string, Buffer>;
 }
 
 export interface CombatTable {
@@ -92,7 +95,7 @@ const unreal = (field: string, value: number): ObjectMod => ({ field, type: 'unr
 const real = (field: string, value: number): ObjectMod => ({ field, type: 'real', value });
 
 /** displayName: localised name lookup (falls back to the id). */
-function buildUnitData(rules: Rules, displayName: (name: string) => string = (n) => n): UnitData {
+function buildUnitData(rules: Rules, displayName: (name: string) => string = (n) => n, icons?: IconSet): UnitData {
   const nextId = idAllocator();
   const warheads = new Map<string, Warhead>();
   for (const o of rules.objects.values()) for (const t of o.turrets) if (t.bullet && t.bullet.warhead) warheads.set(t.bullet.warhead.name, t.bullet.warhead);
@@ -128,6 +131,9 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       real(F.scale, scale), real(F.selectionScale, scale),
     ];
     if (o.category !== 'Building' && o.speed > 0) mods.push(int(F.moveSpeed, S.moveSpeed(o.speed)));
+    // Emperor's own sidebar icon (src/emperor/icons.ts)
+    const icon = icons?.icon.get(o.name);
+    if (icon) mods.push(str(F.icon, icon));
     const weapon = o.turrets.find((t) => t.bullet && t.bullet.damage > 0);
     if (weapon && weapon.bullet) {
       const b = weapon.bullet;
@@ -201,7 +207,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     }
   }
   return {
-    objects, rawcode, ids, misc: combat.misc,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {},
     w3u: writeObjects(objects.map(({ base, id, mods }) => ({ base, id, mods }))),
     w3a: writeObjects(abilities, true),
   };

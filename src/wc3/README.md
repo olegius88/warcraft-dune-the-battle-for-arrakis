@@ -5,7 +5,9 @@
 | `binary.ts` | Little-endian писатель байтов (int/float/cstring/FourCC). |
 | `mpq.ts` | Писатель MPQ v0: hash/block-таблицы с шифрованием, zlib-сектора, `(listfile)`. |
 | `formats.ts` | `war3map.w3i` (v31), `.w3e` (v11), `.wpm`, `.shd`, пустые `.doo`/`Units.doo`/`.mmp`, `.wts`, `war3campaign.w3f` (v1), заголовок HM3W. |
-| `blp.ts` | BLP1 с палитрой — миникарта `war3mapMap.blp`. |
+| `blp.ts` | BLP1 с палитрой: миникарта `war3mapMap.blp` и любые картинки (палитра median cut, мип-уровни, 8-битная альфа, масштабирование). |
+| `tga.ts` | Чтение TGA (типы 1/2/3 и RLE, 8–32 бит) — текстуры и иконки Emperor. |
+| `png.ts` | Запись PNG (RGBA) для превью сконвертированных картинок. |
 | `jass.ts` | Обвязка `war3map.j` (config/main, игроки, команды, границы камеры). |
 | `map.ts` | `buildMap()` — сборка `.w3x`; `buildCampaign()` — сборка `.w3n`. |
 
