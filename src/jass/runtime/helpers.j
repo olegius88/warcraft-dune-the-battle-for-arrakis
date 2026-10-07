@@ -492,12 +492,13 @@ function EmpReinfHouse takes integer side returns integer
     return -1
 endfunction
 
-function EmpReinfArrive takes integer side returns nothing
+// a set of random units of the side's house worth `value` (sum of ReinforcementValue; TechLevel <=
+// the current tech level) around (x, y); also the starting armies of territory battles
+function EmpSpawnSet takes integer side, integer value, real x, real y, real spread returns nothing
     local integer h = EmpReinfHouse(side)
-    local integer left = EmpReinfValue[side]
+    local integer left = value
     local integer tries = 0
     local integer k
-    local integer e = EmpEntranceFor(side)
     local unit u
     if h < 0 or EmpReinfCount[h] == 0 then
         return
@@ -506,16 +507,21 @@ function EmpReinfArrive takes integer side returns nothing
         exitwhen left <= 0 or tries > {{RT.REINF_PICK_TRIES}}
         set k = h * {{RT.REINF_SLOT_STRIDE}} + GetRandomInt(0, EmpReinfCount[h] - 1)
         if EmpReinfCost[k] <= left and EmpReinfTech[k] <= EmpTechLevel then
-            set u = CreateUnit(EmpSidePlayer(side), EmpReinfType[k], EmpEntrX[e] + GetRandomReal(-{{RT.REINF_SPREAD}}, {{RT.REINF_SPREAD}}), EmpEntrY[e] + GetRandomReal(-{{RT.REINF_SPREAD}}, {{RT.REINF_SPREAD}}), {{FACING}})
+            set u = CreateUnit(EmpSidePlayer(side), EmpReinfType[k], x + GetRandomReal(-spread, spread), y + GetRandomReal(-spread, spread), {{FACING}})
             set left = left - EmpReinfCost[k]
         endif
         set tries = tries + 1
     endloop
+    set u = null
+endfunction
+
+function EmpReinfArrive takes integer side returns nothing
+    local integer e = EmpEntranceFor(side)
+    call EmpSpawnSet(side, EmpReinfValue[side], EmpEntrX[e], EmpEntrY[e], {{real RT.REINF_SPREAD}})
     if side == 0 then
         call EmpShow({{str RT.REINF_ARRIVED_MESSAGE}})
         call PingMinimap(EmpEntrX[e], EmpEntrY[e], {{real RT.REINF_PING_SECONDS}})
     endif
-    set u = null
 endfunction
 
 function EmpReinfSchedule takes integer side returns nothing

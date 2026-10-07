@@ -101,7 +101,7 @@ function buildMission(p: MissionParams): BuiltMission {
   const tooltips = new Set<number>();
   for (const s of scripts) { s.tr.used.forEach((x) => used.add(x)); s.tr.messages.forEach((x) => messages.add(x)); s.tr.tooltips.forEach((x) => tooltips.add(x)); }
 
-  const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend', worms: p.rules?.worms });
+  const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend', worms: p.rules?.worms, rules: p.rules });
   const deployMap: Record<string, string> = { [String(p.units.rawcode.get('MCV'))]: String(p.units.rawcode.get(`${CODE_BY_HOUSE[p.playerHouse]}ConYard`)) };
   const rt = buildRuntime(p.table, { deployMap });
 

@@ -21,6 +21,7 @@ function EmpBattleInit takes nothing returns nothing
     call TriggerAddAction(tr, function EmpOnConstructStart)
     call TimerStart(CreateTimer(), {{real C.HARVEST_CHECK_PERIOD}}, true, function EmpHarvestTick)
     call EmpPowerData()
+    call EmpCostData()
     call TimerStart(CreateTimer(), {{real C.POWER_CHECK_PERIOD}}, true, function EmpPowerTick)
 {{#if territoryBattle}}    // both sides get reinforcement sets (Rules.txt UnitValueInitial/SubsequentReinforcements)
     call EmpReinfStart(0, EmpReinfInitial, EmpReinfSubsequent)
@@ -29,6 +30,6 @@ function EmpBattleInit takes nothing returns nothing
     call TimerStart(CreateTimer(), {{real C.ENEMY_PRODUCE_PERIOD}}, true, function EmpEnemyProduce)
     call TimerStart(CreateTimer(), {{real C.ENEMY_WAVE_PERIOD}}, true, function EmpEnemyWave){{/if}}
 {{#if defendBattle}}    call EmpDefendStart()
-    call TimerStart(CreateTimer(), {{real C.DEFEND_WAVE_PERIOD}}, true, function EmpDefendWave){{/if}}
+    call TimerStart(CreateTimer(), {{real C.DEFEND_ATTACK_DELAY}}, false, function EmpDefendWave){{/if}}
     set tr = null
 endfunction

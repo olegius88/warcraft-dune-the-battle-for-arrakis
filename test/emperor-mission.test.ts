@@ -215,6 +215,27 @@ test('territory battles bring reinforcement sets of the Rules.txt value; the pic
   assert.ok(!story.script.includes('call EmpReinfStart(0'), 'story missions get sets only through SetReinforcements');
 });
 
+// Territory battle armies and credits come from Rules.txt (UnitValueAttacker / UnitValueDefender,
+// CampaignAttackMoney / CampaignDefendMoney); they were fixed unit lists and invented credits, and
+// the enemy produced units for free.
+test('territory battle armies, credits and paid enemy production follow Rules.txt', opts, () => {
+  const all = loadAll();
+  assert.deepStrictEqual(all.rules.campaignMoney, { attack: 5000, defend: 2500 });
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const attack = buildMission({ scripts: [], meta, ...all, name: 'army', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(attack.script.includes('call EmpSpawnSet(0, 20, GetLocationX(p), GetLocationY(p)'), 'attacking army worth UnitValueAttacker');
+  assert.ok(attack.script.includes('call EmpSpawnSet(1, 5, EmpBaseX[b], EmpBaseY[b]'), 'defending army worth UnitValueDefender');
+  assert.ok(attack.script.includes('call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, 5000)'));
+  assert.ok(attack.script.includes('call SetPlayerStateBJ(Player(1), PLAYER_STATE_RESOURCE_GOLD, 2500)'));
+  const trooper = all.units.rawcode.get('HKTrooper');
+  const cost = all.rules.objects.get('HKTrooper')?.cost;
+  assert.ok(cost && cost > 0);
+  assert.ok(attack.script.includes(`call SaveInteger(EmpCostTab, '${trooper}', 0, ${cost})`), 'enemy pays Rules.txt Cost');
+  const defend = buildMission({ scripts: [], meta, ...all, name: 'hold', playerHouse: 'Atreides', kind: 'defend', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(defend.script.includes('call EmpSpawnSet(1, 20, EmpEntrX[e], EmpEntrY[e]'), 'the attacker arrives with UnitValueAttacker');
+  assert.ok(defend.script.includes('call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, 2500)'));
+});
+
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines
 // (ATP1D19GN -> KK-M024, KK-M026). They were not played: only the text was shown.
 test('mission start plays the spoken briefing of the chosen script', opts, () => {

@@ -4,9 +4,12 @@
 // The enemy house and tech level are runtime values (EmpEnemyHouse 0 AT / 1 HK / 2 OR,
 // EmpTechLevel), set from the campaign cache by mission.ts before EmpBattleInit runs.
 //
+// From Rules.txt: starting armies (UnitValueAttacker / UnitValueDefender, sets of the house's units by
+// ReinforcementValue), credits (CampaignAttackMoney / CampaignDefendMoney), reinforcement sets, unit
+// costs the enemy pays for its production.
 // Simplifications (TODO(ai)): the enemy base is a fixed template instead of Emperor's
-// position-scored AI builder (ai.ini); AI units are produced without paying; waves attack the
-// player's base point every 150 s.
+// position-scored AI builder (ai.ini), the enemy does not rebuild or expand it, and its army
+// attacks the player's base point every ENEMY_WAVE_PERIOD instead of Emperor's AI tactics.
 
 import { real } from '../wc3/jass.ts';
 import { renderFile } from '../wc3/template.ts';
@@ -16,7 +19,7 @@ import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
 import { EMPEROR_TILE, TICKS_PER_SECOND } from '../config/scale.ts';
 import { TERRAIN } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
-import type { WormRules } from './rules.ts';
+import type { WormRules, Rules } from './rules.ts';
 import { MAX_SIDE, DEFAULT_FACING } from '../config/runtime.ts';
 import * as C from '../config/battle.ts';
 import type { MapMeta } from './mapxbf.ts';
@@ -44,6 +47,8 @@ export interface BattleOptions {
   defend?: boolean;
   /** sandworm rules (Rules.txt); territory battles get worms when given */
   worms?: WormRules;
+  /** Rules.txt: armies (UnitValue*), credits (Campaign*Money), unit costs */
+  rules?: Rules;
 }
 
 export interface BattleSetup {
@@ -147,8 +152,8 @@ function battleSetup(o: BattleOptions): BattleSetup {
   }
 
   // ---- starting forces / enemy base (territory battles) ----
-  const own = (suffix: string): string | undefined => rc(P + suffix);
-  const playerArmy = [mcv, own('Infantry') || own('LightInf'), own('Infantry') || own('LightInf'), own('Trike') || own('Buzzsaw') || own('DustScout'), harvester].filter(isId);
+  // the attacking player brings an MCV and a harvester besides the army (Rules.txt UnitValueAttacker)
+  const support = [mcv, harvester].filter(isId);
   const pickFn = (name: string, perHouse: string[][]): string => `function ${name} takes integer i returns integer
 ${byHouse(perHouse.map((list) => list.map((id, k) => `        if i == ${k} then\n            return '${id}'\n        endif`).join('\n') || '        return 0'))}
     return 0
@@ -162,14 +167,22 @@ endfunction`;
   const playerBase = C.BASE_TEMPLATE.map(([sfx, dx, dy]) => (rc(P + sfx) ? `    call CreateUnit(Player(0), '${rc(P + sfx)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), ${FACING})` : '')).filter(Boolean).join('\n');
   const barracksOf = PREFIXES.map((h) => rc(`${h}Barracks`));
   const factoryOf = PREFIXES.map((h) => rc(`${h}Factory`));
+  // Rules.txt Cost of every unit the enemy may produce (it pays for them)
+  const costOf = (id: string): number => {
+    const name = [...o.units.rawcode].find(([, v]) => v === id)?.[0];
+    return (name && o.rules?.objects.get(name)?.cost) || 0;
+  };
+  const produced = [...new Set([...infBy.flat(), ...vehBy.flat()])];
   fns.push(jass('forces', {
     harvester, playerBase,
     vehMax: C.ENEMY_VEHICLES.length - 1, infMax: C.ENEMY_INFANTRY.length - 1,
-    playerArmyLines: playerArmy.map((id) => `    call CreateUnit(Player(0), '${id}', GetLocationX(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), GetLocationY(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), ${FACING})`).join('\n'),
+    supportLines: support.map((id) => `    call CreateUnit(Player(0), '${id}', GetLocationX(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), GetLocationY(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), ${FACING})`).join('\n'),
     enemyBaseByHouse: byHouse(enemyBase),
     isBarracks: barracksOf.map((id) => `t == '${id}'`).join(' or '),
     isFactory: factoryOf.map((id) => `t == '${id}'`).join(' or '),
-    defendArmyLines: playerArmy.slice(C.DEFEND_ARMY_FROM, C.DEFEND_ARMY_TO).map((id) => `    call CreateUnit(Player(0), '${id}', EmpBaseX[b] + GetRandomReal(-${C.DEFEND_ARMY_SPREAD}, ${C.DEFEND_ARMY_SPREAD}), EmpBaseY[b] + GetRandomReal(-${C.DEFEND_ARMY_SPREAD}, ${C.DEFEND_ARMY_SPREAD}), ${FACING})`).join('\n'),
+    costLines: produced.map((id) => `    call SaveInteger(EmpCostTab, '${id}', 0, ${costOf(id)})`).join('\n'),
+    army: { attacker: o.rules?.reinforcements.attacker ?? C.FALLBACK_ARMY_VALUE, defender: o.rules?.reinforcements.defender ?? C.FALLBACK_ARMY_VALUE },
+    money: o.rules?.campaignMoney ?? { attack: C.FALLBACK_CREDITS, defend: C.FALLBACK_CREDITS },
   }));
 
   fns.push(jass('init', { territoryBattle: o.territoryBattle, attackBattle: o.territoryBattle && !o.defend, defendBattle: o.territoryBattle && Boolean(o.defend) }));

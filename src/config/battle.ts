@@ -15,14 +15,13 @@ export const SPICE_CLUSTER_REACH = 2;
 export const SPICE_PER_TILE = 1500;
 export const SPICE_FIELD_MIN = 2000;
 
-/** Starting credits: attack battle, defence battle. */
-export const START_CREDITS = 3000;
-export const DEFEND_CREDITS = 2500;
-/** Random spread of the starting army around the entrance. */
+/** Starting credits and army values come from Rules.txt (Campaign*Money, UnitValueAttacker /
+ * UnitValueDefender); these stand in only for a build without Rules.txt. */
+export const FALLBACK_CREDITS = 2500;
+export const FALLBACK_ARMY_VALUE = 10;
+/** Random spread of the attacking army around the entrance. */
 export const START_ARMY_SPREAD = 200;
-/** Defence: units of the starting army (index range) placed in the base, spread around it. */
-export const DEFEND_ARMY_FROM = 1;
-export const DEFEND_ARMY_TO = 4;
+/** Defence: spread of the defending army around the player's base. */
 export const DEFEND_ARMY_SPREAD = 300;
 
 /** Where helper units appear relative to their building / the base point. */
@@ -39,14 +38,13 @@ export const MCV_CONSUME_RADIUS = 900;
 export const HARVEST_CHECK_PERIOD = 3;
 export const ENEMY_PRODUCE_PERIOD = 20;
 export const ENEMY_WAVE_PERIOD = 150;
-export const DEFEND_WAVE_PERIOD = 75;
-export const DEFEND_WAVES = 4;
-/** Defence wave: DEFEND_WAVE_BASE + tech level / 2 units, spread around the enemy entrance. */
-export const DEFEND_WAVE_BASE = 3;
+/** Defence: the attacker's army arrives this long after the start, spread around its entrance;
+ * later only its reinforcement sets come. */
+export const DEFEND_ATTACK_DELAY = 45;
 export const DEFEND_WAVE_SPREAD = 250;
 export const DEFEND_WAVE_PING_SECONDS = 4;
 export const DEFEND_WAVE_MESSAGE_SECONDS = 8;
-export const DEFEND_WAVE_MESSAGE = 'Ментат: Враг атакует! Осталось волн: ';
+export const DEFEND_WAVE_MESSAGE = 'Ментат: Враг атакует нашу базу!';
 /** Random picks of an enemy unit allowed at the current tech level before falling back. */
 export const ENEMY_PICK_TRIES = 20;
 

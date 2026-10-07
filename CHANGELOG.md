@@ -5,6 +5,15 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-07 Битвы за территорию по Rules.txt:
+  - атакующий приходит с MCV, харвестером и армией ценностью `UnitValueAttacker`;
+  - обороняющийся держит базу с армией `UnitValueDefender`;
+  - деньги задаются `CampaignAttackMoney`/`CampaignDefendMoney`;
+  - враг платит за производство (`Cost`) из своих кредитов;
+  - в обороне вместо четырёх выдуманных волн враг один раз атакует армией атакующего, дальше
+    приходят его подкрепления.
+  Раньше отряды и деньги были фиксированными, а производство врага — бесплатным
+  ([src/jass/battle/forces.j](src/jass/battle/forces.j)).
 - 2026-10-07 Подкрепления по Rules.txt. Раз в `TicksBetweenReinforcements` ±`Variation` к входу
   стороны приходят случайные юниты её дома (по `ReinforcementValue` и `TechLevel`) на сумму
   ценности волны; за `TicksBeforeReinforcementsForMessage` игрок получает сообщение. В битвах за
