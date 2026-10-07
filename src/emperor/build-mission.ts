@@ -24,7 +24,7 @@ import type { UnitData } from './units.ts';
 import type { TokenTable } from './tok.ts';
 import type { Speech } from './speech.ts';
 
-import { RAW_DIR, LOCAL_STRINGS_DIR, GAME_DIR, GAME_EXE, MISSIONS_OUT_DIR } from '../config/paths.ts';
+import { RAW_DIR, AI_INI_FILE, LOCAL_STRINGS_DIR, GAME_DIR, GAME_EXE, MISSIONS_OUT_DIR } from '../config/paths.ts';
 
 /** Everything a mission build needs from the extracted game data. */
 export interface EmperorData {
@@ -48,7 +48,7 @@ function loadAll({ models = false }: { models?: boolean } = {}): EmperorData {
   const units = buildUnitData(rules, (n) => tooltipName.get(n.toLowerCase()) || n, icons, modelSet);
   const table = loadTokenTable(GAME_EXE);
   const speech = loadSpeech(GAME_DIR);
-  const aiIni = path.join(RAW_DIR, 'ai.ini');
+  const aiIni = path.join(RAW_DIR, AI_INI_FILE);
   const ai = fs.existsSync(aiIni) ? loadAiRules(aiIni) : undefined;
   return { ctx, rules, units, table, speech, ...(ai ? { ai } : {}) };
 }

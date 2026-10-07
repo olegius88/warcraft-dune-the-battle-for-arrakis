@@ -12,6 +12,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { AI_DIFFICULTY_FILE } from '../config/paths.ts';
 import { AI_TECH_LEVELS } from '../config/battle.ts';
+import { JUMP_POINT } from '../config/campaign.ts';
+import { HOUSE_BY_CODE } from '../config/houses.ts';
+import type { HouseCode } from '../config/houses.ts';
 import { parseSections } from './rules.ts';
 
 export interface PositionWeights {
@@ -141,10 +144,18 @@ function parseAiRules(text: string, difficulty = ''): AiRules {
   };
 }
 
-/** ai.ini and the ai_difficulty.ini next to it */
-function loadAiRules(file: string): AiRules {
+/** ai.ini and the ai_difficulty.ini next to it; override (an ai_<house>_<mission>.ini) goes over
+ * ai.ini: it is read first, and the first value of a key wins. */
+function loadAiRules(file: string, override?: string | null): AiRules {
   const difficulty = path.join(path.dirname(file), AI_DIFFICULTY_FILE);
-  return parseAiRules(fs.readFileSync(file, 'latin1'), fs.existsSync(difficulty) ? fs.readFileSync(difficulty, 'latin1') : '');
+  const over = override && fs.existsSync(override) ? `${fs.readFileSync(override, 'latin1')}\n` : '';
+  return parseAiRules(over + fs.readFileSync(file, 'latin1'), fs.existsSync(difficulty) ? fs.readFileSync(difficulty, 'latin1') : '');
 }
 
-export { parseAiRules, parseAiDifficulty, loadAiRules };
+/** ai_<house>_t<jump point>.ini ("<House> Jump Point"): the AI defending its capital; null if absent */
+function capitalAiOverride(dir: string, h: HouseCode): string | null {
+  const file = path.join(dir, `ai_${HOUSE_BY_CODE[h].toLowerCase()}_t${JUMP_POINT[h]}.ini`);
+  return fs.existsSync(file) ? file : null;
+}
+
+export { parseAiRules, parseAiDifficulty, loadAiRules, capitalAiOverride };

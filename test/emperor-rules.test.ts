@@ -98,6 +98,20 @@ test('the shipped ai.ini: building ratios, site weights, strategy values', { ski
   assert.strictEqual(ai.tech[8]?.unitDelay, 100);
 });
 
+// ai_<house>_t<jump point>.ini: the AI defending its own capital builds no defences (AT also keeps
+// 30 % home); they were not read (second audit 2026-10-08).
+test('the capital overrides ai_<house>_t<n>.ini go over ai.ini', { skip: fs.existsSync(path.join(RAW_DIR, 'ai_atreides_t33.ini')) ? false : 'game data not extracted' }, async () => {
+  const { loadAiRules, capitalAiOverride } = await import('../src/emperor/ai-rules.ts');
+  assert.strictEqual(path.basename(capitalAiOverride(RAW_DIR, 'AT') ?? ''), 'ai_atreides_t33.ini');
+  assert.strictEqual(path.basename(capitalAiOverride(RAW_DIR, 'HK') ?? ''), 'ai_harkonnen_t1.ini');
+  const base = loadAiRules(path.join(RAW_DIR, 'ai.ini'));
+  const at = loadAiRules(path.join(RAW_DIR, 'ai.ini'), capitalAiOverride(RAW_DIR, 'AT'));
+  assert.strictEqual(base.buildsDefences, true);
+  assert.strictEqual(at.buildsDefences, false);
+  assert.strictEqual(at.defencePercent, 30);
+  assert.strictEqual(at.maxRefineries, base.maxRefineries, 'other keys from ai.ini');
+});
+
 test('ai_difficulty.ini: a key missing in a tech level comes from [Tech1]', async () => {
   const { parseAiDifficulty } = await import('../src/emperor/ai-rules.ts');
   const t = parseAiDifficulty('[Tech1]\nMaxAiUnits=22\nUnitDelay=875 // 35 seconds\n[Tech2]\nMaxAiUnits=23\n');

@@ -24,6 +24,8 @@ export const DATA_DIR = path.join(PROJECT_ROOT, 'data');
 export const RAW_DIR = path.join(DATA_DIR, 'emperor', 'raw');
 /** ai_difficulty.ini (next to ai.ini in RAW_DIR): AI values per tech level */
 export const AI_DIFFICULTY_FILE = 'ai_difficulty.ini';
+/** ai.ini (RAW_DIR): the AI's strategy (src/emperor/ai-rules.ts) */
+export const AI_INI_FILE = 'ai.ini';
 /** Loose DATA files copied next to the archives (localised strings, dialog tables). */
 export const LOOSE_DIR = path.join(RAW_DIR, 'loose');
 export const LOCAL_STRINGS_DIR = path.join(LOOSE_DIR, 'strings');

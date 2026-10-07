@@ -18,7 +18,8 @@ import { loadCampaign, defendVariant } from './campaign-data.ts';
 import type { MissionKindKey } from './campaign-data.ts';
 import type { StoryRef } from '../config/story.ts';
 import { TUTORIAL_SCRIPT, TUTORIAL_MAP, territoryMapPrefix } from '../config/story.ts';
-import { HOUSE_BY_CODE as HOUSE_NAME, HOUSE_RU, isHouseCode } from '../config/houses.ts';
+import { HOUSE_BY_CODE as HOUSE_NAME, HOUSE_RU, HOUSE_CODES, isHouseCode } from '../config/houses.ts';
+import { loadAiRules, capitalAiOverride } from './ai-rules.ts';
 import type { HouseCode } from '../config/houses.ts';
 import * as CP from '../config/campaign.ts';
 import { buildMission } from './mission.ts';
@@ -43,7 +44,7 @@ import { buildIntro } from './intro.ts';
 import { buildMenuScene } from './menu-scene.ts';
 import { MENU_MODEL } from '../config/menu.ts';
 import { MENU_TRACK } from '../config/music.ts';
-import { RAW_DIR, CAMPAIGN_OUT, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
+import { RAW_DIR, AI_INI_FILE, CAMPAIGN_OUT, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
 
 const args = process.argv.slice(2);
 const opt = (n: string, d: string): string => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] as string : d; };
@@ -195,8 +196,12 @@ for (const h of houses) {
       }
       const file = CP.MAP_FILE.battle(h, kind, n);
       const enemy = owner === h ? CP.DEFAULT_ENEMY[h] : owner;
+      // the AI defending its own capital follows ai_<house>_t<n>.ini over ai.ini (no defences)
+      const capitalOf = HOUSE_CODES.find((x) => x !== h && camp.jumpPoint[x] === n);
+      const capitalAi = kind === 'attack' && capitalOf ? capitalAiOverride(RAW_DIR, capitalOf) : null;
       mission(file, `${kind === 'attack' ? 'Атака' : 'Оборона'}: ${t.name}`, scripts, territoryMapPrefix(n), kind, {
         territory: n, defaultEnemyHouse: enemy ? HOUSE_NAME[enemy] : undefined,
+        ...(capitalAi ? { ai: loadAiRules(path.join(RAW_DIR, AI_INI_FILE), capitalAi) } : {}),
       });
       battleFile[`${kind}:${n}`] = file;
     }
