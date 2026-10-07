@@ -48,6 +48,8 @@
     hashtable EmpSwTab = null
     group EmpSwFleeGroup = null
     integer EmpSwDeathHand = 0
+    // units of each side that are berserk (owned by Neutral Hostile for a while)
+    integer array EmpSwBerserk
     real EmpTmpX = 0.0
     real EmpTmpY = 0.0
     real EmpTmpR = 0.0

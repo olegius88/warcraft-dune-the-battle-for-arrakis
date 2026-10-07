@@ -83,6 +83,9 @@ export const DEFENCE_BUILDING = /Wall|Turret|Pillbox/;
 export const ALLY_BUILDER_NAME = 'Строитель союзников';
 /** Name of a building upgrade (war3map.w3q): prefix + the building's name. */
 export const UPGRADE_NAME_PREFIX = 'Улучшение: ';
+/** Extended tooltip of a building upgrade: the types it unlocks. */
+export const UPGRADE_UNLOCKS_PREFIX = 'Открывает: ';
+export const UPGRADE_UNLOCKS_NONE = 'улучшенное здание';
 /** Palace super weapon charge (src/emperor/superweapons.ts): a stock artillery unit (mortar team),
  * whose attack-ground order fires the strike (probe src/smoke/build-superweapon-probe.ts). */
 export const SUPERWEAPON_BASE = 'hmtm';

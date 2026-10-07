@@ -170,6 +170,10 @@ test('building upgrades: researched by the building, required by UpgradedPrimary
   assert.ok(!fieldOf('ATInfantry', 'ureq').split(',').includes(atUp.id), 'plain infantry does not');
   const yardUp = up.find((u) => u.building === 'HKConYard');
   assert.ok(yardUp && fieldOf('HKGunTurret', 'ureq').split(',').includes(yardUp.id), 'turret needs the upgraded construction yard');
+  // Regression: only gnam / gtp1 were set, so hovering the button showed the stock extended tooltip
+  // of the base upgrade (Iron Forged Swords). gub1 now says what the upgrade unlocks.
+  const w3q = all.units.w3q.toString('latin1');
+  assert.strictEqual((w3q.match(/gub1/g) ?? []).length, up.length, 'every upgrade has its extended tooltip');
   // upgrade time: UpgradeBuildTime, else the building's own BuildTime
   assert.strictEqual(up.find((u) => u.building === 'HKRefineryDock')?.seconds, 720 / 25);
   assert.strictEqual(atUp.seconds, (all.rules.objects.get('ATBarracks')?.buildTime ?? 0) / 25);
@@ -231,6 +235,13 @@ test('palace super weapons: Rules.txt strike data, trained by the palace, fired 
   assert.ok(m.script.includes(`call EmpSwType('${dhId}', 1, 2500.0, 384.0, true, 0.0)`), 'Death Hand strike data');
   assert.ok(m.script.includes('EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER') && m.script.includes('OrderId("attackground")'), 'strike by attack-ground');
   assert.ok(!/NUKE_RADIUS|2000\.0\)\s*$/m.test(m.script) && m.script.includes('function EmpNukeAt'), 'SideNuke strikes with the Death Hand data');
+  // Regression: berserk units belong to Neutral Hostile until they calm down, so a side whose last
+  // units went berserk counted as beaten (EmpNormalCheck). Berserk units are counted per side and the
+  // rule waits for them.
+  const check = m.script.slice(m.script.indexOf('function EmpNormalCheck'), m.script.indexOf('endfunction', m.script.indexOf('function EmpNormalCheck')));
+  assert.ok(check.includes('EmpSwBerserk[0] == 0') && check.includes('EmpSwBerserk[1] == 0'), 'win / lose wait for berserk units');
+  assert.ok(m.script.includes('set EmpSwBerserk[GetPlayerId(GetOwningPlayer(u))] = EmpSwBerserk[GetPlayerId(GetOwningPlayer(u))] + 1'), 'counted when berserk');
+  assert.ok(m.script.includes('set EmpSwBerserk[p - 1] = EmpSwBerserk[p - 1] - 1'), 'uncounted when calm');
   // the enemy AI charges its palace weapon and fires it at the player's base it knows (house 1 = HK)
   assert.ok(m.script.includes(`set EmpAiSw[1] = '${dhId}'`) && m.script.includes('set EmpAiSwTicks[1] = 5184'), 'AI super weapon data');
   assert.ok(m.script.includes('call EmpSwStrike(t, Player(1), EmpAiKnownX, EmpAiKnownY)'), 'AI fires at the known base');

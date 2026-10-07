@@ -279,6 +279,9 @@ function EmpSwCalm takes nothing returns nothing
     if u != null and p > 0 and EmpAlive(u) then
         call SetUnitOwner(u, Player(p - 1), true)
     endif
+    if p > 0 then
+        set EmpSwBerserk[p - 1] = EmpSwBerserk[p - 1] - 1
+    endif
     if u != null then
         call RemoveSavedInteger(EmpSwTab, GetHandleId(u), 23)
     endif
@@ -307,6 +310,8 @@ function EmpSwAffect takes player who, real x, real y, real r, integer kind, rea
             elseif kind == 3 and not HaveSavedInteger(EmpSwTab, GetHandleId(u), 23) then
                 // owned by Neutral Hostile the unit fires on everyone nearby, its old side included
                 call SaveInteger(EmpSwTab, GetHandleId(u), 23, GetPlayerId(GetOwningPlayer(u)) + 1)
+                // still the side's unit for the win / lose rule (EmpNormalCheck)
+                set EmpSwBerserk[GetPlayerId(GetOwningPlayer(u))] = EmpSwBerserk[GetPlayerId(GetOwningPlayer(u))] + 1
                 call SetUnitOwner(u, Player(PLAYER_NEUTRAL_AGGRESSIVE), false)
                 set tm = CreateTimer()
                 call SaveUnitHandle(EmpSwTab, GetHandleId(tm), 0, u)
@@ -641,20 +646,22 @@ endfunction
 
 // Normal Emperor win/lose rule for territory battles: the enemy house loses all buildings ->
 // win; the player has neither buildings nor units -> lose. Story scripts end the game themselves.
+// Berserk units (Chaos Lightning, EmpSwAffect) belong to Neutral Hostile for a while but still count
+// for their side (EmpSwBerserk): a side whose last units went berserk was beaten before.
 function EmpNormalCheck takes nothing returns nothing
     if not EmpNormalConditions or EmpEnded or EmpTick < {{RT.NORMAL_CHECK_GRACE_TICKS}} then
         return
     endif
     if EmpDefendMode then
         // defence: all attack waves have arrived and none of the attackers is left
-        if EmpWavesLeft == 0 and EmpLoseCount(1, 0) == 0 then
+        if EmpWavesLeft == 0 and EmpLoseCount(1, 0) == 0 and EmpSwBerserk[1] == 0 then
             call EmpEnd(true)
         elseif EmpLoseCount(0, 2) == 0 then
             call EmpEnd(false)
         endif
-    elseif EmpLoseCount(1, 2) == 0 and EmpLoseCount(1, 1) == 0 then
+    elseif EmpLoseCount(1, 2) == 0 and EmpLoseCount(1, 1) == 0 and EmpSwBerserk[1] == 0 then
         call EmpEnd(true)
-    elseif EmpLoseCount(0, 0) == 0 then
+    elseif EmpLoseCount(0, 0) == 0 and EmpSwBerserk[0] == 0 then
         call EmpEnd(false)
     endif
 endfunction

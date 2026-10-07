@@ -313,9 +313,12 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       const name = U.UPGRADE_NAME_PREFIX + displayName(u.building);
       const icon = icons?.icon.get(u.building);
       const [bx, by] = upgradeButtons.find(([id]) => id === u.id)?.[1] ?? U.BUTTON_CELLS[0] as readonly [number, number];
+      // extended tooltip: the types that need the upgrade (else the stock one of the base shows)
+      const unlocks = objects.filter((o) => o.emperor && lastOf(o, F.requires).split(',').includes(u.id)).map((o) => displayName((o.emperor as RulesObject).name));
       return { base: CUSTOM_ID.upgradeBase, id: u.id, mods: [
         int(G.buttonX, bx), int(G.buttonY, by),
         { ...str(G.name, name), level: 1 }, { ...str(G.tooltip, name), level: 1 },
+        { ...str(G.tooltipExtended, U.UPGRADE_UNLOCKS_PREFIX + (unlocks.join(', ') || U.UPGRADE_UNLOCKS_NONE)), level: 1 },
         ...(icon ? [{ ...str(G.icon, icon), level: 1 }] : []),
         int(G.goldBase, u.cost), int(G.lumberBase, 0), int(G.timeBase, Math.max(1, u.seconds)), int(G.levels, 1),
       ] };
