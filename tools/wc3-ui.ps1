@@ -9,8 +9,9 @@
 #   -Action Click -Fx 0.5 -Fy 0.5  real left click at a fractional client position
 #   -Action Capture -Out x.png     window picture (PrintWindow, no focus needed)
 #   -Action Idle                   print the user's idle time
+#   -Action WaitIdle               just wait until the user is idle for -IdleSeconds
 param(
-  [ValidateSet('Launch', 'Key', 'Click', 'Capture', 'Idle')][string]$Action = 'Idle',
+  [ValidateSet('Launch', 'Key', 'Click', 'Capture', 'Idle', 'WaitIdle')][string]$Action = 'Idle',
   [int]$Vk = 0x0D,
   [double]$Fx = 0.5,
   [double]$Fy = 0.5,
@@ -61,6 +62,15 @@ function Set-Front([IntPtr]$h) {
 
 switch ($Action) {
   'Idle' { 'idle {0:n0} s' -f (Get-IdleSeconds); return }
+  'WaitIdle' {
+    $waitStart = Get-Date
+    while ((Get-IdleSeconds) -lt $IdleSeconds) {
+      if (((Get-Date) - $waitStart).TotalMinutes -gt $MaxWaitMinutes) { "user not idle for $IdleSeconds s within $MaxWaitMinutes min"; exit 2 }
+      Start-Sleep -Seconds 5
+    }
+    'user idle {0:n0} s after {1:n0} min of waiting' -f (Get-IdleSeconds), ((Get-Date) - $waitStart).TotalMinutes
+    return
+  }
   'Launch' {
     if (Get-Game) { 'already running'; return }
     $p = Start-Process -FilePath $Exe -ArgumentList '-windowmode', 'windowed' -PassThru
