@@ -6,7 +6,9 @@
 
 ### Changed
 - 2026-10-07 JASS вынесен из строк `.ts` в файлы [src/jass/](src/jass/README.md): хаб
-  (`hub/*.j`), связка миссии (`mission/*.j`: ящики, ветеранство, game cache, старт) и рантайм API Emperor (`runtime/globals.j`, `runtime/helpers.j`, тело каждой
+  (`hub/*.j`), связка миссии (`mission/*.j`: ящики, ветеранство, game cache, старт), битва за территорию
+  (`battle/*.j`: экономика, энергия, черви, силы и волны), превью и дымовые тестовые карты
+  (`preview/`, `smoke/`) и рантайм API Emperor (`runtime/globals.j`, `runtime/helpers.j`, тело каждой
   функции `EF_<Name>` в `runtime/api/<Name>.j`). Значения подставляет строгий шаблонизатор
   [src/wc3/template.ts](src/wc3/template.ts). Код карт не изменился, кроме комментариев к
   функциям, которые теперь попадают в скрипт; тест

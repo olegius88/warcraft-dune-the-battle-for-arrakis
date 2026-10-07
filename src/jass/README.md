@@ -37,6 +37,13 @@
 | `mission/debug-report.j` | `src/emperor/mission.ts` | отчёт для автотестов в `CustomMapData` |
 | `mission/autowin.j` | `src/emperor/mission.ts` | автотест: победа через заданное время |
 | `mission/start.j` | `src/emperor/mission.ts` | `EmpStart`: порядок запуска, триггеры, таймеры, музыка, цвета игроков |
+| `battle/tech-limits.j` | `src/emperor/battle.ts` | запрет построек и юнитов выше текущего тех-уровня (`{{limitLines}}` из данных юнитов) |
+| `battle/spice-fields.j` | `src/emperor/battle.ts` | поля спайса по кластерам карты |
+| `battle/economy.j` | `src/emperor/battle.ts` | харвестеры, строитель от ConYard, харвестер от очистителя, расход MCV |
+| `battle/power.j` | `src/emperor/battle.ts` | энергия (Rules.txt): баланс по сторонам, отключение турелей при нехватке |
+| `battle/worms.j` | `src/emperor/battle.ts` | песчаные черви: всплытие, охота, удар снизу |
+| `battle/forces.j` | `src/emperor/battle.ts` | стартовые силы, база врага, производство и волны, оборонительные битвы |
+| `battle/init.j` | `src/emperor/battle.ts` | `EmpBattleInit`: триггеры и таймеры битвы за территорию |
 | `runtime/globals.j` | `src/emperor/runtime.ts` | глобальные переменные рантайма API Emperor |
 | `runtime/helpers.j` | `src/emperor/runtime.ts` | вспомогательные функции рантайма (стороны, подсчёт, ИИ, речь, конец миссии) |
 | `runtime/api/<Name>.j` | `src/emperor/runtime.ts` | тело функции `EF_<Name>` API миссий Emperor |
