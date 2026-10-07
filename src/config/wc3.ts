@@ -138,6 +138,8 @@ export const CUSTOM_ID = {
   builder: { AT: 'xBA0', HK: 'xBH0', OR: 'xBO0' },
   /** walls and turrets builder, per house */
   defenceBuilder: { AT: 'xBA1', HK: 'xBH1', OR: 'xBO1' },
+  /** sub-house buildings builder, per house */
+  allyBuilder: { AT: 'xBA2', HK: 'xBH2', OR: 'xBO2' },
 } as const;
 
 /** Effect models (JASS paths: written through str(), which escapes the backslashes). */

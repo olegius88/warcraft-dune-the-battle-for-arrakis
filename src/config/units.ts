@@ -79,6 +79,8 @@ export const BUILDER_NAME = 'Строитель';
 /** Second builder (walls, turrets): one build menu holds 11 buildings, a house has 12. */
 export const DEFENCE_BUILDER_NAME = 'Строитель укреплений';
 export const DEFENCE_BUILDING = /Wall|Turret|Pillbox/;
+/** Third builder: the buildings of allied sub-houses (config/campaign.ts SUBHOUSE_BUILDINGS). */
+export const ALLY_BUILDER_NAME = 'Строитель союзников';
 /** Name of a building upgrade (war3map.w3q): prefix + the building's name. */
 export const UPGRADE_NAME_PREFIX = 'Улучшение: ';
 /** Palace super weapon charge (src/emperor/superweapons.ts): a stock artillery unit (mortar team),

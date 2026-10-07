@@ -17,7 +17,8 @@
 // appear after BuildTime without a construction phase. The original AI code is not in the data, so
 // how closely its timing matches cannot be checked beyond the ai.ini values.
 
-import { real } from '../wc3/jass.ts';
+import { real, str } from '../wc3/jass.ts';
+import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS } from '../config/campaign.ts';
 import { renderFile } from '../wc3/template.ts';
 import type { Scope } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
@@ -142,8 +143,12 @@ function battleSetup(o: BattleOptions): BattleSetup {
   const mcv = rc('MCV');
   fns.push(jass('economy', {
     spiceField: o.units.ids.spiceField, harvester, mcv,
-    // both builders of the house (units.ts: walls and turrets have their own)
-    builderLines: PREFIXES.map((h, i) => `    if t == '${conYards[i]}' then\n${[o.units.ids.builders[h], o.units.ids.defenceBuilders[h]].map((id, k) => `        call CreateUnit(GetOwningPlayer(b), '${id}', GetUnitX(b) - ${real(C.BUILDER_OFFSET * (k + 1))}, GetUnitY(b) - ${real(C.BUILDER_OFFSET)}, ${FACING})`).join('\n')}\n    endif`).join('\n'),
+    // the builders of the house (units.ts: walls and turrets have their own); the sub-house builder
+    // only for the player allied with a sub-house (mission subhouse.j)
+    builderLines: PREFIXES.map((h, i) => `    if t == '${conYards[i]}' then\n${[o.units.ids.builders[h], o.units.ids.defenceBuilders[h]].map((id, k) => `        call CreateUnit(GetOwningPlayer(b), '${id}', GetUnitX(b) - ${real(C.BUILDER_OFFSET * (k + 1))}, GetUnitY(b) - ${real(C.BUILDER_OFFSET)}, ${FACING})`).join('\n')}
+        if GetOwningPlayer(b) == Player(0) and EmpInCampaign and (${Object.keys(SUBHOUSE_TAGS).map((tag) => `GetStoredInteger(EmpCache, ${J_CACHE_CATEGORY}, ${str(CACHE_KEY.allyPrefix + tag)}) == 1`).join(' or ')}) then
+            call CreateUnit(GetOwningPlayer(b), '${o.units.ids.allyBuilders[h]}', GetUnitX(b) - ${real(C.BUILDER_OFFSET * 3)}, GetUnitY(b) - ${real(C.BUILDER_OFFSET)}, ${FACING})
+        endif\n    endif`).join('\n'),
     isRefinery: refineries.map((r) => `t == '${r}'`).join(' or '),
     isConYard: conYards.map((c) => `GetUnitTypeId(b) == '${c}'`).join(' or '),
   }));

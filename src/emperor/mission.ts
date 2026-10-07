@@ -21,7 +21,7 @@ import { superweapons } from './superweapons.ts';
 import type { Speech } from './speech.ts';
 import type { AiRules } from './ai-rules.ts';
 import { HOUSE_ID, HOUSES, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_BY_CODE } from '../config/houses.ts';
-import { CACHE_FILE, CACHE_KEY, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
+import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, SUBHOUSE_BUILDINGS, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
 import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, DAMAGE_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
@@ -252,7 +252,23 @@ function buildMission(p: MissionParams): BuiltMission {
   const wonKey = (attack: string): string => str(CACHE_KEY.wonPrefix + attack);
   const wonCheck = (s: MissionScript): string => (s.whenWon ? ` and GetStoredInteger(EmpCache, ${CAT}, ${wonKey(s.whenWon.attack)}) ${s.whenWon.won ? '==' : '!='} 1` : '');
   // an attack records its win for the defence variants of its territory
-  const wonLines = p.kind === 'attack' ? scripts.map((s, i) => `        if EmpScriptIndex == ${i} then\n            call StoreInteger(EmpCache, ${CAT}, ${wonKey(s.name)}, 1)\n        endif`).join('\n') : '';
+  // ... and the alliance of the sub-house it is tagged with (config SUBHOUSE_TAGS)
+  const allyKey = (tag: string): string => str(CACHE_KEY.allyPrefix + tag);
+  const allyLines = (name: string): string[] => {
+    const tag = /^(?:AT|HK|OR)P\dM\d+([A-Z]{2})$/i.exec(name)?.[1]?.toUpperCase() ?? '';
+    const sub = SUBHOUSE_TAGS[tag];
+    if (!sub) return [];
+    return [`            call StoreInteger(EmpCache, ${CAT}, ${allyKey(tag)}, 1)`, ...(sub.rival ? [`            call StoreInteger(EmpCache, ${CAT}, ${allyKey(sub.rival)}, 0)`] : [])];
+  };
+  const wonLines = p.kind === 'attack' ? scripts.map((s, i) => [`        if EmpScriptIndex == ${i} then`, `            call StoreInteger(EmpCache, ${CAT}, ${wonKey(s.name)}, 1)`, ...allyLines(s.name), '        endif'].join('\n')).join('\n') : '';
+  // sub-house buildings: locked unless the player is allied with their sub-house (in the campaign)
+  const subLines = SUBHOUSE_BUILDINGS.map((b) => {
+    const id = p.units.rawcode.get(b);
+    if (!id) return '';
+    const tag = Object.entries(SUBHOUSE_TAGS).find(([, s]) => s.building === b)?.[0];
+    const allowed = tag ? `i == 0 and EmpInCampaign and GetStoredInteger(EmpCache, ${CAT}, ${allyKey(tag)}) == 1` : 'false';
+    return `        if not (${allowed}) then\n            call SetPlayerTechMaxAllowed(Player(i), '${id}', 0)\n        endif`;
+  }).filter(Boolean).join('\n');
   const pickScript = scripts.length
     ? `    // pick the script of the current campaign phase (fallback: the first one)\n    set EmpScriptIndex = 0\n${scripts.map((s, i) => `    if ${s.whenWon ? 'EmpInCampaign and ' : ''}EmpPhase == ${s.phase}${wonCheck(s)} then\n        set EmpScriptIndex = ${i}\n    endif`).join('\n')}`
     : '';
@@ -284,7 +300,7 @@ function buildMission(p: MissionParams): BuiltMission {
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], wonLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], wonLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -304,6 +320,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('reinforcements'),
     jass('stealth'),
     jass('superweapon'),
+    jass('subhouse'),
     `function EmpPlaced takes nothing returns nothing\n${placed.join('\n')}\nendfunction`,
     `function EmpMissionTick takes nothing returns nothing\n${dispatch}\nendfunction`,
     ...(debriefBlocks.length ? [`function EmpDebriefSpeech takes boolean win returns real\n    local real t = 0.0\n${debriefBlocks.join('\n')}\n    return t\nendfunction`] : []),

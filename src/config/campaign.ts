@@ -21,6 +21,20 @@ export const JUMP_SCRIPT: Readonly<Record<HouseCode, Readonly<Partial<Record<Hou
 export type MissionKind = 'attack' | 'defend' | 'story' | 'start' | 'tutorial';
 export const KIND_ID: Readonly<Record<MissionKind, number>> = { attack: 0, defend: 1, story: 2, start: 3, tutorial: 4 };
 
+/** Sub-house alliances, inferred from the scripts (not from game code): an attack tagged with the
+ * sub-house (<H>P<p>M<t><tag>, e.g. ATP1M1FR "protect the Fremen camp") allies it when won, which
+ * unlocks its building; Ix and Tleilaxu exclude each other (Wikipedia, Emperor: Battle for Dune).
+ * TODO(subhouse): no attack is tagged with the Guild, so GUPalace stays locked; the scripts' other
+ * ways of winning or losing a sub-house (story choices) are not modelled. */
+export const SUBHOUSE_TAGS: Readonly<Record<string, { building: string; rival?: string }>> = {
+  FR: { building: 'FRCamp' },
+  SA: { building: 'IMBarracks' },
+  IX: { building: 'IXResCentre', rival: 'TL' },
+  TL: { building: 'TLFleshVat', rival: 'IX' },
+};
+/** Every sub-house building (the third builder's menu); those without a tag stay locked. */
+export const SUBHOUSE_BUILDINGS: readonly string[] = ['FRCamp', 'IMBarracks', 'IXResCentre', 'TLFleshVat', 'GUPalace'];
+
 /** Phases of the hub: 1..3 territory war, then the home-world attack, then the final battle. How
  * long a phase lasts and the tech levels come from PhaseRules.txt (src/emperor/phase-rules.ts). */
 export const PHASE = { first: 1, second: 2, lastWar: 3, homeAttack: 4, final: 5 } as const;
@@ -65,6 +79,8 @@ export const CACHE_KEY = {
   pendingFrom: 'pendfrom',
   /** wonPrefix + attack script name = 1: that attack was won (picks Fail / Win defence variants) */
   wonPrefix: 'won',
+  /** allyPrefix + sub-house tag (SUBHOUSE_TAGS) = 1: allied with that sub-house */
+  allyPrefix: 'ally',
   /** result handed back to the hub: 1 win, 0 loss, -1 none */
   result: 'result',
   resultTerritory: 'resultterr',

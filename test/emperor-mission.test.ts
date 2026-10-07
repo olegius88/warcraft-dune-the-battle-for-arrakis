@@ -285,6 +285,25 @@ test('command card: the train and research buttons of a building never share a c
   }
 });
 
+// Sub-house buildings (FRCamp, IMBarracks, IXResCentre, TLFleshVat) were never buildable. Inferred
+// from the scripts (not from game code): an attack tagged with a sub-house (ATP1M1FR: protect the
+// Fremen camp) earns that sub-house's alliance when won; Ix and Tleilaxu exclude each other
+// (Wikipedia). An allied sub-house's building is in the third builder's menu; the others stay locked.
+test('sub-house alliances: a won tagged attack allies the sub-house and unlocks its building', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const tokOf = (n: string): Buffer => fs.readFileSync(path.join(RAW, `${n}.tok`));
+  const attack = (s: string) => buildMission({ scripts: [{ tok: tokOf(s), phase: 1, name: s }], meta, ...all, name: s, playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(attack('ATP1M1FR').script.includes('call StoreInteger(EmpCache, "emp", "allyFR", 1)'), 'Fremen ally after ATP1M1FR');
+  const ix = attack('ATP2M13IX').script;
+  assert.ok(ix.includes('call StoreInteger(EmpCache, "emp", "allyIX", 1)') && ix.includes('call StoreInteger(EmpCache, "emp", "allyTL", 0)'), 'Ix ally ends the Tleilaxu one');
+  const camp = all.units.rawcode.get('FRCamp');
+  assert.ok(ix.includes(`call SetPlayerTechMaxAllowed(Player(i), '${camp}', 0)`), 'sub-house building locked unless allied');
+  assert.match(ix, /GetStoredInteger\(EmpCache, "emp", "allyFR"\) == 1/);
+  const menu = all.units.objects.find((o) => o.id === all.units.ids.allyBuilders.AT)?.mods.filter((m) => m.field === 'ubui').map((m) => String(m.value)).at(-1)?.split(',') ?? [];
+  assert.deepStrictEqual(menu.sort(), ['FRCamp', 'IMBarracks', 'IXResCentre', 'TLFleshVat', 'GUPalace'].map((n) => all.units.rawcode.get(n)).sort(), 'third builder');
+});
+
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
 // lines its scripts use and Message() queues them (one at a time, by known duration).
 test('mission messages play the original speech', opts, () => {

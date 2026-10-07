@@ -18,6 +18,7 @@ import { UNIT_FIELD as F, ABILITY_FIELD, UPGRADE_FIELD as G, ABILITY, UNIT, CUST
 import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
 import { superweaponKind } from './superweapons.ts';
+import { SUBHOUSE_BUILDINGS } from '../config/campaign.ts';
 
 type RaceOrNeutral = Wc3Race | 'neutral';
 
@@ -36,6 +37,8 @@ export interface UnitIds {
   builders: Record<string, string>;
   /** second builder per house: walls and turrets */
   defenceBuilders: Record<string, string>;
+  /** third builder per house: the sub-house buildings */
+  allyBuilders: Record<string, string>;
   mcvBuilders: Record<string, string>;
   /** territory marker of the Arrakis hub */
   territoryMarker: string;
@@ -191,7 +194,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   // ---- economy / construction objects (ids fixed so the runtime can refer to them) ----
   const HARVEST_ABILITY = CUSTOM_ID.harvestAbility; // Ahar with Emperor capacity
   // Territory marker of the Arrakis hub map: invulnerable, unarmed, house-coloured tower.
-  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, builders: {}, defenceBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker };
+  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, builders: {}, defenceBuilders: {}, allyBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker };
   const abilities: ObjectDef[] = [{ base: ABILITY.harvest, id: HARVEST_ABILITY, mods: [
     { field: ABILITY_FIELD.harvestGold, type: 'int', value: U.HARVEST_CAPACITY, level: 1, column: 3 },
     { field: ABILITY_FIELD.harvestLumber, type: 'int', value: 0, level: 1, column: 2 },
@@ -220,6 +223,10 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     ids.defenceBuilders[h] = CUSTOM_ID.defenceBuilder[h];
     objects.push(builder(CUSTOM_ID.builder[h], U.BUILDER_NAME, list.filter((b) => !U.DEFENCE_BUILDING.test(b.name))));
     objects.push(builder(CUSTOM_ID.defenceBuilder[h], U.DEFENCE_BUILDER_NAME, list.filter((b) => U.DEFENCE_BUILDING.test(b.name))));
+    // sub-house buildings (any house's construction yard is their PrimaryBuilding; locked unless
+    // allied, mission subhouse.j)
+    ids.allyBuilders[h] = CUSTOM_ID.allyBuilder[h];
+    objects.push(builder(CUSTOM_ID.allyBuilder[h], U.ALLY_BUILDER_NAME, SUBHOUSE_BUILDINGS.map((n) => rules.objects.get(n)).filter((b): b is RulesObject => Boolean(b))));
   }
 
   for (const obj of objects) {

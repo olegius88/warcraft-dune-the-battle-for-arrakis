@@ -21,7 +21,7 @@ import type { Campaign, Territory } from './campaign-data.ts';
 import { defendVariant } from './campaign-data.ts';
 import { HOUSE_CODES, HOUSE_RU_BY_ID, HOUSE_COLOR } from '../config/houses.ts';
 import type { HouseCode } from '../config/houses.ts';
-import { CACHE_FILE, CACHE_KEY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
+import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
 import type { PhaseRules } from './phase-rules.ts';
 import { DEFAULT_FACING, TIME_OF_DAY, DEBUG_REPORT_DIR } from '../config/runtime.ts';
 import { CUSTOM_ID, TERRAIN } from '../config/wc3.ts';
@@ -185,7 +185,9 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   // a new campaign forgets the won attacks that pick Fail / Win defence variants (mission.ts)
   const wonAttacks = new Set(Object.values(o.campaign.missions[o.house].defend)
     .map((d) => defendVariant(o.campaign, o.house, d.phase, d.territory)?.attack).filter((x): x is string => Boolean(x)));
-  const wonClearLines = [...wonAttacks].map((a) => `        call StoreInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.wonPrefix + a)}, 0)`).join('\n');
+  // ... and the sub-house alliances (config SUBHOUSE_TAGS)
+  const wonClearLines = [...[...wonAttacks].map((a) => CACHE_KEY.wonPrefix + a), ...Object.keys(SUBHOUSE_TAGS).map((t) => CACHE_KEY.allyPrefix + t)]
+    .map((key) => `        call StoreInteger(EmpCache, ${CAT}, ${str(key)}, 0)`).join('\n');
   const functions = renderFile(jassFile('hub/functions'), {
     ADJ_STRIDE, CACHE_FILE, CAT, DEFAULT_FACING, K, KIND_ID, PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, ...phaseJass(o.phaseRules),
     TERRITORY_COUNT, TIME_OF_DAY, V, foes, markerId, me, musicList, o, story,

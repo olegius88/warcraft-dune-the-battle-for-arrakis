@@ -8,6 +8,7 @@ function EmpStart takes nothing returns nothing
     call EmpPlaced()
     call EmpVetData()
     call EmpSwInit()
+    call EmpSubhouseLimits()
     call EmpReinfData()
 {{pickScript}}{{#if hasBriefingSpeech}}
     call EmpBriefingSpeech(){{/if}}
