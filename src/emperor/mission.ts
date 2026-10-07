@@ -8,34 +8,78 @@ import { buildRuntime } from './runtime.ts';
 import { translateScript } from './translate.ts';
 import { buildTerrain } from './terrain.ts';
 import { battleSetup } from './battle.ts';
+import type { House } from './battle.ts';
+import type { ScriptPlayer } from '../wc3/jass.ts';
+import type { MapMeta, GamePoint } from './mapxbf.ts';
+import type { TokenTable } from './tok.ts';
+import type { MissionContext } from './context.ts';
+import type { UnitData } from './units.ts';
+import type { Rules } from './rules.ts';
+import type { Speech } from './speech.ts';
 
 const TICK = 1 / 25; // seconds per Emperor tick, TODO(tick-rate)
-const HOUSE_ID = { Atreides: 0, Harkonnen: 1, Ordos: 2 };
+const HOUSE_ID: Record<House, number> = { Atreides: 0, Harkonnen: 1, Ordos: 2 };
 const HOUSE_COLOR = [1, 0, 6]; // WC3 player colours: blue, red, green
 const CACHE_FILE = 'EmperorCampaign.w3v';
 
-/**
- * @param {object} p
- * @param {{tok: Buffer, phase: number, name: string}[]} p.scripts  mission scripts (may be empty: plain battle)
- * @param {object} p.meta           mapxbf.readMeta of the mission map
- * @param {object[]} p.table        token table (Game.exe)
- * @param {object} p.ctx            emperor/context.js loadContext()
- * @param {object} p.units          emperor/units.js buildUnitData()
- * @param {string} p.name           map title
- * @param {string} p.playerHouse    'Atreides' | 'Harkonnen' | 'Ordos'
- * @param {string} [p.defaultEnemyHouse]  used when no campaign cache is present (standalone)
- * @param {number} [p.defaultTech]
- * @param {boolean} [p.territoryBattle]
- * @param {number} [p.territory]    campaign territory number (for entrances/results)
- * @param {string} [p.kind]         'attack' | 'defend' | 'story'
- * @param {string} [p.hubMap]       map to return to inside the campaign
- * @param {string} [p.briefing]     loading screen text
- * @param {string} [p.debugName]
- */
-function buildMission(p) {
+export type MissionKind = 'attack' | 'defend' | 'story' | 'start' | 'tutorial';
+const KIND_ID: Record<MissionKind, number> = { attack: 0, defend: 1, story: 2, start: 3, tutorial: 4 };
+
+export interface MissionScript {
+  tok: Buffer;
+  /** campaign phase the script belongs to (chosen at run time) */
+  phase: number;
+  name: string;
+}
+
+export interface MissionParams {
+  /** mission scripts (may be empty: plain battle) */
+  scripts?: MissionScript[];
+  /** mapxbf.readMeta of the mission map */
+  meta: MapMeta;
+  /** token table (Game.exe) */
+  table: TokenTable;
+  ctx: MissionContext;
+  units: UnitData;
+  /** for the veterancy table; without it units get no veterancy */
+  rules?: Rules;
+  /** original speech of messages; null/absent = text only */
+  speech?: Speech | null;
+  /** map title */
+  name: string;
+  playerHouse: House;
+  /** used when no campaign cache is present (standalone) */
+  defaultEnemyHouse?: House;
+  defaultTech?: number;
+  defaultPhase?: number;
+  territoryBattle?: boolean;
+  /** campaign territory number (for entrances/results) */
+  territory?: number;
+  kind?: MissionKind;
+  /** map to return to inside the campaign */
+  hubMap?: string;
+  /** loading screen text */
+  briefing?: string;
+  debugName?: string;
+  /** extra JASS functions appended to the map script */
+  extraFunctions?: string;
+}
+
+export interface BuiltMission {
+  buffer: Buffer;
+  script: string;
+  /** API functions that only got a stub */
+  stubbed: string[];
+  /** API functions the scripts use */
+  used: Set<string>;
+  /** archive files besides the generated ones (object data, speech) */
+  imports: Record<string, Buffer>;
+}
+
+function buildMission(p: MissionParams): BuiltMission {
   const t = buildTerrain(p.meta);
   const typeNames = p.ctx.objectTypes.map((o) => o.name);
-  const rawcodeOfIndex = (n) => {
+  const rawcodeOfIndex = (n: number): string => {
     const name = typeNames[n];
     const id = name && p.units.rawcode.get(name);
     return id || 'hfoo'; // non-unit object types (explosions, bullets) fall back to a harmless unit
@@ -43,19 +87,20 @@ function buildMission(p) {
   const scripts = (p.scripts || []).map((s, i) => ({
     ...s, tr: translateScript(s.tok, p.table, { rawcode: rawcodeOfIndex, varPrefix: `e${i}v` }, `EmpScript${i}`),
   }));
-  const used = new Set();
-  const messages = new Set();
-  const tooltips = new Set();
+  const used = new Set<string>();
+  const messages = new Set<number>();
+  const tooltips = new Set<number>();
   for (const s of scripts) { s.tr.used.forEach((x) => used.add(x)); s.tr.messages.forEach((x) => messages.add(x)); s.tr.tooltips.forEach((x) => tooltips.add(x)); }
 
   const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend' });
-  const deployMap = { [p.units.rawcode.get('MCV')]: p.units.rawcode.get(`${{ Atreides: 'AT', Harkonnen: 'HK', Ordos: 'OR' }[p.playerHouse]}ConYard`) };
+  const HOUSE_PREFIX: Record<House, string> = { Atreides: 'AT', Harkonnen: 'HK', Ordos: 'OR' };
+  const deployMap: Record<string, string> = { [String(p.units.rawcode.get('MCV'))]: String(p.units.rawcode.get(`${HOUSE_PREFIX[p.playerHouse]}ConYard`)) };
   const rt = buildRuntime(p.table, { deployMap });
 
   // ---- generated data init (points, strings) ----
   const ge = p.meta.gameElements || {};
-  const init = [];
-  const toW = (pt) => t.toWorld(pt.x, pt.y);
+  const init: string[] = [];
+  const toW = (pt: GamePoint): [number, number] => t.toWorld(pt.x, pt.y);
   for (const subs of Object.values(ge)) {
     for (const [sname, pts] of Object.entries(subs)) {
       const m = sname.match(/^Script(\d+)$/);
@@ -76,8 +121,8 @@ function buildMission(p) {
   // "destroy the enemy house" rule; territory battles do.
   init.push(`    set EmpNormalConditions = ${used.has('EndGameWin') || used.has('EndGameLose') ? 'false' : 'true'}`);
   for (const n of messages) { const text = p.ctx.messageText(n); if (text) init.push(`    set EmpMsgText[${n}] = ${str(text)}`); }
-  // original speech of the messages this map uses (src/emperor/speech.js; test/emperor-mission.test.js)
-  const speechImports = {};
+  // original speech of the messages this map uses (src/emperor/speech.js; test/emperor-mission.test.ts)
+  const speechImports: Record<string, Buffer> = {};
   for (const n of messages) {
     const sp = p.speech && p.speech.forKey(p.ctx.messageKey(n));
     if (!sp) continue;
@@ -95,7 +140,7 @@ function buildMission(p) {
     const at = `${real(x)}, ${real(y)}`;
     const n = b.name;
     // Factory frigates are real objects: heighliner scripts win when the enemy has none left
-    // (regression test: test/emperor-mission.test.js).
+    // (regression test: test/emperor-mission.test.ts).
     if (/SFX|hungfigure|NoddingDonkey|Bird|Seagul|Spotlight|DrKynes|CampFire|pyramid|bubble|MegaCannon/i.test(n)) continue;
     if (/Barrel/i.test(n)) placed.push(`    call CreateDestructable('LTbr', ${at}, ${real((b.x * 37) % 360)}, 1.0, 0)`);
     else if (/Tree/i.test(n)) placed.push(`    call CreateDestructable('BTtc', ${at}, ${real((b.x * 53) % 360)}, 1.0, 0)`);
@@ -123,7 +168,7 @@ function buildMission(p) {
     if (o.score !== 1) vetLines.push(`    call SaveInteger(EmpVet, '${id}', 0, ${o.score})`);
     o.veterancy.forEach((l, i) => vetLines.push(`    call EmpVetLevel('${id}', ${i + 1}, ${l.score}, ${Math.round(l.health / 2)}, ${l.extraDamage}, ${l.extraArmour}, ${l.extraRange}, ${l.speed ? Math.min(522, Math.max(60, Math.round(l.speed * 40))) : 0}, ${l.selfRepair}, ${l.elite})`));
   }
-  const half = (n) => (n * 128) / 2;
+  const half = (n: number): number => (n * 128) / 2;
   const [bl, br, bb, btop] = t.boundary;
   init.push(`    set EmpMapMinX = ${real(-half(t.width) + bl * 128)}`, `    set EmpMapMaxX = ${real(half(t.width) - br * 128)}`);
   init.push(`    set EmpMapMinY = ${real(-half(t.height) + bb * 128)}`, `    set EmpMapMaxY = ${real(half(t.height) - btop * 128)}`);
@@ -157,7 +202,7 @@ function buildMission(p) {
     `function EmpData takes nothing returns nothing\n${init.join('\n')}\nendfunction`,
     // Crates (Emperor: a unit driving over the crate gets CrateGiftObject). WC3 items need an
     // inventory, which Emperor units do not have, so the pickup is a proximity check
-    // (regression test: test/emperor-mission.test.js).
+    // (regression test: test/emperor-mission.test.ts).
     `function EmpAddCrate takes real x, real y, integer gift, integer cash returns nothing
     set EmpCrateItem[EmpCrateCount] = CreateItem('gold', x, y)
     call SetItemInvulnerable(EmpCrateItem[EmpCrateCount], true)
@@ -208,7 +253,7 @@ endfunction`,
     // available; thresholds such as ATKindjal 2/10/20 against Score = 1..2 per kill fit it).
     // EmpVet[type]: child 0 = Score, 1 = level count, level L at L*16 + 1..8.
     // EmpVetUnit[handle id]: 0 = score so far, 1 = level, 2..4 = original damage/armour/range.
-    // Regression/feature test: test/emperor-mission.test.js.
+    // Regression/feature test: test/emperor-mission.test.ts.
     `function EmpVetLevel takes integer t, integer lv, integer score, integer hp, integer dmg, integer arm, integer rng, integer spd, boolean repair, boolean elite returns nothing
     local integer b = lv * 16
     call SaveInteger(EmpVet, t, b + 1, score)
@@ -358,7 +403,7 @@ function EmpCampaignResult takes boolean win returns nothing
     call StoreInteger(EmpCache, "emp", "result", EF_B2I(win))
     call StoreInteger(EmpCache, "emp", "outcome", EmpOutcome)
     call StoreInteger(EmpCache, "emp", "resultterr", EmpTerritory)
-    call StoreInteger(EmpCache, "emp", "resultkind", ${{ attack: 0, defend: 1, story: 2, start: 3, tutorial: 4 }[p.kind || 'attack']})
+    call StoreInteger(EmpCache, "emp", "resultkind", ${KIND_ID[p.kind || 'attack']})
     call SaveGameCache(EmpCache)
     if win then
         call EmpShow("Победа! Возвращение на карту Арракиса...")
@@ -396,7 +441,7 @@ endfunction`,
 endfunction`,
     // Emperor starts the main camera on the player's forces; story scripts only pan the PIP
     // window. Unless a script or the battle setup placed the camera, centre it on Player(0)'s
-    // units (regression test: test/emperor-mission.test.js).
+    // units (regression test: test/emperor-mission.test.ts).
     `function EmpInitialCamera takes nothing returns nothing
     local group g
     local unit u
@@ -481,12 +526,13 @@ endfunction`,
   ].join('\n\n');
 
   // players: 0 user + 1..11 computer (sides); all on their own team
-  const b0 = bases[0] || { x: p.meta.mapSize[0] * 16, y: p.meta.mapSize[1] * 16 };
+  const [mapW, mapH] = p.meta.mapSize as [number, number]; // buildTerrain has checked it
+  const b0 = bases[0] || { x: mapW * 16, y: mapH * 16 };
   const [sx, sy] = t.toWorld(b0.x, b0.y);
-  const players = [{ id: 0, control: 'user', race: 'human', team: 0, x: sx, y: sy, name: 'Командор' }];
+  const players: ScriptPlayer[] = [{ id: 0, control: 'user', race: 'human', team: 0, x: sx, y: sy, name: 'Командор' }];
   for (let i = 1; i <= 11; i++) players.push({ id: i, control: 'computer', race: 'orc', team: i, x: sx, y: sy, name: `Сторона ${i}` });
 
-  const imports = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports };
+  const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports };
   const m = buildMap({
     name: p.name, description: p.briefing || '', width: t.width, height: t.height, boundary: t.boundary,
     tileset: t.tileset, ground: t.ground, cliffs: t.cliffs, corner: t.corner, pathing: t.pathing, minimapColor: t.minimapColor,

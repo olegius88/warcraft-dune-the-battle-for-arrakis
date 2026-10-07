@@ -2,19 +2,50 @@
 // spice fields, starting forces, the enemy house's base, AI production/attack waves, the
 // economy/construction glue and tech-level limits. Produces JASS (functions + init lines).
 // The enemy house and tech level are runtime values (EmpEnemyHouse 0 AT / 1 HK / 2 OR,
-// EmpTechLevel), set from the campaign cache by mission.js before EmpBattleInit runs.
+// EmpTechLevel), set from the campaign cache by mission.ts before EmpBattleInit runs.
 //
 // Simplifications (TODO(ai)): the enemy base is a fixed template instead of Emperor's
 // position-scored AI builder (ai.ini); AI units are produced without paying; waves attack the
 // player's base point every 150 s.
 
 import { real } from '../wc3/jass.ts';
+import type { MapMeta } from './mapxbf.ts';
+import type { EmperorTerrain } from './terrain.ts';
+import type { UnitData } from './units.ts';
 
-const HOUSE_PREFIX = { Atreides: 'AT', Harkonnen: 'HK', Ordos: 'OR' };
+export type House = 'Atreides' | 'Harkonnen' | 'Ordos';
+
+export interface SpiceCluster {
+  /** centre in Emperor world units (32 per tile) */
+  x: number;
+  y: number;
+  tiles: number;
+}
+
+export interface BattleOptions {
+  meta: MapMeta;
+  terrain: EmperorTerrain;
+  units: UnitData;
+  playerHouse: House;
+  /** create starting forces / enemy base (false for story missions) */
+  territoryBattle: boolean;
+  /** defence battle: the player holds a base, the enemy attacks in waves */
+  defend?: boolean;
+}
+
+export interface BattleSetup {
+  /** JASS functions */
+  functions: string;
+  /** lines for the init function */
+  init: string;
+  clusters: number;
+}
+
+const HOUSE_PREFIX: Record<string, string> = { Atreides: 'AT', Harkonnen: 'HK', Ordos: 'OR' };
 const PREFIXES = ['AT', 'HK', 'OR']; // index = EmpEnemyHouse / house id
 
 // Enemy base template: [Emperor building suffix, dx, dy] in tiles from the base point.
-const BASE_TEMPLATE = [
+const BASE_TEMPLATE: Array<[string, number, number]> = [
   ['ConYard', 0, 0], ['SmWindtrap', -5, -4], ['SmWindtrap', -5, 0], ['Refinery', 5, -4], ['Barracks', 5, 2],
   ['Factory', 0, 6], ['Outpost', -5, 5], ['Pillbox', -8, -8], ['Pillbox', 8, -8], ['GunTurret', 8, 8], ['GunTurret', -8, 8],
 ];
@@ -22,18 +53,18 @@ const INF = ['Infantry', 'LightInf', 'Trooper', 'Sniper', 'Chemical', 'Flamer', 
 const VEH = ['Trike', 'Buzzsaw', 'DustScout', 'Mongoose', 'Assault', 'LaserTank', 'Flame', 'Kobra', 'Minotaurus', 'InkVine', 'Missile', 'Devastator', 'SonicTank', 'Deviator'];
 
 /** Group spice tiles into clusters (flood fill with a 2-tile reach). */
-function spiceClusters(meta) {
+function spiceClusters(meta: MapMeta): SpiceCluster[] {
+  if (!meta.mapSize || !meta.spice) return [];
   const [W, H] = meta.mapSize;
   const s = meta.spice;
   const seen = new Uint8Array(W * H);
-  const out = [];
+  const out: SpiceCluster[] = [];
   for (let i = 0; i < W * H; i++) {
     if (!s[i] || seen[i]) continue;
     const stack = [i];
     seen[i] = 1;
     let n = 0, sx = 0, sy = 0;
-    while (stack.length) {
-      const j = stack.pop();
+    for (let j = stack.pop(); j !== undefined; j = stack.pop()) {
       const x = j % W, y = (j / W) | 0;
       n++; sx += x; sy += y;
       for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -48,27 +79,26 @@ function spiceClusters(meta) {
   return out;
 }
 
+/** filter(Boolean) for rawcode lookups, typed */
+const isId = (v: string | undefined | null): v is string => Boolean(v);
+
 /** JASS "if/elseif" chain choosing a value by EmpEnemyHouse. */
-function byHouse(lines) {
+function byHouse(lines: string[]): string {
   return lines.map((body, h) => `    ${h === 0 ? 'if' : 'elseif'} EmpEnemyHouse == ${h} then\n${body}`).join('\n') + '\n    endif';
 }
 
-/**
- * @param {object} o
- * @param {object} o.meta, o.terrain (buildTerrain result), o.units (buildUnitData)
- * @param {string} o.playerHouse  'Atreides' | 'Harkonnen' | 'Ordos'
- * @param {boolean} o.territoryBattle  create starting forces/enemy base (false for story missions)
- */
-function battleSetup(o) {
-  const rc = (name) => o.units.rawcode.get(name);
+function battleSetup(o: BattleOptions): BattleSetup {
+  const rc = (name: string): string | undefined => o.units.rawcode.get(name);
   const P = HOUSE_PREFIX[o.playerHouse] || 'AT';
-  const lines = [];
-  const fns = [];
+  const lines: string[] = [];
+  const fns: string[] = [];
 
   // ---- tech limits by runtime tech level ----
-  const gated = o.units.objects.filter((x) => x.emperor && x.emperor.techLevel > 1);
-  const byLevel = {};
-  for (const x of gated) (byLevel[x.emperor.techLevel] = byLevel[x.emperor.techLevel] || []).push(x.id);
+  const byLevel: Record<number, string[]> = {};
+  for (const x of o.units.objects) {
+    if (!x.emperor || x.emperor.techLevel <= 1) continue;
+    (byLevel[x.emperor.techLevel] = byLevel[x.emperor.techLevel] || []).push(x.id);
+  }
   fns.push(`function EmpTechLimits takes nothing returns nothing
     local integer i = 0
     loop
@@ -172,14 +202,14 @@ function EmpOnConstructStart takes nothing returns nothing
 endfunction`);
 
   // ---- starting forces / enemy base (territory battles) ----
-  const own = (suffix) => rc(P + suffix);
-  const playerArmy = [mcv, own('Infantry') || own('LightInf'), own('Infantry') || own('LightInf'), own('Trike') || own('Buzzsaw') || own('DustScout'), harvester].filter(Boolean);
-  const pickFn = (name, perHouse) => `function ${name} takes integer i returns integer
+  const own = (suffix: string): string | undefined => rc(P + suffix);
+  const playerArmy = [mcv, own('Infantry') || own('LightInf'), own('Infantry') || own('LightInf'), own('Trike') || own('Buzzsaw') || own('DustScout'), harvester].filter(isId);
+  const pickFn = (name: string, perHouse: string[][]): string => `function ${name} takes integer i returns integer
 ${byHouse(perHouse.map((list) => list.map((id, k) => `        if i == ${k} then\n            return '${id}'\n        endif`).join('\n') || '        return 0'))}
     return 0
 endfunction`;
-  const infBy = PREFIXES.map((h) => INF.map((s) => rc(h + s)).filter(Boolean));
-  const vehBy = PREFIXES.map((h) => VEH.map((s) => rc(h + s)).filter(Boolean));
+  const infBy = PREFIXES.map((h) => INF.map((s) => rc(h + s)).filter(isId));
+  const vehBy = PREFIXES.map((h) => VEH.map((s) => rc(h + s)).filter(isId));
   fns.push(pickFn('EmpEnemyInf', infBy));
   fns.push(pickFn('EmpEnemyVeh', vehBy));
   fns.push(`// random unit of the enemy house allowed at the current tech level (vehicles if veh)
