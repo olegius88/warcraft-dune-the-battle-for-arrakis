@@ -38,7 +38,12 @@ Add-Type -Namespace W -Name Guard3 -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool IsIconic(System.IntPtr h);
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(System.IntPtr h);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern System.IntPtr FindWindow(string cls, string title);
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 '@
+# Physical pixels: the display is scaled (125 %) and an unaware process gets scaled coordinates and
+# window captures cut to the scaled size (2026-10-07: the game's right quarter was never captured and
+# button positions measured on those captures missed the buttons).
+[void][W.Guard3]::SetProcessDPIAware()
 $docs = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Warcraft III'
 $since = Get-Date
 Get-Process 'Warcraft III' -ErrorAction SilentlyContinue | Stop-Process -Confirm:$false

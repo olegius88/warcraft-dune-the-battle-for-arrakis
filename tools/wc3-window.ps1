@@ -15,7 +15,12 @@ Add-Type -ReferencedAssemblies System.Drawing -Namespace W -Name Win -MemberDefi
 [DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow();
 [DllImport("user32.dll")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);
 [DllImport("user32.dll")] public static extern bool PrintWindow(System.IntPtr h, System.IntPtr hdc, uint flags);
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 '@
+# Physical pixels: the display is scaled (125 %) and an unaware process gets scaled coordinates and
+# window captures cut to the scaled size (2026-10-07: the game's right quarter was never captured and
+# button positions measured on those captures missed the buttons).
+[void][W.Win]::SetProcessDPIAware()
 $p = Get-Process 'Warcraft III' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
 if (-not $p) { 'no Warcraft III window'; exit 1 }
 $h = $p.MainWindowHandle

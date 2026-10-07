@@ -13,7 +13,7 @@ param(
   [Parameter(Mandatory = $true)][string]$Campaign,
   [string]$InstallAs = 'AAA_EmperorAutoTest.w3n',
   [double]$ListFx = 0.259, [double]$ListFy = 0.208,       # entry of the campaign in the custom campaign list
-  [double]$MissionFx = 0.827, [double]$MissionFy = 0.592, # the (single) mission button of the autotest campaign screen
+  [double]$MissionFx = 0.659, [double]$MissionFy = 0.475, # the (single) mission button of the autotest campaign screen (physical pixels, 800x600 client)
   # -KeysOnly: no clicks; the campaign must be first in the list (Enter opens it) and the mission
   # keys are tried in turn until -StartReport (CustomMapData path) is written by the first mission
   [switch]$KeysOnly,
@@ -30,7 +30,12 @@ Add-Type -Namespace CS -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int cmd);
 [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO p);
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 '@
+# Physical pixels: the display is scaled (125 %) and an unaware process gets scaled coordinates and
+# window captures cut to the scaled size (2026-10-07: the game's right quarter was never captured and
+# button positions measured on those captures missed the buttons).
+[void][CS.Win]::SetProcessDPIAware()
 function Idle { $li = New-Object CS.Win+LASTINPUTINFO; $li.cbSize = 8; [void][CS.Win]::GetLastInputInfo([ref]$li); ([Environment]::TickCount - $li.dwTime) / 1000 }
 function Game { Get-Process 'Warcraft III' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1 }
 $step = 0

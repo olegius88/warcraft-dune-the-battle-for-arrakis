@@ -44,7 +44,12 @@ Add-Type -Namespace W -Name Ui -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetWindowPos(System.IntPtr h, System.IntPtr after, int x, int y, int cx, int cy, uint flags);
 [DllImport("user32.dll")] public static extern System.IntPtr WindowFromPoint(POINT p);
 [DllImport("user32.dll")] public static extern System.IntPtr GetAncestor(System.IntPtr h, uint flags);
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 '@
+# Physical pixels: the display is scaled (125 %) and an unaware process gets scaled coordinates and
+# window captures cut to the scaled size (2026-10-07: the game's right quarter was never captured and
+# button positions measured on those captures missed the buttons).
+[void][W.Ui]::SetProcessDPIAware()
 function Get-IdleSeconds {
   $li = New-Object W.Ui+LASTINPUTINFO; $li.cbSize = 8
   [void][W.Ui]::GetLastInputInfo([ref]$li)
