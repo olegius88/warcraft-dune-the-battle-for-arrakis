@@ -12,6 +12,9 @@ export const DEFAULT_GAME_DIR = 'G:\\Games\\Emperor';
 export const GAME_DIR = process.env.EMPEROR_DIR || DEFAULT_GAME_DIR;
 /** Holds the mission script token table. */
 export const GAME_EXE = path.join(GAME_DIR, 'Game.exe');
+/** Warcraft III install (env WC3_DIR overrides). With the registry value "Allow Local Files" = 1 the
+ * client reads loose files from it by their archive path (movies too large for the campaign). */
+export const WC3_DIR = process.env.WC3_DIR || 'G:\\Games\\Warcraft III';
 /** A file inside the game's DATA folder, e.g. gameData('DIALOG', 'DIALOG.BAG'). */
 export const gameData = (...parts: string[]): string => path.join(GAME_DIR, 'DATA', ...parts);
 
