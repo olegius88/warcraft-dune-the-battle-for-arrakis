@@ -5,6 +5,33 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-08 Ролики в полном качестве ([src/emperor/fmv.ts](src/emperor/fmv.ts)):
+  - каждый кадр в родном размере 640×480 и с родной частотой (15 кадров/с, титры — 1), JPEG B,G,R,A
+    качества 95, звук — WAV без потерь;
+  - ~13 ГБ не помещаются в кампанию (MPQ до 4 ГБ), поэтому файлы лежат в папке Warcraft III
+    (`Emperor\Movies\`) и читаются при `Allow Local Files` = 1. Проверено пробой
+    [src/smoke/build-local-probe.ts](src/smoke/build-local-probe.ts): текстуры 640×480 и звук из папки
+    игры работают;
+  - конвертация в 16 потоках, манифест на ролик, готовые ролики не переделываются.
+  Проигрыватель стал общим ([src/jass/movie/player.j](src/jass/movie/player.j)): своя частота у
+  каждого ролика, построчный отчёт, беззвучный ролик не глушит музыку карты. Кадр, раз показанный в
+  карте, остаётся в памяти до её конца (проба [src/smoke/build-cache-probe.ts](src/smoke/build-cache-probe.ts));
+  вступление (418 с) занимает до 11 ГБ, при выходе из карты память освобождается.
+- 2026-10-08 Карты вступления ([src/emperor/intro.ts](src/emperor/intro.ts)): кнопка «Вступление»
+  (Legals, IntroPrologue → IntroAnimation → совет Ландсраада) и, по кнопке Дома, его ролик выбора и
+  Phase0a перед стартовой миссией. Титры (Credits) больше не пропускаются.
+- 2026-10-08 Субтитры роликов: речь распознана whisper.cpp
+  ([src/emperor/transcribe.ts](src/emperor/transcribe.ts), петли на музыке переделываются короткими
+  кусками), переведена на русский с единой терминологией
+  ([src/emperor/subtitle-terms.ts](src/emperor/subtitle-terms.ts)); титры мест из `SubTitle.ini`
+  ([src/emperor/subtitles.ts](src/emperor/subtitles.ts)). Проверено в игре: субтитры на затемнённой
+  полосе внизу кадра.
+- 2026-10-08 Экран кампании как главное меню Emperor
+  ([src/emperor/menu-scene.ts](src/emperor/menu-scene.ts)): сцена `MAIN.XBF` моделью с камерой
+  (вращающийся Арракис, кольца, туманности, логотип) и музыка меню `IN_Menu`. MDX получил камеры и
+  глобальные последовательности ([src/wc3/mdx.ts](src/wc3/mdx.ts)), конвертер XBF — разреженные
+  ключи анимации. Музыка проверена замером звука ([tools/audio-peak.ps1](tools/audio-peak.ps1)):
+  пик меняется вместе с подставленным файлом.
 - 2026-10-07 Ролики Emperor в хабах кампании (слайд-шоу). `PlayCinematic` из карты в 1.31.1 ничего
   не показывает, поэтому:
   - ffmpeg декодирует BIK в кадры 512×256, 2 кадра/с, а звук — в MP3
@@ -211,6 +238,15 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-08 Цепочки `MOVIES.TXT` шли по имени события (+«e» или замена последней буквы) и
+  зацикливались на `IntroPrologue`; теперь следующий ролик — следующая строка того же контекста
+  ([src/emperor/movies.ts](src/emperor/movies.ts), регрессия в [test/movies.test.ts](test/movies.test.ts)).
+- 2026-10-08 Расшифровки whisper с кавычками в тексте не читались: фильтр ffmpeg не экранирует их
+  ([src/emperor/subtitles.ts](src/emperor/subtitles.ts), регрессия в
+  [test/subtitles.test.ts](test/subtitles.test.ts)).
+- 2026-10-08 Заставка: планета была чёрной (туман экрана кампании и тёмные туманности, наложенные по
+  альфе), текстуры `@nebulas_256` и `%nebulas_256` получали один путь
+  ([src/config/menu.ts](src/config/menu.ts), [test/mdx.test.ts](test/mdx.test.ts)).
 - 2026-10-07 Миссия кампании не запускалась без человека: экран масштабирован на 125 %, а скрипты
   `tools/*.ps1` не были DPI-aware. Координаты масштабировались, снимки окна обрезались на четверть, и
   кнопка миссии, найденная по такому снимку, промахивалась. Теперь скрипты работают в физических
