@@ -96,4 +96,41 @@ function toFile(bag, e) {
   return { ext: 'wav', data: Buffer.concat([head, raw]) };
 }
 
-module.exports = { readBag, readData, toFile };
+// MPEG audio frame header -> [frame bytes, samples per frame] (ISO 11172-3 / 13818-3 tables).
+const MP3_BITRATES = {
+  1: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320], // MPEG-1 layer III
+  2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160], // MPEG-2/2.5 layer III
+};
+const MP3_RATES = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+function mp3Frame(b, o) {
+  if (b[o] !== 0xff || (b[o + 1] & 0xe0) !== 0xe0) return null;
+  const ver = (b[o + 1] >> 3) & 3; // 3 = MPEG-1, 2 = MPEG-2, 0 = MPEG-2.5
+  const layer = (b[o + 1] >> 1) & 3; // 1 = layer III
+  if (ver === 1 || layer !== 1) return null;
+  const kbps = MP3_BITRATES[ver === 3 ? 1 : 2][(b[o + 2] >> 4) & 15];
+  const rate = (MP3_RATES[ver] || [])[(b[o + 2] >> 2) & 3];
+  if (!kbps || !rate) return null;
+  const pad = (b[o + 2] >> 1) & 1;
+  const samples = ver === 3 ? 1152 : 576;
+  return [Math.floor((samples / 8) * kbps * 1000 / rate) + pad, samples, rate];
+}
+
+/** Playing time in seconds (MP3: summed frames; IMA ADPCM: blocks; PCM: bytes). */
+function duration(bag, e) {
+  if (e.codec === 'ima') {
+    const samplesPerBlock = ((e.blockAlign - 4 * e.channels) * 2) / e.channels + 1;
+    return (Math.ceil(e.size / e.blockAlign) * samplesPerBlock) / e.rate;
+  }
+  if (e.codec === 'pcm') return e.size / (e.rate * e.channels * (e.bits / 8));
+  const d = readData(bag, e);
+  let t = 0;
+  for (let o = 0; o + 4 <= d.length;) {
+    const f = mp3Frame(d, o);
+    if (!f) { o++; continue; }
+    t += f[1] / f[2];
+    o += f[0];
+  }
+  return t;
+}
+
+module.exports = { readBag, readData, toFile, duration };

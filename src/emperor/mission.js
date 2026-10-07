@@ -77,6 +77,14 @@ function buildMission(p) {
   // "destroy the enemy house" rule; territory battles do.
   init.push(`    set EmpNormalConditions = ${used.has('EndGameWin') || used.has('EndGameLose') ? 'false' : 'true'}`);
   for (const n of messages) { const text = p.ctx.messageText(n); if (text) init.push(`    set EmpMsgText[${n}] = ${str(text)}`); }
+  // original speech of the messages this map uses (src/emperor/speech.js; test/emperor-mission.test.js)
+  const speechImports = {};
+  for (const n of messages) {
+    const sp = p.speech && p.speech.forKey(p.ctx.messageKey(n));
+    if (!sp) continue;
+    speechImports[sp.path] = sp.data;
+    init.push(`    set EmpMsgSound[${n}] = ${str(sp.path)}`, `    set EmpMsgSoundLen[${n}] = ${real(sp.seconds)}`);
+  }
   for (const n of tooltips) { const text = p.ctx.tooltipText(n); if (text) init.push(`    set EmpTipText[${n}] = ${str(text)}`); }
   // ---- objects placed in the map itself (test.xbf tag 0x07) ----
   // owner 1 = the side defending the map (-> Player(1), e.g. the whole Atreides base of the
@@ -381,7 +389,7 @@ endfunction`,
         set s = s + " s" + I2S(i) + "=" + I2S(EmpCount(i, 1)) + "u/" + I2S(EmpCount(i, 2)) + "b"
         set i = i + 1
     endloop
-    set s = s + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " mines=" + I2S(EmpCount(12, 0)) + " ended=" + I2S(EF_B2I(EmpEnded))
+    set s = s + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " mines=" + I2S(EmpCount(12, 0)) + " ended=" + I2S(EF_B2I(EmpEnded)) + " speech=" + I2S(EmpSpeechHead) + "/" + I2S(EmpSpeechTail) + " ms=" + I2S(EmpSpeechLastMs)
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(s)
@@ -479,15 +487,16 @@ endfunction`,
   const players = [{ id: 0, control: 'user', race: 'human', team: 0, x: sx, y: sy, name: 'Командор' }];
   for (let i = 1; i <= 11; i++) players.push({ id: i, control: 'computer', race: 'orc', team: i, x: sx, y: sy, name: `Сторона ${i}` });
 
+  const imports = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports };
   const m = buildMap({
     name: p.name, description: p.briefing || '', width: t.width, height: t.height, boundary: t.boundary,
     tileset: t.tileset, ground: t.ground, cliffs: t.cliffs, corner: t.corner, pathing: t.pathing, minimapColor: t.minimapColor,
     players, globals: rt.globals + glueGlobals + '\n' + scripts.map((s) => s.tr.globals).join('\n'), functions,
     init: '    call TimerStart( CreateTimer(), 0.0, false, function EmpStart )',
-    imports: { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8') },
+    imports,
     loadingTitle: p.name, loadingText: p.briefing || '',
   });
-  return { buffer: m.buffer, script: m.script, stubbed: rt.stubbed, used };
+  return { buffer: m.buffer, script: m.script, stubbed: rt.stubbed, used, imports };
 }
 
 module.exports = { buildMission, CACHE_FILE, HOUSE_ID };

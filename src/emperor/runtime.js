@@ -30,6 +30,15 @@ const HEADER_GLOBALS = `
     real array EmpEntrY
     integer array EmpEntrTag
     string array EmpMsgText
+    string array EmpMsgSound
+    real array EmpMsgSoundLen
+    string array EmpSpeechQ
+    real array EmpSpeechQLen
+    integer EmpSpeechHead = 0
+    integer EmpSpeechTail = 0
+    real EmpSpeechLeft = 0.0
+    timer EmpSpeechTimer = null
+    integer EmpSpeechLastMs = -1
     string array EmpTipText
     boolean array EmpAttacked
     integer array EmpAIMode
@@ -209,6 +218,41 @@ function EmpEntranceFor takes integer side returns integer
         set i = i + 1
     endloop
     return 0
+endfunction
+
+// ---- speech queue: one line at a time, like Emperor's Mentat. The length of each line is known at
+// build time (GetSoundIsPlaying is unreliable right after StartSound), so the queue waits by time.
+function EmpSpeechTick takes nothing returns nothing
+    local sound s
+    set EmpSpeechLeft = EmpSpeechLeft - 0.25
+    if EmpSpeechLeft > 0.0 or EmpSpeechHead >= EmpSpeechTail then
+        return
+    endif
+    set s = CreateSound(EmpSpeechQ[EmpSpeechHead], false, false, false, 10, 10, "")
+    call SetSoundVolume(s, 127)
+    call StartSound(s)
+    call KillSoundWhenDone(s)
+    set EmpSpeechLeft = EmpSpeechQLen[EmpSpeechHead] + 0.3
+    // for the debug report: did the engine open/decode the file? (0 = no)
+    set EmpSpeechLastMs = GetSoundFileDuration(EmpSpeechQ[EmpSpeechHead])
+    set EmpSpeechHead = EmpSpeechHead + 1
+    set s = null
+endfunction
+
+function EmpSpeak takes string path, real seconds returns nothing
+    if path == null or path == "" then
+        return
+    endif
+    if EmpSpeechTimer == null then
+        set EmpSpeechTimer = CreateTimer()
+        call TimerStart(EmpSpeechTimer, 0.25, true, function EmpSpeechTick)
+    endif
+    // drop lines rather than lag far behind the action
+    if EmpSpeechTail - EmpSpeechHead < 4 and EmpSpeechTail < 8000 then
+        set EmpSpeechQ[EmpSpeechTail] = path
+        set EmpSpeechQLen[EmpSpeechTail] = seconds
+        set EmpSpeechTail = EmpSpeechTail + 1
+    endif
 endfunction
 
 function EmpShow takes string s returns nothing
@@ -523,7 +567,8 @@ const IMPL = {
   // ---- messages ----
   Message: `if EmpMsgText[a1] != null then
         call EmpShow(EmpMsgText[a1])
-    endif`,
+    endif
+    call EmpSpeak(EmpMsgSound[a1], EmpMsgSoundLen[a1])`,
   GiftingMessage: 'call EmpShow("Получены подарки.")',
   // countdown of a1 ticks shown as a timer window
   TimerMessage: `if EmpTimer == null then

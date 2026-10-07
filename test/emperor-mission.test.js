@@ -114,3 +114,25 @@ test('veterancy levels are parsed from Rules.txt and wired into missions', opts,
   assert.match(m.script, /EVENT_PLAYER_UNIT_DEATH/);
   assert.match(m.script, /function EmpOnKill takes nothing returns nothing/);
 });
+
+// Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
+// lines its scripts use and Message() queues them (one at a time, by known duration).
+test('mission messages play the original speech', opts, () => {
+  const { loadAll } = require('../src/emperor/build-mission');
+  const { readMeta } = require('../src/emperor/mapxbf');
+  const { ensureMap } = require('../src/emperor/preview-map');
+  const { buildMission } = require('../src/emperor/mission');
+  const all = loadAll();
+  assert.ok(all.speech, 'speech table loaded');
+  const meta = readMeta(path.join(ensureMap('#H3 ')[0], 'test.xbf'));
+  const m = buildMission({
+    scripts: [{ tok: fs.readFileSync(path.join(RAW, 'HHK Heighliner Mission.tok')), phase: 1, name: 'HHK Heighliner Mission' }],
+    meta, ...all, name: 'HK_S_Heighliner', playerHouse: 'Harkonnen', kind: 'story', hubMap: 'HK_Hub.w3x',
+  });
+  // the key occurs in more than one string table; take the message number the script uses
+  const hit = /set EmpMsgSound\[(\d+)\] = "war3mapImported\\\\speech\\\\YK-G004\.wav"/.exec(m.script);
+  assert.ok(hit, 'YK-G004 assigned to a message');
+  assert.strictEqual(all.ctx.messageKey(Number(hit[1])), 'HHKKillKill');
+  assert.ok(m.imports['war3mapImported\\speech\\YK-G004.wav'], 'speech file imported into the map');
+  assert.match(m.script, /call EmpSpeak\(EmpMsgSound\[a1\], EmpMsgSoundLen\[a1\]\)/);
+});

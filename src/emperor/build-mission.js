@@ -10,6 +10,7 @@ const { buildUnitData } = require('./units');
 const { readMeta } = require('./mapxbf');
 const { buildMission } = require('./mission');
 const { ensureMap } = require('./preview-map');
+const { loadSpeech } = require('./speech');
 
 const ROOT = path.join(__dirname, '..', '..');
 const RAW = path.join(ROOT, 'data', 'emperor', 'raw');
@@ -20,7 +21,8 @@ function loadAll() {
   const tooltipName = new Map(ctx.tooltips.map((t) => [t.key.toLowerCase(), ctx.tooltipText(ctx.tooltips.indexOf(t))]));
   const units = buildUnitData(rules, (n) => tooltipName.get(n.toLowerCase()) || n);
   const table = loadTokenTable(path.join(process.env.EMPEROR_DIR || 'G:\\Games\\Emperor', 'Game.exe'));
-  return { ctx, rules, units, table };
+  const speech = loadSpeech(process.env.EMPEROR_DIR || 'G:\\Games\\Emperor');
+  return { ctx, rules, units, table, speech };
 }
 
 if (require.main === module) {
