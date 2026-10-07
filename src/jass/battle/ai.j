@@ -312,6 +312,49 @@ function EmpAiWait takes integer why, string s returns nothing
     endif
 endfunction
 
+// a building upgrade whose research time has passed (EmpAiUpgrade)
+function EmpAiUpgradeDone takes nothing returns nothing
+    local timer tm = GetExpiredTimer()
+    local integer u = LoadInteger(EmpAiTab, GetHandleId(tm), 13)
+    call SetPlayerTechResearched(Player(1), u, 1)
+    call EmpAiLog("upgraded " + GetObjectName(u))
+    call FlushChildHashtable(EmpAiTab, GetHandleId(tm))
+    call DestroyTimer(tm)
+    set tm = null
+endfunction
+
+// building upgrades (Rules.txt UpgradeCost, units.ts): the first one the AI may research now (its
+// tech level reached, its building standing) is bought before new buildings, since the house's
+// better units need it; while short of its price the builder saves for it. True: the turn is used.
+function EmpAiUpgrade takes nothing returns boolean
+    local integer i = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
+    local integer last = i + EmpAiUpgCount[EmpEnemyHouse]
+    local integer u
+    local timer tm
+    loop
+        exitwhen i >= last
+        set u = EmpAiUpg[i]
+        if GetPlayerTechCount(Player(1), u, true) == 0 and not LoadBoolean(EmpAiTab, u, 6) and GetPlayerTechMaxAllowed(Player(1), u) != 0 and EmpCount(1, EmpAiUpgB[i]) > 0 then
+            if EmpEnemyGold() < EmpAiUpgCost[i] + {{ai.minMoneyToBuild}} then
+                set EmpAiReserve = EmpAiUpgCost[i] + {{ai.minMoneyToBuild}}
+                call EmpAiWait(6, "gold " + I2S(EmpEnemyGold()) + " < upgrade " + I2S(EmpAiUpgCost[i]) + " of " + GetObjectName(u))
+                return true
+            endif
+            call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, EmpEnemyGold() - EmpAiUpgCost[i])
+            call SaveBoolean(EmpAiTab, u, 6, true)
+            set tm = CreateTimer()
+            call SaveInteger(EmpAiTab, GetHandleId(tm), 13, u)
+            call TimerStart(tm, EmpAiUpgTime[i], false, function EmpAiUpgradeDone)
+            set EmpAiWhy = 0
+            call EmpAiLog("upgrade " + GetObjectName(u) + " gold " + I2S(EmpEnemyGold()))
+            set tm = null
+            return true
+        endif
+        set i = i + 1
+    endloop
+    return false
+endfunction
+
 // the base builder's turn (EmpEnemyProduce, when no template building was rebuilt)
 function EmpAiBuild takes nothing returns nothing
     local integer c
@@ -342,6 +385,8 @@ function EmpAiBuild takes nothing returns nothing
     // short of power: a windtrap first (MinMoneyToBuildMaintenanceBuildings)
     if EmpPowerSum[1] < 0 and EmpAiPower[EmpEnemyHouse] != 0 and EmpEnemyGold() >= {{ai.minMoneyMaintenance}} then
         set t = EmpAiPower[EmpEnemyHouse]
+    elseif EmpAiUpgrade() then
+        return
     else
         set c = 0
         set total = 0

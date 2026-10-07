@@ -76,3 +76,5 @@ export const SPICE_FIELD_TINT: readonly [number, number, number] = [255, 140, 40
 export const TERRITORY_MARKER_NAME = 'Территория';
 export const TERRITORY_MARKER_SCALE = 0.7;
 export const BUILDER_NAME = 'Строитель';
+/** Name of a building upgrade (war3map.w3q): prefix + the building's name. */
+export const UPGRADE_NAME_PREFIX = 'Улучшение: ';

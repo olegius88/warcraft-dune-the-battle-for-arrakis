@@ -82,6 +82,12 @@ export interface RulesObject {
   primaryBuilding: string[];
   prerequisites: string[];
   secondaryBuilding: string[];
+  /** building upgrade: UpgradeCost (0 = none), UpgradeTechLevel, UpgradeBuildTime (ticks, 0 = not given) */
+  upgradeCost: number;
+  upgradeTechLevel: number;
+  upgradeBuildTime: number;
+  /** needs the upgraded PrimaryBuilding (UpgradedPrimaryRequired) */
+  upgradedPrimaryRequired: boolean;
   unitWhenBuilt: string;
   spiceCapacity: number;
   infantry: boolean;
@@ -290,6 +296,7 @@ function loadRules(rulesPath: string): Rules {
       primaryBuilding: (v.PrimaryBuilding || '').split(',').map((x) => x.trim()).filter(Boolean),
       prerequisites: (v.Prerequisite || v.Prerequisites || '').split(',').map((x) => x.trim()).filter(Boolean),
       secondaryBuilding: (v.SecondaryBuilding || '').split(',').map((x) => x.trim()).filter(Boolean),
+      upgradeCost: num(v.UpgradeCost), upgradeTechLevel: num(v.UpgradeTechLevel), upgradeBuildTime: num(v.UpgradeBuildTime), upgradedPrimaryRequired: bool(v.UpgradedPrimaryRequired),
       unitWhenBuilt: (v.GetUnitWhenBuilt || '').trim(), spiceCapacity: num(v.SpiceCapacity),
       infantry: bool(v.Infantry), canFly: bool(v.CanFly) || bool(v.Aircraft), harvester: bool(v.Harvester),
       conYard: bool(v.ConYard), power: num(v.PowerGenerated) - num(v.PowerUsed), disableWithLowPower: bool(v.DisableWithLowPower),

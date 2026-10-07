@@ -14,7 +14,7 @@ import type { IconSet } from './icons.ts';
 import type { ModelSet } from './models.ts';
 import { HOUSE_CODES, HOUSE_BY_CODE, HOUSE_RACE } from '../config/houses.ts';
 import type { Wc3Race } from '../config/houses.ts';
-import { UNIT_FIELD as F, ABILITY_FIELD, ABILITY, UNIT, CUSTOM_ID } from '../config/wc3.ts';
+import { UNIT_FIELD as F, ABILITY_FIELD, UPGRADE_FIELD as G, ABILITY, UNIT, CUSTOM_ID } from '../config/wc3.ts';
 import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
 
@@ -38,6 +38,19 @@ export interface UnitIds {
   territoryMarker: string;
 }
 
+/** Building upgrade (Rules.txt UpgradeCost): a custom WC3 upgrade the building researches. */
+export interface UpgradeInfo {
+  id: string;
+  /** Emperor building name */
+  building: string;
+  cost: number;
+  /** UpgradeTechLevel: not before this tech level */
+  techLevel: number;
+  /** research time: UpgradeBuildTime, else the building's own BuildTime (assumption: Rules.txt only
+   * gives it for the refinery pads, as 'same as building a ref') */
+  seconds: number;
+}
+
 export interface UnitData {
   objects: UnitObject[];
   /** Emperor name -> WC3 id */
@@ -47,6 +60,9 @@ export interface UnitData {
   misc: string;
   w3u: Buffer;
   w3a: Buffer;
+  /** building upgrades (war3map.w3q) */
+  upgrades: UpgradeInfo[];
+  w3q: Buffer;
   /** command card icons the object data refers to: archive path -> BLP (import once per campaign) */
   icons: Record<string, Buffer>;
   /** converted Emperor models and their textures: archive path -> MDX / BLP (import once per campaign) */
@@ -109,6 +125,12 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   const all = [...rules.objects.values()];
   for (const o of all) rawcode.set(o.name, nextId(CUSTOM_ID.unitPrefix));
   const idOf = (name: string): string => rawcode.get(name) as string;
+  // building upgrades: one custom upgrade per building with an UpgradeCost
+  const upgrades: UpgradeInfo[] = all.filter((o) => o.category === 'Building' && o.upgradeCost > 0).map((o) => ({
+    id: nextId(CUSTOM_ID.upgradePrefix), building: o.name, cost: o.upgradeCost, techLevel: o.upgradeTechLevel,
+    seconds: (o.upgradeBuildTime || o.buildTime || S.DEFAULT_BUILD_TICKS) / S.TICKS_PER_SECOND,
+  }));
+  const upgradeOf = new Map(upgrades.map((u) => [u.building, u]));
 
   for (const o of all) {
     const race: RaceOrNeutral = HOUSE_RACE[o.house] || 'neutral';
@@ -191,7 +213,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     if (!o) continue;
     const h = houseOf(o);
     // Strip stock-unit behaviour we do not want (peasant training, upgrades, spells).
-    obj.mods.push(str(F.upgrades, ''), str(F.researches, ''));
+    obj.mods.push(str(F.upgrades, ''), str(F.researches, upgradeOf.get(o.name)?.id ?? ''));
     if (o.category === 'Building') {
       // Production: units whose PrimaryBuilding names this building.
       const trains = all.filter((u) => u.category === 'Unit' && u.cost > 0 && u.primaryBuilding.includes(o.name)).map((u) => rawcode.get(u.name));
@@ -207,17 +229,34 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     } else {
       obj.mods.push(str(F.abilities, ''));
     }
-    // Requirements: the own-house variant of the SecondaryBuilding (Emperor accepts any house's).
+    // Requirements: the own-house variant of the SecondaryBuilding (Emperor accepts any house's), and
+    // the upgrade of the PrimaryBuilding for UpgradedPrimaryRequired types.
+    const reqs: string[] = [];
     if (o.secondaryBuilding.length && h) {
       const req = ownVariant(o.secondaryBuilding, h);
-      if (rawcode.has(req)) obj.mods.push(str(F.requires, idOf(req)));
+      if (rawcode.has(req)) reqs.push(idOf(req));
     }
+    if (o.upgradedPrimaryRequired && o.primaryBuilding.length) {
+      const up = upgradeOf.get(h ? ownVariant(o.primaryBuilding, h) : o.primaryBuilding[0] as string);
+      if (up) reqs.push(up.id);
+    }
+    if (reqs.length) obj.mods.push(str(F.requires, reqs.join(',')));
   }
   return {
     objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {},
     models: Object.fromEntries(Object.entries(models?.files ?? {})),
     w3u: writeObjects(objects.map(({ base, id, mods }) => ({ base, id, mods }))),
     w3a: writeObjects(abilities, true),
+    upgrades,
+    w3q: writeObjects(upgrades.map((u) => {
+      const name = U.UPGRADE_NAME_PREFIX + displayName(u.building);
+      const icon = icons?.icon.get(u.building);
+      return { base: CUSTOM_ID.upgradeBase, id: u.id, mods: [
+        { ...str(G.name, name), level: 1 }, { ...str(G.tooltip, name), level: 1 },
+        ...(icon ? [{ ...str(G.icon, icon), level: 1 }] : []),
+        int(G.goldBase, u.cost), int(G.lumberBase, 0), int(G.timeBase, Math.max(1, u.seconds)), int(G.levels, 1),
+      ] };
+    }), true),
   };
 }
 

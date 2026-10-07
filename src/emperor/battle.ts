@@ -23,7 +23,7 @@ import type { Scope } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
 import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
 import { EMPEROR_TILE, TICKS_PER_SECOND, WC3_UNITS_PER_TILE } from '../config/scale.ts';
-import { TERRAIN } from '../config/wc3.ts';
+import { TERRAIN, UNIT_FIELD } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules } from './rules.ts';
 import type { AiRules } from './ai-rules.ts';
@@ -122,6 +122,8 @@ function battleSetup(o: BattleOptions): BattleSetup {
     if (!x.emperor || x.emperor.techLevel <= 1) continue;
     (byLevel[x.emperor.techLevel] = byLevel[x.emperor.techLevel] || []).push(x.id);
   }
+  // building upgrades wait for their UpgradeTechLevel
+  for (const u of o.units.upgrades) if (u.techLevel > 1) (byLevel[u.techLevel] = byLevel[u.techLevel] || []).push(u.id);
   fns.push(jass('tech-limits', {
     limitLines: Object.entries(byLevel).map(([lvl, idsAt]) => `        if EmpTechLevel < ${lvl} then\n${idsAt.map((id) => `            call SetPlayerTechMaxAllowed(Player(i), '${id}', 0)`).join('\n')}\n        endif`).join('\n'),
   }));
@@ -227,6 +229,23 @@ endfunction`;
     }
   });
   (['core', 'defence', 'manufacturing', 'resource'] as const).forEach((c) => aiLines.push(`    set EmpAiRatio[${category[c]}] = ${ai.buildRatios[c]}`));
+  // building upgrades per house (units.ts) the AI buys, and the upgrade each produced type requires
+  // (EmpAiTab child 5; taken from the type's requirements so it matches what the player needs)
+  const upgradeIds = new Set(o.units.upgrades.map((u) => u.id));
+  PREFIXES.forEach((h, hi) => {
+    const list = o.units.upgrades.filter((u) => u.building.startsWith(h) && rc(u.building));
+    if (list.length > C.TEMPLATE_SLOTS) throw new Error(`${h}: ${list.length} upgrades > TEMPLATE_SLOTS`);
+    list.forEach((u, k) => {
+      const i = hi * C.TEMPLATE_SLOTS + k;
+      aiLines.push(`    set EmpAiUpg[${i}] = '${u.id}'`, `    set EmpAiUpgB[${i}] = '${rc(u.building)}'`, `    set EmpAiUpgCost[${i}] = ${u.cost}`, `    set EmpAiUpgTime[${i}] = ${real(u.seconds)}`);
+    });
+    aiLines.push(`    set EmpAiUpgCount[${hi}] = ${list.length}`);
+  });
+  for (const id of produced) {
+    const req = o.units.objects.find((x) => x.id === id)?.mods.filter((m) => m.field === UNIT_FIELD.requires).map((m) => String(m.value)).at(-1) ?? '';
+    const up = req.split(',').find((r) => upgradeIds.has(r));
+    if (up) aiLines.push(`    call SaveInteger(EmpAiTab, '${id}', 5, '${up}')`);
+  }
   const aiFunctions = renderFile(jassFile('battle/ai'), {
     C, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND,
     aiReport: o.aiReport ?? '',

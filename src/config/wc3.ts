@@ -52,6 +52,19 @@ export const ABILITY_FIELD = {
   harvestGold: 'Har3',
 } as const;
 
+/** Upgrade object data fields (war3map.w3q), from WurstStdlib2 objediting/UpgradeObjEditing.wurst:
+ * name / tooltips / icon per level (level 1), costs, time and level count at level 0. */
+export const UPGRADE_FIELD = {
+  name: 'gnam',
+  tooltip: 'gtp1',
+  tooltipExtended: 'gub1',
+  icon: 'gar1',
+  goldBase: 'gglb',
+  lumberBase: 'glmb',
+  timeBase: 'gtib',
+  levels: 'glvl',
+} as const;
+
 /** Stock abilities. */
 export const ABILITY = {
   harvest: 'Ahar',
@@ -106,6 +119,11 @@ export const ITEM = {
 export const CUSTOM_ID = {
   /** first letter of the ids allocated to Emperor units/buildings */
   unitPrefix: 'x',
+  /** first letter of the building upgrades (war3map.w3q; stock upgrades are Rh../Ro../Re../Ru..) */
+  upgradePrefix: 'R',
+  /** stock upgrade the building upgrades are made from (Iron Forged Swords): its effects reach no
+   * unit, every Emperor unit has an empty upgrade list (units.ts, F.upgrades) */
+  upgradeBase: 'Rhme',
   harvestAbility: 'A000',
   spiceField: 'xS00',
   territoryMarker: 'xM00',

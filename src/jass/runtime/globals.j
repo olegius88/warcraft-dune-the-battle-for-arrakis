@@ -141,6 +141,11 @@
     integer EmpAiProduced = 0
     integer EmpAiWhy = -1
     integer EmpAiReserve = 0
+    integer array EmpAiUpg
+    integer array EmpAiUpgB
+    integer array EmpAiUpgCost
+    real array EmpAiUpgTime
+    integer array EmpAiUpgCount
     string array EmpAiLogLine
     integer EmpAiLogCount = 0
     integer array EmpPowerSum

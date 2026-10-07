@@ -81,7 +81,7 @@ test('the hub fills the movie frame table before it queues movies', { skip: fs.e
   const folders = [...new Set(['MAPS0001', 'MAPS0002'].flatMap((a) => readIndex(gameData(`${a}.RFH`)).map((e) => e.name.split('/')[0] as string)))];
   const hub = buildHub({
     house: 'HK', autoTest: false, campaign: loadCampaign(RAW_DIR, folders), battleMap: () => null, storyMap: { heighliner: 'H.w3x', homeDefence: 'D.w3x', civilWar: 'C.w3x', homeAttack: { AT: 'A.w3x', OR: 'O.w3x' }, end: 'E.w3x' },
-    units: { w3u: Buffer.alloc(0), w3a: Buffer.alloc(0) } as never,
+    units: { w3u: Buffer.alloc(0), w3a: Buffer.alloc(0), w3q: Buffer.alloc(0) } as never,
     movies: { events: { start: ['H01_F00E'] }, player: { info: new Map([['H01_F00E', { frames: 3, fps: 15, width: 640, height: 480, sound: true }]]) } },
   });
   const start = hub.script.slice(hub.script.indexOf('function EmpHubStart'));

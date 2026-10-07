@@ -8,7 +8,8 @@ function EmpEnemyPick takes boolean veh returns integer
         else
             set t = EmpEnemyInf(GetRandomInt(0, {{infMax}}))
         endif
-        if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
+        // a type that needs a building upgrade (EmpAiTab child 5, ai.j) waits until the AI has it
+        if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 and (LoadInteger(EmpAiTab, t, 5) == 0 or GetPlayerTechCount(Player(1), LoadInteger(EmpAiTab, t, 5), true) > 0) then
             return t
         endif
         set tries = tries + 1
