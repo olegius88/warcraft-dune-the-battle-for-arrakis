@@ -5,6 +5,21 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-08 ИИ врага в битвах за территории по `ai.ini` ([src/jass/battle/ai.j](src/jass/battle/ai.j),
+  [src/emperor/ai-rules.ts](src/emperor/ai-rules.ts)):
+  - строитель базы: по одному зданию той категории `BuildingConstructionRatios`, которой больше всего
+    не хватает (заблокированная категория уступает следующей), на лучшем свободном месте по весам
+    `PositionAlgorithmRatios*`, после `BuildTime`; правила турелей, очистительных заводов и стен из
+    `[Strategy]`; ветроловушка первой при нехватке энергии;
+  - пока строитель копит на здание, производство юнитов тратит только деньги сверх его стоимости;
+  - тактики: разведчики, оборона базы, охрана харвестеров, защита стройплощадки, волны со сбором и
+    атакой (`LargeAttackModifier`, `TicksUntilAbandonForming`);
+  - отчёт `CustomMapData\DuneTest\<карта>_AI.pld` с причинами простоя. Проверено в игре (HK_A02,
+    7 минут): 8 зданий, разведка, волны.
+- 2026-10-08 Правило победы и поражения не считает объекты с `ExcludeFromCampaignLose` (стены, малые
+  ветроловушки): сторона, у которой остались только они, побеждена
+  ([src/jass/runtime/helpers.j](src/jass/runtime/helpers.j), тест в
+  [test/emperor-mission.test.ts](test/emperor-mission.test.ts)).
 - 2026-10-08 Ролики в полном качестве ([src/emperor/fmv.ts](src/emperor/fmv.ts)):
   - каждый кадр в родном размере 640×480 и с родной частотой (15 кадров/с, титры — 1), JPEG B,G,R,A
     качества 95, звук — WAV без потерь;
@@ -238,6 +253,14 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-08 Перенос строки в сообщениях игры записывался как `|n` и выводился как есть
+  («Атака: Shield Wall|nВерховный…»); теперь это `\n` ([src/wc3/jass.ts](src/wc3/jass.ts), регрессия в
+  [test/jass.test.ts](test/jass.test.ts)). Проверено в игре.
+- 2026-10-08 Имена 56 юнитов и зданий в WC3 были длинными описаниями: ключ (например, `ATTrike`) есть
+  и в `ObjectTips` (имя), и в озвученном `UnitBriefing` (`Uispoken.txt`), а локализованные строки
+  искались только по ключу. Теперь поиск идёт по секции и ключу
+  ([src/emperor/context.ts](src/emperor/context.ts), регрессия в
+  [test/emperor-context.test.ts](test/emperor-context.test.ts)).
 - 2026-10-08 Цепочки `MOVIES.TXT` шли по имени события (+«e» или замена последней буквы) и
   зацикливались на `IntroPrologue`; теперь следующий ролик — следующая строка того же контекста
   ([src/emperor/movies.ts](src/emperor/movies.ts), регрессия в [test/movies.test.ts](test/movies.test.ts)).
@@ -284,9 +307,12 @@
   регрессия [test/wc3-map.test.ts](test/wc3-map.test.ts)).
 
 ### Known issues
-- `ChangeLevel` (через `CustomVictoryBJ`) из наших карт роняет и 3.0, и 1.31 — вне кампании, как при
-  `-loadfile`, так и при запуске из меню «Сражения»; цель (наша или чужая карта, фон загрузки −1/0/57)
-  не влияет. Внутри настоящей `.w3n` проверка ждёт ручного клика по кнопке миссии
-  (`TODO(changelevel)`).
-- `PlayCinematic` с импортированным `.bik` ничего не показывает; `blizzard.j` 3.0 вызывает его только с
-  встроенными именами (`"HumanOp"`, `"OrcEd"`), так что импортные ролики почти наверняка не поддерживаются.
+- `ChangeLevel` (через `CustomVictoryBJ`) из наших карт роняет и 3.0, и 1.31 вне кампании (`-loadfile`,
+  меню «Сражения»). Внутри `.w3n` переход работает: цепочка «Вступление → ролик Дома → стартовая
+  миссия» проверена в сессии кампании ([tools/campaign-session.ps1](tools/campaign-session.ps1)).
+- `PlayCinematic` с импортированным `.bik` ничего не показывает; ролики играет свой проигрыватель кадров
+  ([src/jass/movie/player.j](src/jass/movie/player.j)).
+- Отдельные копии карт (`build/<…>/maps/*.w3x`) не содержат импортов кампании: юниты там видны только
+  тенями. Внешний вид проверяется в сессии кампании.
+- Ветеранская прибавка дальности (`ExtraRange`) не применяется: в 1.31.1 установка дальности оружия юниту
+  ничего не меняет (проба [src/smoke/build-range-probe.ts](src/smoke/build-range-probe.ts)).
