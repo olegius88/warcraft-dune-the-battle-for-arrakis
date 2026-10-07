@@ -19,8 +19,9 @@
   `ArtIni.txt` `Icon`/`IconGrey` → `Textures/*.tga` из 3DDATA0001 → BLP1 64×64. Цветные идут в
   `BTN…`, серые в `DISBTN…`; 105 объектов, 210 файлов. В кампании они лежат один раз в архиве
   кампании, в отдельных миссиях — в карте. Добавлены чтение TGA, BLP1 из полноцветных картинок
-  (палитра median cut, мип-уровни, альфа) и запись PNG для превью. Отображение в игре проверяет
-  карта-проба [src/smoke/build-icon-probe.ts](src/smoke/build-icon-probe.ts) (ожидает запуска).
+  (палитра median cut, мип-уровни, альфа) и запись PNG для превью. В игре проверено картой-пробой
+  [src/smoke/build-icon-probe.ts](src/smoke/build-icon-probe.ts): цветная иконка видна через `uico`,
+  серая находится по пути `DISBTN`.
 - 2026-10-07 Фазы кампании точно по `PhaseRules.txt` ([src/emperor/phase-rules.ts](src/emperor/phase-rules.ts)):
   - фазы 1–2 длятся `Battles`/`MaxBattles` битв (нужен `Captured`), считаются битвы, а не захваты;
   - тех-уровни растут при входе в фазу и по N-му захвату в фазе;

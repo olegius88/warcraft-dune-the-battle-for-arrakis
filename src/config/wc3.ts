@@ -37,8 +37,7 @@ export const UNIT_FIELD = {
   tintRed: 'uclr',
   tintGreen: 'uclg',
   tintBlue: 'uclb',
-  /** Art - Icon - Game Interface (command card; code from memory, checked in game by
-   * src/smoke/build-icon-probe.ts) */
+  /** Art - Icon - Game Interface (command card; seen in game 2026-10-07: src/smoke/build-icon-probe.ts) */
   icon: 'uico',
   /** Art - Model File (code from memory, checked in game by src/smoke/build-model-probe.ts) */
   model: 'umdl',
@@ -131,8 +130,8 @@ export const IMPORT_DIR = {
 
 /** Command card icons converted from Emperor (ArtIni.txt Icon / IconGrey): the enabled icon and
  * the disabled one at the paths the stock icons use (CommandButtons\BTN* and
- * CommandButtonsDisabled\DISBTN*), so the game can find the grey one next to the coloured one
- * (assumption until seen in game). */
+ * CommandButtonsDisabled\DISBTN*): the game finds the grey one next to the coloured one (a dead
+ * hero's bar icon showed it in game, src/smoke/build-icon-probe.ts, 2026-10-07). */
 export const ICON_SIZE = 64;
 export const ICON_PATH = {
   enabled: (name: string): string => `ReplaceableTextures\\CommandButtons\\BTNEmp${name}.blp`,
