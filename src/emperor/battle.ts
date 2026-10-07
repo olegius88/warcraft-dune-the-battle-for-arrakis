@@ -142,7 +142,8 @@ function battleSetup(o: BattleOptions): BattleSetup {
   const mcv = rc('MCV');
   fns.push(jass('economy', {
     spiceField: o.units.ids.spiceField, harvester, mcv,
-    builderLines: PREFIXES.map((h, i) => `    if t == '${conYards[i]}' then\n        call CreateUnit(GetOwningPlayer(b), '${o.units.ids.builders[h]}', GetUnitX(b) - ${real(C.BUILDER_OFFSET)}, GetUnitY(b) - ${real(C.BUILDER_OFFSET)}, ${FACING})\n    endif`).join('\n'),
+    // both builders of the house (units.ts: walls and turrets have their own)
+    builderLines: PREFIXES.map((h, i) => `    if t == '${conYards[i]}' then\n${[o.units.ids.builders[h], o.units.ids.defenceBuilders[h]].map((id, k) => `        call CreateUnit(GetOwningPlayer(b), '${id}', GetUnitX(b) - ${real(C.BUILDER_OFFSET * (k + 1))}, GetUnitY(b) - ${real(C.BUILDER_OFFSET)}, ${FACING})`).join('\n')}\n    endif`).join('\n'),
     isRefinery: refineries.map((r) => `t == '${r}'`).join(' or '),
     isConYard: conYards.map((c) => `GetUnitTypeId(b) == '${c}'`).join(' or '),
   }));

@@ -34,6 +34,8 @@ export interface UnitIds {
   spiceField: string;
   /** house prefix (AT/HK/OR) -> builder unit spawned by a construction yard */
   builders: Record<string, string>;
+  /** second builder per house: walls and turrets */
+  defenceBuilders: Record<string, string>;
   mcvBuilders: Record<string, string>;
   /** territory marker of the Arrakis hub */
   territoryMarker: string;
@@ -63,6 +65,8 @@ export interface UnitData {
   w3a: Buffer;
   /** building upgrades (war3map.w3q) */
   upgrades: UpgradeInfo[];
+  /** command card cell (x, y) of each upgrade's research button */
+  upgradeButtons: [string, [number, number]][];
   w3q: Buffer;
   /** command card icons the object data refers to: archive path -> BLP (import once per campaign) */
   icons: Record<string, Buffer>;
@@ -187,7 +191,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   // ---- economy / construction objects (ids fixed so the runtime can refer to them) ----
   const HARVEST_ABILITY = CUSTOM_ID.harvestAbility; // Ahar with Emperor capacity
   // Territory marker of the Arrakis hub map: invulnerable, unarmed, house-coloured tower.
-  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, builders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker };
+  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, builders: {}, defenceBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker };
   const abilities: ObjectDef[] = [{ base: ABILITY.harvest, id: HARVEST_ABILITY, mods: [
     { field: ABILITY_FIELD.harvestGold, type: 'int', value: U.HARVEST_CAPACITY, level: 1, column: 3 },
     { field: ABILITY_FIELD.harvestLumber, type: 'int', value: 0, level: 1, column: 2 },
@@ -206,12 +210,16 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   const ownVariant = (list: string[], h: string): string => list.find((n) => n.startsWith(h)) || (list[0] as string);
 
   for (const h of HOUSE_CODES) {
-    // Builder spawned by a finished construction yard; builds the house's buildings.
-    const builderId = CUSTOM_ID.builder[h];
-    ids.builders[h] = builderId;
-    objects.push({ base: UNIT.peasant, id: builderId, mods: [str(F.name, U.BUILDER_NAME), str(F.abilities, ABILITY.build),
-      str(F.builds, houseBuildings(h).map((b) => rawcode.get(b.name)).join(',')), int(F.attacksEnabled, 0), int(F.goldCost, 0), int(F.foodCost, 0),
+    // Builders spawned by a finished construction yard: the house's buildings do not fit one build
+    // menu (11 cells besides Cancel), so walls and turrets have their own builder.
+    const list = houseBuildings(h);
+    const builder = (id: string, name: string, builds: RulesObject[]): UnitObject => ({ base: UNIT.peasant, id, mods: [str(F.name, name), str(F.abilities, ABILITY.build),
+      str(F.builds, builds.map((b) => rawcode.get(b.name)).join(',')), int(F.attacksEnabled, 0), int(F.goldCost, 0), int(F.foodCost, 0),
       str(F.race, HOUSE_RACE[HOUSE_BY_CODE[h]])], emperor: null });
+    ids.builders[h] = CUSTOM_ID.builder[h];
+    ids.defenceBuilders[h] = CUSTOM_ID.defenceBuilder[h];
+    objects.push(builder(CUSTOM_ID.builder[h], U.BUILDER_NAME, list.filter((b) => !U.DEFENCE_BUILDING.test(b.name))));
+    objects.push(builder(CUSTOM_ID.defenceBuilder[h], U.DEFENCE_BUILDER_NAME, list.filter((b) => U.DEFENCE_BUILDING.test(b.name))));
   }
 
   for (const obj of objects) {
@@ -261,16 +269,45 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     }
     if (reqs.length) obj.mods.push(str(F.requires, reqs.join(',')));
   }
+  // Command card cells of the train / research buttons: without them a type keeps its stock base's
+  // cell and types of the same base hide each other. Buildings with the most buttons first; each
+  // button takes the first cell free in every building that shows it (test/emperor-mission.test.ts).
+  const lastOf = (o: UnitObject, f: string): string => o.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  const cell = new Map<string, number>(); // unit / upgrade id -> index into U.BUTTON_CELLS
+  // (build menus too: the builders' and the MCV's lists of buildings)
+  const cards = objects.filter((o) => o.emperor?.category === 'Building' || lastOf(o, F.builds))
+    .map((o) => [...lastOf(o, F.trains).split(','), ...lastOf(o, F.researches).split(','), ...lastOf(o, F.builds).split(',')].filter(Boolean))
+    .sort((a, b) => b.length - a.length);
+  for (const card of cards) {
+    const used = new Set(card.map((id) => cell.get(id)).filter((c) => c !== undefined));
+    for (const id of card) {
+      if (cell.has(id)) continue;
+      const free = U.BUTTON_CELLS.findIndex((_, i) => !used.has(i));
+      if (free < 0) throw new Error(`more than ${U.BUTTON_CELLS.length} buttons: ${card.join(',')}`);
+      cell.set(id, free);
+      used.add(free);
+    }
+  }
+  const upgradeButtons: [string, [number, number]][] = [];
+  for (const [id, c] of cell) {
+    const [x, y] = U.BUTTON_CELLS[c] as readonly [number, number];
+    const unit = objects.find((o) => o.id === id);
+    if (unit) unit.mods.push(int(F.buttonX, x), int(F.buttonY, y));
+    else upgradeButtons.push([id, [x, y]]);
+  }
   return {
     objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {},
     models: Object.fromEntries(Object.entries(models?.files ?? {})),
     w3u: writeObjects(objects.map(({ base, id, mods }) => ({ base, id, mods }))),
     w3a: writeObjects(abilities, true),
     upgrades,
+    upgradeButtons,
     w3q: writeObjects(upgrades.map((u) => {
       const name = U.UPGRADE_NAME_PREFIX + displayName(u.building);
       const icon = icons?.icon.get(u.building);
+      const [bx, by] = upgradeButtons.find(([id]) => id === u.id)?.[1] ?? U.BUTTON_CELLS[0] as readonly [number, number];
       return { base: CUSTOM_ID.upgradeBase, id: u.id, mods: [
+        int(G.buttonX, bx), int(G.buttonY, by),
         { ...str(G.name, name), level: 1 }, { ...str(G.tooltip, name), level: 1 },
         ...(icon ? [{ ...str(G.icon, icon), level: 1 }] : []),
         int(G.goldBase, u.cost), int(G.lumberBase, 0), int(G.timeBase, Math.max(1, u.seconds)), int(G.levels, 1),

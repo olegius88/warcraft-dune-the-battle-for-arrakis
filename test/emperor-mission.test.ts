@@ -249,6 +249,42 @@ test('starports train the Starportable units of their house', opts, () => {
   assert.ok(trains('HKStarport').includes(id('HKDevastator')));
 });
 
+// Train / research buttons took their cell from the stock base unit, so types made from the same base
+// shared a cell and hid each other on the command card (starports sell 11 types). Every building's
+// buttons now have their own cells, never the rally point's (3,1) (in-game probe
+// src/smoke/build-button-probe.ts: BlzGetAbilityPosX/Y('ARal') = 3,1).
+test('command card: the train and research buttons of a building never share a cell', opts, () => {
+  const all = loadAll();
+  const byId = new Map(all.units.objects.map((o) => [o.id, o]));
+  const last = (mods: { field: string; value: number | string }[], f: string): string => mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  const upgradeMods = new Map(all.units.upgradeButtons);
+  for (const o of all.units.objects) {
+    if (o.emperor?.category !== 'Building') continue;
+    const cells: string[] = [];
+    for (const t of last(o.mods, 'utra').split(',').filter(Boolean)) {
+      const u = byId.get(t);
+      assert.ok(u, `${o.emperor.name} trains a known type`);
+      cells.push(`${last(u.mods, 'ubpx')},${last(u.mods, 'ubpy')}`);
+    }
+    const r = last(o.mods, 'ures');
+    if (r) cells.push(upgradeMods.get(r)?.join(',') ?? 'none');
+    assert.strictEqual(new Set(cells).size, cells.length, `${o.emperor.name}: ${cells.join(' ')}`);
+    assert.ok(!cells.includes('3,1'), `${o.emperor.name}: rally point cell taken`);
+    assert.ok(!cells.some((c) => c.includes('none') || c === ','), `${o.emperor.name}: every button has a cell`);
+  }
+  // build menus (12 cells, Cancel at 3,2): 12 buildings did not fit one builder, so walls and turrets
+  // have their own builder; every house building is in one of them, each with its own cell
+  const houseBuildings = (h: string) => [...all.rules.objects.values()].filter((b) => b.category === 'Building' && b.cost > 0 && b.name.startsWith(h) && /ConYard/.test(b.primaryBuilding.join(','))).map((b) => all.units.rawcode.get(b.name));
+  for (const h of ['AT', 'HK', 'OR'] as const) {
+    const menus = [all.units.ids.builders[h], all.units.ids.defenceBuilders[h]].map((id) => last(byId.get(id as string)?.mods ?? [], 'ubui').split(',').filter(Boolean));
+    assert.deepStrictEqual(menus.flat().sort(), houseBuildings(h).sort(), `${h}: every building in a build menu`);
+    for (const menu of menus) {
+      const cells = menu.map((t) => { const b = byId.get(t); return b ? `${last(b.mods, 'ubpx')},${last(b.mods, 'ubpy')}` : 'none'; });
+      assert.ok(menu.length <= 11 && new Set(cells).size === cells.length && !cells.includes('3,2'), `${h} build menu: ${cells.join(' ')}`);
+    }
+  }
+});
+
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
 // lines its scripts use and Message() queues them (one at a time, by known duration).
 test('mission messages play the original speech', opts, () => {

@@ -76,9 +76,18 @@ export const SPICE_FIELD_TINT: readonly [number, number, number] = [255, 140, 40
 export const TERRITORY_MARKER_NAME = 'Территория';
 export const TERRITORY_MARKER_SCALE = 0.7;
 export const BUILDER_NAME = 'Строитель';
+/** Second builder (walls, turrets): one build menu holds 11 buildings, a house has 12. */
+export const DEFENCE_BUILDER_NAME = 'Строитель укреплений';
+export const DEFENCE_BUILDING = /Wall|Turret|Pillbox/;
 /** Name of a building upgrade (war3map.w3q): prefix + the building's name. */
 export const UPGRADE_NAME_PREFIX = 'Улучшение: ';
 /** Palace super weapon charge (src/emperor/superweapons.ts): a stock artillery unit (mortar team),
  * whose attack-ground order fires the strike (probe src/smoke/build-superweapon-probe.ts). */
 export const SUPERWEAPON_BASE = 'hmtm';
 export const SUPERWEAPON_SCALE = 1.0;
+/** Command card cells for train / research buttons, in fill order: all but the rally point's (3,1)
+ * (BlzGetAbilityPosX/Y('ARal'), src/smoke/build-button-probe.ts); (3,2) last, since Cancel takes it
+ * while the building trains. */
+export const BUTTON_CELLS: ReadonlyArray<readonly [number, number]> = [
+  [0, 0], [1, 0], [2, 0], [3, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2], [3, 2],
+];

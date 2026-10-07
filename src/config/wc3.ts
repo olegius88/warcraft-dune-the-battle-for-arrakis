@@ -5,6 +5,9 @@
 /** Unit object data fields (war3map.w3u). */
 export const UNIT_FIELD = {
   name: 'unam',
+  /** command card cell (WurstStdlib2 UnitObjEditing.wurst setButtonPositionX/Y) */
+  buttonX: 'ubpx',
+  buttonY: 'ubpy',
   hitPoints: 'uhpm',
   defenseType: 'udty',
   defense: 'udef',
@@ -63,6 +66,8 @@ export const UPGRADE_FIELD = {
   lumberBase: 'glmb',
   timeBase: 'gtib',
   levels: 'glvl',
+  buttonX: 'gbpx',
+  buttonY: 'gbpy',
 } as const;
 
 /** Stock abilities. */
@@ -131,6 +136,8 @@ export const CUSTOM_ID = {
   territoryMarker: 'xM00',
   /** builder spawned by a construction yard, per house */
   builder: { AT: 'xBA0', HK: 'xBH0', OR: 'xBO0' },
+  /** walls and turrets builder, per house */
+  defenceBuilder: { AT: 'xBA1', HK: 'xBH1', OR: 'xBO1' },
 } as const;
 
 /** Effect models (JASS paths: written through str(), which escapes the backslashes). */
