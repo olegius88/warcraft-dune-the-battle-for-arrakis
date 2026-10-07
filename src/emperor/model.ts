@@ -11,10 +11,11 @@
 // memory (0xCDCDCDCD) and is ignored; sparse keys (none in the shipped units) are not used.
 // Sequences: Emperor animation ranges (FX data) named per config SEQUENCE_MAP, laid out one after
 // the other on the MDX timeline. Vertex (morph) animation (infantry): a geoset copy per sampled frame,
-// shown by a step alpha track. TODO(models): attachment points and particle effects are not converted.
+// shown by a step alpha track. Attachment points: origin, chest, overhead, weapon (first fire node).
+// TODO(models): Emperor's particle effects (muzzle flashes, smoke) are not converted.
 
 import type { XbfScene, XbfNode, AnimationRange } from './xbf.ts';
-import type { MdxModel, Geoset, GeosetAnimation, Bone, Track, Extent, Material, Texture, V3 } from '../wc3/mdx.ts';
+import type { MdxModel, Geoset, GeosetAnimation, Bone, Track, Extent, Material, Texture, V3, Attachment } from '../wc3/mdx.ts';
 import { FILTER, LAYER_FLAG } from '../wc3/mdx.ts';
 import * as M from '../config/models.ts';
 
@@ -351,8 +352,18 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   // with frame copies, the bind-pose geosets of morphing nodes are never shown
   if (morphGeosets) for (const m of morphs) for (const id of m.staticGeosets) geosetAnimations.push({ geosetId: id, staticAlpha: 0 });
   for (const g of geosets) g.sequenceExtents = sequences.map(() => g.extent);
+  // attachment points the game puts effects on: origin at the ground, chest half way up, overhead
+  // above the top, weapon at the first fire point of the model ("#fire" / ">>0#fire" nodes)
+  const top = extent.max[2];
+  const fire = flat.findIndex(({ node }) => /#fire/i.test(node.name));
+  const attachments: Attachment[] = [];
+  const attach = (attachName: string, at: V3): void => { attachments.push({ name: attachName, parentId: -1, attachmentId: attachments.length }); pivots.push(at); };
+  attach('Origin Ref', [0, 0, 0]);
+  attach('Chest Ref', [0, 0, top / 2]);
+  attach('Overhead Ref', [0, 0, top + M.OVERHEAD_GAP]);
+  if (fire >= 0) attach('Weapon Ref', apply(mul(K, bind[fire] as Mat), [0, 0, 0]));
   return {
-    model: { name, extent, sequences, textures, materials, geosets, geosetAnimations, bones, pivots },
+    model: { name, extent, sequences, textures, materials, geosets, geosetAnimations, bones, attachments, pivots },
     textures: usedFiles,
   };
 }

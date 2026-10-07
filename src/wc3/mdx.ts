@@ -3,7 +3,7 @@
 // texture.ts, material.ts, layer.ts, geoset.ts, geosetanimation.ts, genericobject.ts, bone.ts,
 // animations.ts. Only what converted Emperor models need: sequences, textures, materials with
 // layers, geosets (one matrix group per geoset), geoset animations (alpha), bones with
-// translation / rotation / scaling tracks, pivot points.
+// translation / rotation / scaling tracks, attachment points (attachment.ts), pivot points.
 
 export const MDX_VERSION = 800;
 
@@ -67,6 +67,9 @@ export interface Bone {
   scaling?: Track;
 }
 
+/** Attachment point (effects attach to it by name: "origin", "overhead", "chest", "weapon"). */
+export interface Attachment { name: string; parentId: number; attachmentId: number }
+
 export interface MdxModel {
   name: string;
   extent: Extent;
@@ -76,7 +79,9 @@ export interface MdxModel {
   geosets: Geoset[];
   geosetAnimations: GeosetAnimation[];
   bones: Bone[];
-  /** one pivot per object (bones first: object id = bone index) */
+  /** attachment points; their object ids follow the bones' */
+  attachments?: Attachment[];
+  /** one pivot per object (bones first: object id = bone index, then the attachments) */
   pivots: V3[];
 }
 
@@ -180,6 +185,15 @@ function writeMdx(m: MdxModel): Buffer {
       c.i32(-1); c.i32(-1); // geoset id, geoset animation id
     });
     chunk(o, 'BONE', c.buffer());
+  }
+  if (m.attachments?.length) {
+    const c = new Out();
+    m.attachments.forEach((a, i) => {
+      // size, generic object (size, name, object id, parent, flags 0x800), path[260], attachment id
+      c.u32(268 + 96); c.u32(96); c.str(a.name, 80); c.i32(m.bones.length + i); c.i32(a.parentId); c.u32(0x800);
+      c.str('', 260); c.i32(a.attachmentId);
+    });
+    chunk(o, 'ATCH', c.buffer());
   }
   if (m.pivots.length) { const c = new Out(); m.pivots.forEach((p) => c.f32s(p)); chunk(o, 'PIVT', c.buffer()); }
   return o.buffer();

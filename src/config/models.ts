@@ -53,3 +53,6 @@ export const MAX_TEXTURE_SIZE = 256;
 
 /** Vertex animation (infantry): one geoset copy per this many frames (stored poses are every 2nd frame). */
 export const MORPH_FRAME_STEP = 2;
+
+/** The overhead attachment point sits this far above the top of a model (WC3 units). */
+export const OVERHEAD_GAP = 30;

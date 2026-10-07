@@ -56,6 +56,9 @@ test('XBF -> MDX: AT_Trike_H0 converts, loads in the independent reader, has Sta
   // the trike is about 82 Emperor units long -> about 328 WC3 units along x (it faces +x)
   const len = model.extent.max[0] - model.extent.min[0];
   assert.ok(len > 300 && len < 360, `length ${len}`);
+  // attachment points for effects (the veterancy elite effect goes on "origin")
+  assert.deepStrictEqual(m.attachments.map((a: { name: string }) => a.name), ['Origin Ref', 'Chest Ref', 'Overhead Ref', 'Weapon Ref']);
+  assert.strictEqual(m.pivotPoints.length, m.bones.length + m.attachments.length);
   assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf);
 });
 
