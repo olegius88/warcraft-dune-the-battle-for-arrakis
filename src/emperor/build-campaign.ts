@@ -4,7 +4,8 @@
 //   - the tutorial;
 //   - campaign screen buttons: Обучение, Атрейдесы, Харконнены, Ордосы (other maps are reached
 //     with ChangeLevel from the hub).
-// Usage: node src/emperor/build-campaign.ts [--houses AT,HK,OR] [--territories 1-33] [--out build/campaign/EmperorDune.w3n] [--check]
+// Usage: node src/emperor/build-campaign.ts [--houses AT,HK,OR] [--territories 1-33] [--out file.w3n] [--check]
+//        [--autotest] [--name "campaign name"]   (--autotest: see config/campaign.ts AUTOTEST_*)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -61,6 +62,8 @@ interface BuiltEntry {
 
 const maps: BuiltEntry[] = [];
 const check = args.includes('--check');
+const autoTest = args.includes('--autotest');
+const campaignName = opt('--name', (autoTest ? CP.AUTOTEST_NAME_PREFIX : '') + CP.CAMPAIGN_NAME);
 let pjassFailures = 0;
 const add = (file: string, buffer: Buffer, title: string, chapter = '', visible = false, script: string | null = null): void => {
   maps.push({ file, buffer, title, chapter, visible });
@@ -97,7 +100,7 @@ for (const h of houses) {
       scripts: scripts.map((s) => ({ tok: tok(s.name), phase: s.phase, name: s.name })),
       meta: metaOf(mapNeedle), ...all, name: title, playerHouse: player, kind, hubMap: hub,
       territoryBattle: kind === 'attack' || kind === 'defend', briefing: scripts[0] ? briefing(scripts[0].name) : '',
-      debugName: fileName.replace(/\.w3x$/, ''), ...extra,
+      debugName: fileName.replace(/\.w3x$/, ''), ...(autoTest ? { autoWinSeconds: CP.AUTOTEST_WIN_SECONDS } : {}), ...extra,
     });
     add(fileName, m.buffer, title, '', false, m.script);
     return fileName;
@@ -147,7 +150,7 @@ for (const h of houses) {
   storyMission('end', 'End', story.end, `${HOUSE_RU[h]}: Последняя битва`);
 
   const hubMap = buildHub({
-    house: h, campaign: camp, units: all.units,
+    house: h, campaign: camp, units: all.units, autoTest,
     battleMap: (kind, n) => battleFile[`${kind}:${n}`] || null,
     storyMap: { heighliner: storyFile.heighliner, homeDefence: storyFile.homeDefence, homeAttack: storyFile.homeAttack, end: storyFile.end },
   });
@@ -166,7 +169,7 @@ const visible: Array<[string, string]> = [[CP.MAP_FILE.tutorial, CP.TUTORIAL_TIT
 const order: BuiltEntry[] = [...visible.map(([file, title]) => ({ ...(maps.find((m) => m.file === file) as BuiltEntry), title, chapter: CP.CAMPAIGN_CHAPTER, visible: true })),
   ...maps.filter((m) => !visible.some(([f]) => f === m.file))];
 const w3n = buildCampaign({
-  name: CP.CAMPAIGN_NAME, author: CP.CAMPAIGN_AUTHOR, difficulty: CP.CAMPAIGN_DIFFICULTY,
+  name: campaignName, author: CP.CAMPAIGN_AUTHOR, difficulty: CP.CAMPAIGN_DIFFICULTY,
   description: CP.CAMPAIGN_DESCRIPTION,
   maps: order.map((m) => ({ file: m.file, buffer: m.buffer, title: m.title, chapter: m.chapter, visible: m.visible, button: m.visible })),
 });

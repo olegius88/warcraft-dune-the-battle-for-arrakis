@@ -17,8 +17,8 @@ import type { ScriptPlayer } from '../wc3/jass.ts';
 import type { Campaign, Territory } from './campaign-data.ts';
 import { HOUSE_CODES, HOUSE_RU_BY_ID, HOUSE_COLOR } from '../config/houses.ts';
 import type { HouseCode } from '../config/houses.ts';
-import { CACHE_FILE, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, CAPTURES_FOR_STORY, START_TECH, HOME_ATTACK_TECH, COUNTER_ATTACK_ONE_IN } from '../config/campaign.ts';
-import { DEFAULT_FACING, TIME_OF_DAY } from '../config/runtime.ts';
+import { CACHE_FILE, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, CAPTURES_FOR_STORY, START_TECH, HOME_ATTACK_TECH, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
+import { DEFAULT_FACING, TIME_OF_DAY, DEBUG_REPORT_DIR } from '../config/runtime.ts';
 import { CUSTOM_ID, TERRAIN } from '../config/wc3.ts';
 import * as V from '../config/hub.ts';
 import type { UnitData } from './units.ts';
@@ -41,6 +41,8 @@ export interface HubOptions {
   storyMap: StoryMaps;
   /** for the object data (marker unit) */
   units: UnitData;
+  /** automatic flow test (config/campaign.ts AUTOTEST_*): report every visit, attack once */
+  autoTest?: boolean;
 }
 
 type Vec2 = [number, number];
@@ -103,6 +105,43 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
     lines.push(`    set EmpMapA[${t.n}] = ${str(o.battleMap('attack', t.n) || '')}`, `    set EmpMapD[${t.n}] = ${str(o.battleMap('defend', t.n) || '')}`);
   }
   const story = o.storyMap;
+  // automatic flow test: one report line per hub visit; on the first visit attack the first
+  // reachable territory that has a battle map (enemy capitals stay closed before the last war phase)
+  const autoTestFunctions = `function EmpAutoAttack takes nothing returns nothing
+    local integer n = 1
+    if EmpBusy then
+        return
+    endif
+    loop
+        exitwhen n > ${TERRITORY_COUNT}
+        if EmpOwner[n] != ${me} and EmpAdjacentToMe(n) and EmpMapA[n] != "" and ${jp.filter((_, h) => h !== me).map((x) => `n != ${x}`).join(' and ')} then
+            set EmpBusy = true
+            set EmpPendTerr = n
+            set EmpPendKind = ${KIND_ID.attack}
+            set EmpPendEnemy = EmpOwner[n]
+            set EmpNextMap = EmpMapA[n]
+            call EmpSay("Автотест: атака на «" + EmpTName[n] + "»")
+            call EmpGo()
+            return
+        endif
+        set n = n + 1
+    endloop
+endfunction
+
+function EmpAutoReport takes nothing returns nothing
+    local integer v = GetStoredInteger(EmpCache, ${CAT}, ${K.autotestVisits}) + 1
+    call StoreInteger(EmpCache, ${CAT}, ${K.autotestVisits}, v)
+    call SaveGameCache(EmpCache)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload("visit=" + I2S(v) + " phase=" + I2S(EmpPhase) + " tech=" + I2S(EmpTech) + " captured=" + I2S(EmpCaptured) + " owned=" + I2S(EmpCount(${me})))
+    call PreloadGenEnd(${str(`${DEBUG_REPORT_DIR}\\${HOUSES[me]}_Hub_`)} + I2S(v) + ".pld")
+    if v == 1 then
+        call TimerStart(CreateTimer(), ${real(AUTOTEST_HUB_DELAY)}, false, function EmpAutoAttack)
+    endif
+endfunction
+
+`;
 
   const globals = `
     gamecache EmpCache = null
@@ -478,7 +517,7 @@ function EmpOnSelect takes nothing returns nothing
     call EmpAsk("Атаковать «" + EmpTName[n] + "»?", "В бой!", "Отмена")
 endfunction
 
-function EmpHubStart takes nothing returns nothing
+${o.autoTest ? autoTestFunctions : ''}function EmpHubStart takes nothing returns nothing
     local trigger tr = CreateTrigger()
     set EmpDialog = DialogCreate()
     call TriggerRegisterDialogEvent(tr, EmpDialog)
@@ -506,11 +545,11 @@ function EmpHubStart takes nothing returns nothing
         return
     endif
     call EmpDraw()
-    call EmpStatus()
+    call EmpStatus()${o.autoTest ? '\n    call EmpAutoReport()' : ''}
     if EmpOfferStory() then
         return
     endif
-    if GetStoredInteger(EmpCache, ${CAT}, ${K.lastKind}) == 0 and EmpCounterAttack() then
+    if ${o.autoTest ? 'false and ' : ''}GetStoredInteger(EmpCache, ${CAT}, ${K.lastKind}) == 0 and EmpCounterAttack() then
         call StoreInteger(EmpCache, ${CAT}, ${K.lastKind}, 1)
         return
     endif

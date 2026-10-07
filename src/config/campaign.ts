@@ -66,6 +66,8 @@ export const CACHE_KEY = {
   homeAttackEnemy: 'haenemy',
   /** 1 = the last hub visit offered a counter-attack */
   lastKind: 'lastkind',
+  /** autotest runs only: hub visits since the start mission */
+  autotestVisits: 'atvisits',
 } as const;
 export type CacheKey = keyof typeof CACHE_KEY;
 /** JASS string literals: the category and every key, ready to paste into JASS code. */
@@ -96,3 +98,11 @@ export const DEFAULT_ENEMY: Readonly<Record<HouseCode, HouseCode>> = { AT: 'HK',
 /** Debug builds of single missions (build-mission.ts, check-all.ts). */
 export const DEBUG_HUB_MAP = 'Arrakis.w3x';
 export const CHECK_ALL_MAP = '#U1 AT Start S LOD2';
+
+/** Automatic test of the campaign flow (build-campaign --autotest): the start mission resets the
+ * campaign and every mission is won after AUTOTEST_WIN_SECONDS; on its first visit the hub attacks
+ * the first reachable territory after AUTOTEST_HUB_DELAY seconds; every map writes a report. The
+ * campaign name gets AUTOTEST_NAME_PREFIX so it sorts first in the custom campaign list. */
+export const AUTOTEST_WIN_SECONDS = 15;
+export const AUTOTEST_HUB_DELAY = 6;
+export const AUTOTEST_NAME_PREFIX = 'AAA ';

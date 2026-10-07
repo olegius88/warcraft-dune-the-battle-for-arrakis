@@ -65,6 +65,8 @@ export interface MissionParams {
   debugName?: string;
   /** extra JASS functions appended to the map script */
   extraFunctions?: string;
+  /** automatic flow test: win the mission after this many seconds (config AUTOTEST_WIN_SECONDS) */
+  autoWinSeconds?: number;
 }
 
 export interface BuiltMission {
@@ -473,6 +475,13 @@ endfunction`,
         call SetCameraPositionForPlayer(Player(0), x / n, y / n)
     endif
 endfunction`,
+    ...(p.autoWinSeconds ? [`// automatic flow test: win after a delay; the start mission also begins a fresh campaign
+function EmpAutoWin takes nothing returns nothing
+${p.kind === 'start' ? `    call StoreInteger(EmpCache, ${CAT}, ${K.init}, 0)
+    call StoreInteger(EmpCache, ${CAT}, ${K.autotestVisits}, 0)
+    call SaveGameCache(EmpCache)
+` : ''}    call EmpEnd(true)
+endfunction`] : []),
     `function EmpStart takes nothing returns nothing
     local trigger tr
     local integer i = 0
@@ -523,7 +532,8 @@ ${battle.init}
     call TimerStart(CreateTimer(), ${real(RT.AI_TICK)}, true, function EmpAITick)
     call TimerStart(CreateTimer(), ${real(RT.NORMAL_CHECK_PERIOD)}, true, function EmpNormalCheck)
     call TimerStart(CreateTimer(), ${real(RT.INITIAL_CAMERA_DELAY)}, false, function EmpInitialCamera)
-    call TimerStart(CreateTimer(), ${real(RT.CRATE_TICK)}, true, function EmpCrateTick)
+    call TimerStart(CreateTimer(), ${real(RT.CRATE_TICK)}, true, function EmpCrateTick)${p.autoWinSeconds ? `
+    call TimerStart(CreateTimer(), ${real(p.autoWinSeconds)}, false, function EmpAutoWin)` : ''}
     set tr = null
 endfunction`,
   ].join('\n\n');
