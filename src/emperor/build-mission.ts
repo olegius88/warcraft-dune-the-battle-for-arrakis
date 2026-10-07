@@ -10,7 +10,9 @@ import { readMeta } from './mapxbf.ts';
 import { buildMission } from './mission.ts';
 import { ensureMap } from './preview-map.ts';
 import { loadSpeech } from './speech.ts';
-import type { House } from './battle.ts';
+import type { House } from '../config/houses.ts';
+import { HOUSE_BY_CODE, isHouse, isHouseCode } from '../config/houses.ts';
+import { DEFAULT_TECH, DEFAULT_ENEMY, DEBUG_HUB_MAP } from '../config/campaign.ts';
 import type { MissionContext } from './context.ts';
 import type { Rules } from './rules.ts';
 import type { UnitData } from './units.ts';
@@ -38,15 +40,16 @@ function loadAll(): EmperorData {
   return { ctx, rules, units, table, speech };
 }
 
-const HOUSES: House[] = ['Atreides', 'Harkonnen', 'Ordos'];
-const HOUSE_BY_CODE: Partial<Record<string, House>> = { AT: 'Atreides', HK: 'Harkonnen', OR: 'Ordos' };
-const asHouse = (s: string | null | undefined): House | undefined => HOUSES.find((h) => h === s);
+const asHouse = (s: string | null | undefined): House | undefined => (isHouse(s) ? s : undefined);
+
+/** House of a script by its name prefix (ATStart -> Atreides); Atreides when there is none. */
+const playerHouseOf = (script: string): House => { const c = script.slice(0, 2).toUpperCase(); return isHouseCode(c) ? HOUSE_BY_CODE[c] : 'Atreides'; };
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
   const flag = (n: string): string | null | undefined => { const i = args.indexOf(n); if (i < 0) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
   const enemyHouse = flag('--enemy');
-  const techLevel = Number(flag('--tech') || 3);
+  const techLevel = Number(flag('--tech') || DEFAULT_TECH);
   const territory = args.includes('--territory');
   if (territory) args.splice(args.indexOf('--territory'), 1);
   const [script, mapNeedle, outArg] = args;
@@ -54,8 +57,8 @@ if (import.meta.main) {
   const folder = ensureMap(mapNeedle)[0];
   const meta = readMeta(path.join(folder, 'test.xbf'));
   const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW_DIR, script)), phase: 1, name: script }], meta, ...all, name: path.basename(script, '.tok'),
-    territoryBattle: territory, defaultEnemyHouse: asHouse(enemyHouse) || 'Harkonnen', playerHouse: HOUSE_BY_CODE[script.slice(0, 2).toUpperCase()] || 'Atreides', defaultTech: techLevel,
-    debugName: path.basename(script, '.tok'), hubMap: 'Arrakis.w3x' });
+    territoryBattle: territory, defaultEnemyHouse: asHouse(enemyHouse) || HOUSE_BY_CODE[DEFAULT_ENEMY.AT], playerHouse: playerHouseOf(script), defaultTech: techLevel,
+    debugName: path.basename(script, '.tok'), hubMap: DEBUG_HUB_MAP });
   const out = outArg || path.join(MISSIONS_OUT_DIR, path.basename(script, '.tok') + '.w3x');
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, m.buffer);

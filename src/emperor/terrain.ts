@@ -15,15 +15,12 @@ import { PATH } from '../wc3/formats.ts';
 import type { Boundary, Corner } from '../wc3/formats.ts';
 import type { Rgb } from '../wc3/blp.ts';
 import type { MapMeta } from './mapxbf.ts';
+import { TERRAIN } from '../config/wc3.ts';
+import { TEX, MINIMAP_COLOR, TEX_RANK, CORNER_LAYER, NO_CLIFF } from '../config/terrain.ts';
+import { PLATEAU_HEIGHT as PLATEAU, CLIFF_HEIGHT_RATIO, RAMP_HEIGHT_RATIO, MAP_BOUNDARY_CELLS, MAP_SIZE_STEP, EMPEROR_TILE, WC3_UNITS_PER_TILE } from '../config/scale.ts';
 
+/** Emperor tile types: Rules.txt [TerrainTypes] order (format, not a parameter). */
 const T = { SAND: 0, ROCK: 1, CLIFF: 2, NBROCK: 3, INFROCK: 4, DUSTBOWL: 5, MAPEDGE: 6, RAMP: 7 } as const;
-
-// Barrens tiles (TerrainArt/Terrain.slk ids); index = w3e ground texture slot.
-const GROUND = ['Bdsr', 'Bdrh', 'Bflr', 'Bdrr', 'Bdsd', 'Bdrt'];
-const TEX = { SAND: 0, ROCK: 1, CLIFF: 2, NBROCK: 3, DUST: 4, SPICE: 5 } as const;
-const MINIMAP: Rgb[] = [[214, 170, 104], [120, 98, 80], [80, 66, 56], [140, 118, 96], [186, 140, 86], [205, 110, 40]];
-
-const PLATEAU = 1.2; // in w3e "layers" (×128 world units)
 
 /** WC3 terrain built from an Emperor map; also maps Emperor coordinates to WC3 ones. */
 export interface EmperorTerrain {
@@ -46,8 +43,8 @@ export interface EmperorTerrain {
 function tileHeight(t: number): number {
   switch (t) {
     case T.ROCK: case T.NBROCK: case T.INFROCK: return PLATEAU;
-    case T.CLIFF: return PLATEAU * 0.6;
-    case T.RAMP: return PLATEAU * 0.5;
+    case T.CLIFF: return PLATEAU * CLIFF_HEIGHT_RATIO;
+    case T.RAMP: return PLATEAU * RAMP_HEIGHT_RATIO;
     default: return 0;
   }
 }
@@ -58,8 +55,8 @@ function buildTerrain(meta: MapMeta): EmperorTerrain {
   const [W, H] = meta.mapSize;
   const tiles = meta.tiles;
   const spice = meta.spice;
-  const B = 4; // boundary cells on each side
-  const pad = (n: number): number => Math.ceil((n + 2 * B) / 32) * 32;
+  const B = MAP_BOUNDARY_CELLS; // boundary cells on each side
+  const pad = (n: number): number => Math.ceil((n + 2 * B) / MAP_SIZE_STEP) * MAP_SIZE_STEP;
   const width = pad(W);
   const height = pad(H);
   const ox = Math.floor((width - W) / 2); // WC3 cell of Emperor tile x=0
@@ -92,7 +89,6 @@ function buildTerrain(meta: MapMeta): EmperorTerrain {
 
   // Corner (x, y) is shared by cells (x-1..x, y-1..y).
   const NEIGHBOURS: Array<[number, number]> = [[-1, -1], [0, -1], [-1, 0], [0, 0]];
-  const RANK = [0, 3, 4, 2, 1, 5];
   const corner = (x: number, y: number): Corner => {
     let h = 0, n = 0, tex: number = TEX.SAND, best = -1;
     for (const [dx, dy] of NEIGHBOURS) {
@@ -101,11 +97,11 @@ function buildTerrain(meta: MapMeta): EmperorTerrain {
       h += tileHeight(t); n++;
       const tx = texOf(t, x + dx, y + dy);
       // prefer the "strongest" texture so cliffs/rock edges stay visible
-      const rank = RANK[tx] as number;
+      const rank = TEX_RANK[tx] as number;
       if (rank > best) { best = rank; tex = tx; }
     }
     const outside = x < boundary[0] || x > width - boundary[1] || y < boundary[2] || y > height - boundary[3];
-    return { texture: tex, height: n ? h / n : 0, layer: 2, cliff: 15, boundary: outside };
+    return { texture: tex, height: n ? h / n : 0, layer: CORNER_LAYER, cliff: NO_CLIFF, boundary: outside };
   };
 
   const pathing = (px: number, py: number): number => {
@@ -119,16 +115,16 @@ function buildTerrain(meta: MapMeta): EmperorTerrain {
     return PATH.NO_WATER | PATH.NO_BUILD;
   };
 
-  const minimapColor = (cx: number, cy: number): Rgb => MINIMAP[texOf(tileAt(cx, cy), cx, cy)] as Rgb;
+  const minimapColor = (cx: number, cy: number): Rgb => [...(MINIMAP_COLOR[texOf(tileAt(cx, cy), cx, cy)] as Rgb)] as Rgb;
 
   /** Emperor world units (32 per tile, y down) -> WC3 world coordinates (centre origin). */
   const toWorld = (ex: number, ey: number): [number, number] => {
-    const cx = ox + ex / 32;
-    const cy = oy + (H - ey / 32);
-    return [(cx - width / 2) * 128, (cy - height / 2) * 128];
+    const cx = ox + ex / EMPEROR_TILE;
+    const cy = oy + (H - ey / EMPEROR_TILE);
+    return [(cx - width / 2) * WC3_UNITS_PER_TILE, (cy - height / 2) * WC3_UNITS_PER_TILE];
   };
 
-  return { width, height, boundary, offset: [ox, oy], tileset: 'B', ground: GROUND, cliffs: ['CBde'], corner, pathing, minimapColor, toWorld };
+  return { width, height, boundary, offset: [ox, oy], tileset: TERRAIN.tileset, ground: [...TERRAIN.ground], cliffs: [TERRAIN.cliff], corner, pathing, minimapColor, toWorld };
 }
 
 export { buildTerrain, T };

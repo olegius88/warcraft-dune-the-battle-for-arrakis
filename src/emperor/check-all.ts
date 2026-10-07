@@ -11,10 +11,11 @@ import { readMeta } from './mapxbf.ts';
 import { buildMission } from './mission.ts';
 
 import { RAW_DIR, LOCAL_STRINGS_DIR, MAPS_DIR, GAME_EXE, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, FIRST_FAILURE_J } from '../config/paths.ts';
+import { CHECK_ALL_MAP } from '../config/campaign.ts';
 const table = loadTokenTable(GAME_EXE);
 const ctx = loadContext(RAW_DIR, LOCAL_STRINGS_DIR);
 const units = buildUnitData(loadRules(path.join(RAW_DIR, 'Rules.txt')));
-const meta = readMeta(path.join(MAPS_DIR, '#U1 AT Start S LOD2', 'test.xbf'));
+const meta = readMeta(path.join(MAPS_DIR, CHECK_ALL_MAP, 'test.xbf'));
 const filter = process.argv[2] || '';
 const tmp = PJASS_OUT_DIR; // overwritten on every run, never deleted
 fs.mkdirSync(tmp, { recursive: true });

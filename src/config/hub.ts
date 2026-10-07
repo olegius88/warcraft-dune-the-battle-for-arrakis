@@ -49,3 +49,8 @@ export const CAMERA_TOWARDS_CAPITAL_NUM = 2;
 export const CAMERA_TOWARDS_CAPITAL_DEN = 3;
 /** The hub starts its logic this long after map init. */
 export const HUB_START_DELAY = 0.1;
+
+/** Terrain preview map (preview-map.ts): footmen at the base, camera distance, start delay. */
+export const PREVIEW_FOOTMEN = 6;
+export const PREVIEW_CAMERA_DISTANCE = 3200;
+export const PREVIEW_START_DELAY = 0.1;

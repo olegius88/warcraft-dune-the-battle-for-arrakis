@@ -8,7 +8,7 @@ import { buildRuntime } from './runtime.ts';
 import { translateScript } from './translate.ts';
 import { buildTerrain } from './terrain.ts';
 import { battleSetup } from './battle.ts';
-import type { House } from './battle.ts';
+import type { House } from '../config/houses.ts';
 import type { ScriptPlayer } from '../wc3/jass.ts';
 import type { MapMeta, GamePoint } from './mapxbf.ts';
 import type { TokenTable } from './tok.ts';
@@ -16,8 +16,8 @@ import type { MissionContext } from './context.ts';
 import type { UnitData } from './units.ts';
 import type { Rules } from './rules.ts';
 import type { Speech } from './speech.ts';
-import { HOUSE_ID, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE } from '../config/houses.ts';
-import { CACHE_FILE, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
+import { HOUSE_ID, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_BY_CODE } from '../config/houses.ts';
+import { CACHE_FILE, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
 import { TICK_SECONDS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
@@ -177,7 +177,7 @@ function buildMission(p: MissionParams): BuiltMission {
   init.push(`    set EmpMapMinY = ${real(-half(t.height) + bb * WC3_UNITS_PER_TILE)}`, `    set EmpMapMaxY = ${real(half(t.height) - btop * WC3_UNITS_PER_TILE)}`);
 
   const playerHouseId = HOUSE_ID[p.playerHouse];
-  const defaultEnemy = HOUSE_ID[p.defaultEnemyHouse || (p.playerHouse === 'Harkonnen' ? 'Atreides' : 'Harkonnen')];
+  const defaultEnemy = HOUSE_ID[p.defaultEnemyHouse || HOUSE_BY_CODE[DEFAULT_ENEMY[CODE_BY_HOUSE[p.playerHouse]]]];
   const dispatch = scripts.length
     ? scripts.map((s, i) => `    ${i === 0 ? 'if' : 'elseif'} EmpScriptIndex == ${i} then\n        call EmpScript${i}()`).join('\n') + '\n    endif'
     : '';

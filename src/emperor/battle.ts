@@ -17,7 +17,8 @@ import type { MapMeta } from './mapxbf.ts';
 import type { EmperorTerrain } from './terrain.ts';
 import type { UnitData } from './units.ts';
 
-export type House = 'Atreides' | 'Harkonnen' | 'Ordos';
+import type { House } from '../config/houses.ts';
+export type { House };
 
 export interface SpiceCluster {
   /** centre in Emperor world units (32 per tile) */

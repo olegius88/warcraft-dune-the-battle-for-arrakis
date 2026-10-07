@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readBag, toFile, duration } from './bag.ts';
 import type { Bag, BagEntry } from './bag.ts';
+import { IMPORT_DIR } from '../config/wc3.ts';
 
 export interface SpeechLine {
   id: string;
@@ -50,7 +51,7 @@ function loadSpeech(gameDir: string): Speech | null {
       let r: SpeechLine | null = null;
       if (hit) {
         const f = toFile(hit.bag, hit.e);
-        r = { id, path: `war3mapImported\\speech\\${id}.${f.ext}`, data: f.data, seconds: duration(hit.bag, hit.e) };
+        r = { id, path: `${IMPORT_DIR.speech}${id}.${f.ext}`, data: f.data, seconds: duration(hit.bag, hit.e) };
       }
       cache.set(id, r);
       return r;

@@ -100,6 +100,11 @@ export const EFFECT = {
   wormStrike: 'Objects\\Spawnmodels\\Undead\\ImpaleTargetDust\\ImpaleTargetDust.mdl',
 } as const;
 
+/** Folders for files imported into a map. */
+export const IMPORT_DIR = {
+  speech: 'war3mapImported\\speech\\',
+} as const;
+
 /** Icons (JASS paths, through str()). */
 export const ICON = {
   /** the mission's briefing quest */

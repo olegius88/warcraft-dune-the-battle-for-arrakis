@@ -89,3 +89,10 @@ export const MAP_FILE = {
   homeAttack: (h: HouseCode, foe: HouseCode): string => `${h}_S_Home${foe}.w3x`,
   tutorial: 'Tutorial.w3x',
 } as const;
+
+/** Enemy of a house when the map/cache does not say (standalone runs, own territories). */
+export const DEFAULT_ENEMY: Readonly<Record<HouseCode, HouseCode>> = { AT: 'HK', HK: 'AT', OR: 'HK' };
+
+/** Debug builds of single missions (build-mission.ts, check-all.ts). */
+export const DEBUG_HUB_MAP = 'Arrakis.w3x';
+export const CHECK_ALL_MAP = '#U1 AT Start S LOD2';

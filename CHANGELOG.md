@@ -5,6 +5,9 @@
 ## [Unreleased]
 
 ### Changed
+- 2026-10-07 Все параметры вынесены в модули констант [src/config/](src/config/README.md): пути,
+  дома, масштабы Emperor → WC3, коды WC3, юниты и модели, рельеф, декорации, бой, JASS-рантайм,
+  кампания и ключи game cache, сюжет, хаб. Сгенерированные карты побайтно не изменились.
 - 2026-10-07 Весь код переведён на TypeScript 7 (strict, ESM, без `any`): Node 24 запускает `.ts`
   напрямую, `tsc` только проверяет типы ([tsconfig.json](tsconfig.json), [CLAUDE.md](CLAUDE.md)).
   Поведение не изменилось: кампания (211 карт + `.w3n`), дымовые карты и миссия собираются
@@ -84,6 +87,9 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-07 Денежные ящики давали 500 кредитов вместо `CASH2000` (шаблон `CASH<n>` потерял
+  обратный слеш); затронуты 36 карт ([src/emperor/mission.ts](src/emperor/mission.ts), регрессия
+  [test/emperor-mission.test.ts](test/emperor-mission.test.ts)).
 - 2026-10-07 Подарок ящика обрезался на строчной «s» (`split(/s+/)`: обратный слеш съел heredoc);
   на данных игры не проявлялось ([src/emperor/rules.ts](src/emperor/rules.ts), регрессия
   [test/emperor-rules.test.ts](test/emperor-rules.test.ts)).

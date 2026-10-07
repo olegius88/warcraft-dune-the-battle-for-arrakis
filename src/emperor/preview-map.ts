@@ -10,6 +10,9 @@ import type { GamePoint } from './mapxbf.ts';
 import { buildTerrain } from './terrain.ts';
 import { buildMap } from '../wc3/map.ts';
 import { real } from '../wc3/jass.ts';
+import { UNIT } from '../config/wc3.ts';
+import { DEFAULT_FACING, TIME_OF_DAY } from '../config/runtime.ts';
+import { PREVIEW_FOOTMEN, PREVIEW_CAMERA_DISTANCE, PREVIEW_START_DELAY } from '../config/hub.ts';
 
 import { MAPS_DIR, PREVIEW_OUT, gameData } from '../config/paths.ts';
 
@@ -46,7 +49,7 @@ function previewMap(folder: string): MapPreview {
   const [bx, by] = t.toWorld(base.x, base.y);
   const lines = pts.map(({ name, p }) => {
     const [x, y] = t.toWorld(p.x, p.y);
-    return `    call CreateUnit( Player(PLAYER_NEUTRAL_PASSIVE), 'ewsp', ${real(x)}, ${real(y)}, 0.0 ) // ${name}`;
+    return `    call CreateUnit( Player(PLAYER_NEUTRAL_PASSIVE), '${UNIT.marker}', ${real(x)}, ${real(y)}, 0.0 ) // ${name}`;
   });
   const title = path.basename(folder);
   const m = buildMap({
@@ -54,16 +57,16 @@ function previewMap(folder: string): MapPreview {
     tileset: t.tileset, ground: t.ground, cliffs: t.cliffs, corner: t.corner, pathing: t.pathing, minimapColor: t.minimapColor,
     players: [{ id: 0, control: 'user', race: 'human', team: 0, x: bx, y: by, name: 'Atreides' }],
     functions: `function PreviewInit takes nothing returns nothing
-    call CreateNUnitsAtLoc( 6, 'hfoo', Player(0), Location(${real(bx)}, ${real(by)}), 270.0 )
+    call CreateNUnitsAtLoc( ${PREVIEW_FOOTMEN}, '${UNIT.fallback}', Player(0), Location(${real(bx)}, ${real(by)}), ${real(DEFAULT_FACING)} )
 ${lines.join('\n')}
     call FogEnableOff()
     call FogMaskEnableOff()
-    call SetTimeOfDay( 12.0 )
+    call SetTimeOfDay( ${real(TIME_OF_DAY)} )
     call SuspendTimeOfDay( true )
-    call SetCameraField( CAMERA_FIELD_TARGET_DISTANCE, 3200.0, 0.0 )
+    call SetCameraField( CAMERA_FIELD_TARGET_DISTANCE, ${real(PREVIEW_CAMERA_DISTANCE)}, 0.0 )
     call SetCameraPosition( ${real(bx)}, ${real(by)} )
 endfunction`,
-    init: '    call TimerStart( CreateTimer(), 0.1, false, function PreviewInit )',
+    init: `    call TimerStart( CreateTimer(), ${real(PREVIEW_START_DELAY)}, false, function PreviewInit )`,
   });
   return { buffer: m.buffer, title, size: [t.width, t.height], points: pts.length };
 }

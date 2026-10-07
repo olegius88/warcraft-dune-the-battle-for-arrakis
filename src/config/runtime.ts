@@ -79,3 +79,8 @@ export const DEBUG_REPORT_DIR = 'DuneTest';
 /** Players of a mission map: the user and the computer sides 1..MAX_SIDE. */
 export const PLAYER_NAME = 'Командор';
 export const SIDE_NAME_PREFIX = 'Сторона ';
+
+/** Object health in the Emperor API is modelled as percent of max health. */
+export const HEALTH_SCALE = 100;
+/** NewObjectOffsetOrientation: orientation 0..3 = steps of this many degrees. */
+export const ORIENTATION_STEP = 90;

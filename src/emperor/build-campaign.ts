@@ -13,10 +13,15 @@ import { readIndex } from './rfh.ts';
 import { readMeta } from './mapxbf.ts';
 import type { MapMeta } from './mapxbf.ts';
 import { loadCampaign } from './campaign-data.ts';
-import type { HouseCode, MissionKindKey, StoryRef } from './campaign-data.ts';
+import type { MissionKindKey } from './campaign-data.ts';
+import type { StoryRef } from '../config/story.ts';
+import { TUTORIAL_SCRIPT, TUTORIAL_MAP, territoryMapPrefix } from '../config/story.ts';
+import { HOUSE_BY_CODE as HOUSE_NAME, HOUSE_RU, isHouseCode } from '../config/houses.ts';
+import type { HouseCode } from '../config/houses.ts';
+import * as CP from '../config/campaign.ts';
 import { buildMission } from './mission.ts';
-import type { MissionKind, MissionParams } from './mission.ts';
-import type { House } from './battle.ts';
+import type { MissionKind } from '../config/campaign.ts';
+import type { MissionParams } from './mission.ts';
 import { buildHub } from './hub.ts';
 import type { StoryMaps } from './hub.ts';
 import { ensureMap } from './preview-map.ts';
@@ -24,9 +29,6 @@ import { loadAll } from './build-mission.ts';
 import { buildCampaign } from '../wc3/map.ts';
 
 import { RAW_DIR, CAMPAIGN_OUT, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
-const HOUSE_NAME: Record<HouseCode, House> = { AT: 'Atreides', HK: 'Harkonnen', OR: 'Ordos' };
-const HOUSE_RU: Record<HouseCode, string> = { AT: 'Атрейдесы', HK: 'Харконнены', OR: 'Ордосы' };
-const isHouseCode = (s: string): s is HouseCode => s === 'AT' || s === 'HK' || s === 'OR';
 
 const args = process.argv.slice(2);
 const opt = (n: string, d: string): string => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] as string : d; };
@@ -34,7 +36,7 @@ const houses: HouseCode[] = opt('--houses', 'AT,HK,OR').split(',').map((h) => {
   if (!isHouseCode(h)) throw new Error(`--houses: unknown house ${h} (AT, HK, OR)`);
   return h;
 });
-const [tFrom = 1, tTo = 33] = opt('--territories', '1-33').split('-').map(Number);
+const [tFrom = 1, tTo = CP.TERRITORY_COUNT] = opt('--territories', `1-${CP.TERRITORY_COUNT}`).split('-').map(Number);
 const out = opt('--out', CAMPAIGN_OUT);
 
 const all = loadAll();
@@ -79,7 +81,6 @@ const add = (file: string, buffer: Buffer, title: string, chapter = '', visible 
   }
   process.stdout.write(`  ${file} (${Math.round(buffer.length / 1024)} KB)\n`);
 };
-const pad = (n: number): string => String(n).padStart(2, '0');
 
 interface ScriptRef {
   name: string;
@@ -88,7 +89,7 @@ interface ScriptRef {
 
 for (const h of houses) {
   const player = HOUSE_NAME[h];
-  const hub = `${h}_Hub.w3x`;
+  const hub = CP.MAP_FILE.hub(h);
   const story = camp.story[h];
   console.log(`== ${player}`);
   const mission = (fileName: string, title: string, scripts: ScriptRef[], mapNeedle: string, kind: MissionKind, extra: Partial<MissionParams> = {}): string => {
@@ -103,7 +104,7 @@ for (const h of houses) {
   };
 
   // start mission (opened from the campaign screen)
-  mission(`${h}_Start.w3x`, `${HOUSE_RU[h]}: Прибытие на Арракис`, [{ name: story.start[0], phase: 0 }], story.start[1], 'start');
+  mission(CP.MAP_FILE.start(h), `${HOUSE_RU[h]}: Прибытие на Арракис`, [{ name: story.start[0], phase: 0 }], story.start[1], 'start');
 
   // territory battles
   const battleFile: Record<string, string> = {};
@@ -122,9 +123,9 @@ for (const h of houses) {
           if (isHouseCode(defender) && script && camp.jumpPoint[defender] === n) { scripts.length = 0; for (const ph of [1, 2, 3]) scripts.push({ name: script, phase: ph }); }
         }
       }
-      const file = `${h}_${kind === 'attack' ? 'A' : 'D'}${pad(n)}.w3x`;
-      const enemy = owner === h ? (h === 'HK' ? 'AT' : 'HK') : owner;
-      mission(file, `${kind === 'attack' ? 'Атака' : 'Оборона'}: ${t.name}`, scripts, `#T${n} `, kind, {
+      const file = CP.MAP_FILE.battle(h, kind, n);
+      const enemy = owner === h ? CP.DEFAULT_ENEMY[h] : owner;
+      mission(file, `${kind === 'attack' ? 'Атака' : 'Оборона'}: ${t.name}`, scripts, territoryMapPrefix(n), kind, {
         territory: n, defaultEnemyHouse: enemy ? HOUSE_NAME[enemy] : undefined,
       });
       battleFile[`${kind}:${n}`] = file;
@@ -135,13 +136,13 @@ for (const h of houses) {
   const storyFile: Omit<StoryMaps, 'homeAttack'> & { homeAttack: Record<string, string> } = { homeAttack: {} };
   const storyMission = (key: 'heighliner' | 'homeDefence' | 'end', fileKey: string, def: StoryRef | undefined, title: string): void => {
     if (!def) return;
-    storyFile[key] = mission(`${h}_S_${fileKey}.w3x`, title, [{ name: def[0], phase: 0 }], def[1], 'story');
+    storyFile[key] = mission(CP.MAP_FILE.story(h, fileKey), title, [{ name: def[0], phase: 0 }], def[1], 'story');
   };
   storyMission('heighliner', 'Heighliner', story.heighliner, `${HOUSE_RU[h]}: Хайлайнер`);
   storyMission('homeDefence', 'HomeDefence', story.homeDefence, `${HOUSE_RU[h]}: Оборона родного мира`);
   for (const [foe, def] of Object.entries(story.homeAttack)) {
     if (!def || !isHouseCode(foe)) continue;
-    storyFile.homeAttack[foe] = mission(`${h}_S_Home${foe}.w3x`, `${HOUSE_RU[h]}: Вторжение (${HOUSE_RU[foe]})`, [{ name: def[0], phase: 0 }], def[1], 'story');
+    storyFile.homeAttack[foe] = mission(CP.MAP_FILE.homeAttack(h, foe), `${HOUSE_RU[h]}: Вторжение (${HOUSE_RU[foe]})`, [{ name: def[0], phase: 0 }], def[1], 'story');
   }
   storyMission('end', 'End', story.end, `${HOUSE_RU[h]}: Последняя битва`);
 
@@ -155,18 +156,18 @@ for (const h of houses) {
 
 // tutorial (standalone: ends with the normal victory dialog)
 {
-  const m = buildMission({ scripts: [{ tok: tok('ATTutorial'), phase: 0, name: 'ATTutorial' }], meta: metaOf('#X1 '), ...all,
-    name: 'Обучение', playerHouse: 'Atreides', kind: 'tutorial', territoryBattle: false, briefing: briefing('ATTutorial'), debugName: 'Tutorial' });
-  add('Tutorial.w3x', m.buffer, 'Обучение', '', false, m.script);
+  const m = buildMission({ scripts: [{ tok: tok(TUTORIAL_SCRIPT), phase: 0, name: TUTORIAL_SCRIPT }], meta: metaOf(TUTORIAL_MAP), ...all,
+    name: CP.TUTORIAL_TITLE, playerHouse: 'Atreides', kind: 'tutorial', territoryBattle: false, briefing: briefing(TUTORIAL_SCRIPT), debugName: 'Tutorial' });
+  add(CP.MAP_FILE.tutorial, m.buffer, CP.TUTORIAL_TITLE, '', false, m.script);
 }
 
 // campaign screen: four visible buttons, the rest hidden
-const visible: Array<[string, string]> = [['Tutorial.w3x', 'Обучение'], ...houses.map((h): [string, string] => [`${h}_Start.w3x`, HOUSE_RU[h]])];
-const order: BuiltEntry[] = [...visible.map(([file, title]) => ({ ...(maps.find((m) => m.file === file) as BuiltEntry), title, chapter: 'Emperor: Битва за Дюну', visible: true })),
+const visible: Array<[string, string]> = [[CP.MAP_FILE.tutorial, CP.TUTORIAL_TITLE], ...houses.map((h): [string, string] => [CP.MAP_FILE.start(h), HOUSE_RU[h]])];
+const order: BuiltEntry[] = [...visible.map(([file, title]) => ({ ...(maps.find((m) => m.file === file) as BuiltEntry), title, chapter: CP.CAMPAIGN_CHAPTER, visible: true })),
   ...maps.filter((m) => !visible.some(([f]) => f === m.file))];
 const w3n = buildCampaign({
-  name: 'Emperor: Битва за Дюну', author: 'warcraft-dune (данные — ваша копия Emperor)', difficulty: 'Нормальная',
-  description: 'Кампании трёх Великих Домов за Арракис. Собрано из вашей копии Emperor: Battle for Dune.',
+  name: CP.CAMPAIGN_NAME, author: CP.CAMPAIGN_AUTHOR, difficulty: CP.CAMPAIGN_DIFFICULTY,
+  description: CP.CAMPAIGN_DESCRIPTION,
   maps: order.map((m) => ({ file: m.file, buffer: m.buffer, title: m.title, chapter: m.chapter, visible: m.visible, button: m.visible })),
 });
 fs.mkdirSync(path.dirname(out), { recursive: true });

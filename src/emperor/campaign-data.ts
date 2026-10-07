@@ -8,27 +8,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { House } from './battle.ts';
+import { HOUSE_BY_CODE as HOUSES } from '../config/houses.ts';
+import type { House, HouseCode } from '../config/houses.ts';
+import { JUMP_POINT, JUMP_SCRIPT, TERRITORY_COUNT } from '../config/campaign.ts';
+import { STORY, territoryMapPrefix } from '../config/story.ts';
+import type { StoryRef, HouseStory } from '../config/story.ts';
 
-/** House prefix of script and object names. */
-export type HouseCode = 'AT' | 'HK' | 'OR';
-
-/** [script name, map folder prefix], e.g. ['ATStart', '#U1 '] */
-export type StoryRef = [string, string];
-
-export interface HouseStory {
-  tutorial: StoryRef;
-  start: StoryRef;
-  heighliner: StoryRef;
-  homeDefence: StoryRef;
-  civilWar?: StoryRef;
-  /** enemy house code -> assault on its homeworld */
-  homeAttack: Partial<Record<HouseCode, StoryRef>>;
-  end: StoryRef;
-}
+export type { HouseCode, StoryRef, HouseStory };
 
 export interface Territory {
-  /** 1..33 */
+  /** 1..TERRITORY_COUNT */
   n: number;
   name: string;
   /** map folder (MAPS0001 index), null when not found */
@@ -56,43 +45,12 @@ export interface Campaign {
   territories: Territory[];
   /** house -> kind -> "phase:territory" -> slot */
   missions: Record<HouseCode, Record<MissionKindKey, Record<string, MissionSlot>>>;
-  story: Record<HouseCode, HouseStory>;
-  jumpPoint: Record<HouseCode, number>;
-  jumpScript: Record<HouseCode, Partial<Record<HouseCode, string>>>;
-  houses: Record<HouseCode, House>;
+  story: Readonly<Record<HouseCode, HouseStory>>;
+  jumpPoint: Readonly<Record<HouseCode, number>>;
+  jumpScript: Readonly<Record<HouseCode, Readonly<Partial<Record<HouseCode, string>>>>>;
+  houses: Readonly<Record<HouseCode, House>>;
   scripts: string[];
 }
-
-const HOUSES: Record<HouseCode, House> = { AT: 'Atreides', HK: 'Harkonnen', OR: 'Ordos' };
-// Forced Missions.txt: jump points (0-based territory index) and the scripts used to take them.
-const JUMP_POINT: Record<HouseCode, number> = { AT: 33, HK: 1, OR: 31 }; // 1-based territory numbers
-const JUMP_SCRIPT: Record<HouseCode, Partial<Record<HouseCode, string>>> = { // attacker -> { defender: script }
-  AT: { HK: 'HKJump_reb2', OR: 'ORJump_reb' },
-  HK: { AT: 'ATJump_reb', OR: 'ORJump2_reb' },
-  OR: { AT: 'ATJump_reb2', HK: 'HKjump_reb' },
-};
-
-// Story missions: script -> map folder prefix. Derived from script/map names (see README).
-const STORY: Record<HouseCode, HouseStory> = {
-  AT: {
-    tutorial: ['ATTutorial', '#X1 '], start: ['ATStart', '#U1 '], heighliner: ['Atreides Heighliner Mission', '#H1 '],
-    homeDefence: ['DAT Save The Duke', '#D1 '],
-    homeAttack: { HK: ['Harkonnen homeworld assault_AT', '#A3 '], OR: ['Ordos homeworld assault _Atreides', '#A2 '] },
-    end: ['ATENDMission', '#E1 '],
-  },
-  HK: {
-    tutorial: ['ATTutorial', '#X1 '], start: ['HKStart', '#U3 '], heighliner: ['HHK Heighliner Mission', '#H3 '],
-    homeDefence: ['HHK Civil War Defence Mission', '#V1 '], civilWar: ['HHK Civil War Attack Mission', '#C1 '],
-    homeAttack: { AT: ['T36 Atreides Homeworld Assault', '#A1 '], OR: ['Ordos homeworld assault', '#A2 '] },
-    end: ['HKENDMission', '#E1 '],
-  },
-  OR: {
-    tutorial: ['ATTutorial', '#X1 '], start: ['ORStart', '#U2 '], heighliner: ['Ordos Heighliner Mission', '#H2 '],
-    homeDefence: ['Ordos Homeworld Defense', '#D2 '],
-    homeAttack: { AT: ['T36 Atreides Homeworld Assault_OR', '#A1 '], HK: ['Harkonnen homeworld assault_OR', '#A3 '] },
-    end: ['ORENDMission', '#E1 '],
-  },
-};
 
 function readLines(file: string): string[] {
   return fs.readFileSync(file, 'latin1').split(/\r?\n/).map((l) => l.trim());
@@ -102,11 +60,11 @@ function readLines(file: string): string[] {
 function loadCampaign(rawDir: string, mapFolders: string[]): Campaign {
   const conn = readLines(path.join(rawDir, 'arrakis connections.txt'));
   const territories: Territory[] = [];
-  for (let i = 0; i < 33; i++) {
+  for (let i = 0; i < TERRITORY_COUNT; i++) {
     const n = i + 1;
-    const folder = mapFolders.find((f) => f.startsWith(`#T${n} `)) || null;
+    const folder = mapFolders.find((f) => f.startsWith(territoryMapPrefix(n))) || null;
     const name = folder ? folder.replace(/^#T\d+\s+/, '').replace(/^(GM|JF)\s+/, '').replace(/\s+S\s+LOD2$/i, '').replace(/\s+s\s+LOD2$/i, '').trim() : `T${n}`;
-    const neighbours = (conn[i] || '').split(',').map((x) => Number(x)).filter((x) => x >= 1 && x <= 33);
+    const neighbours = (conn[i] || '').split(',').map((x) => Number(x)).filter((x) => x >= 1 && x <= TERRITORY_COUNT);
     territories.push({ n, name, folder, neighbours, owner: null, ring: Infinity });
   }
   // make the graph symmetric
@@ -115,8 +73,8 @@ function loadCampaign(rawDir: string, mapFolders: string[]): Campaign {
     if (!o.neighbours.includes(t.n)) o.neighbours.push(t.n);
   }
   // initial owners: multi-source BFS from the jump points (Emperor: 11 territories per house in rings)
-  const owner: Array<HouseCode | null> = Array.from({ length: 34 }, () => null);
-  const dist: number[] = Array.from({ length: 34 }, () => Infinity);
+  const owner: Array<HouseCode | null> = Array.from({ length: TERRITORY_COUNT + 1 }, () => null);
+  const dist: number[] = Array.from({ length: TERRITORY_COUNT + 1 }, () => Infinity);
   const queue: number[] = [];
   for (const [h, jp] of Object.entries(JUMP_POINT) as Array<[HouseCode, number]>) { owner[jp] = h; dist[jp] = 0; queue.push(jp); }
   for (let t = queue.shift(); t !== undefined; t = queue.shift()) {
@@ -144,4 +102,4 @@ function loadCampaign(rawDir: string, mapFolders: string[]): Campaign {
   return { territories, missions, story: STORY, jumpPoint: JUMP_POINT, jumpScript: JUMP_SCRIPT, houses: HOUSES, scripts };
 }
 
-export { loadCampaign, HOUSES, JUMP_POINT };
+export { loadCampaign };

@@ -9,6 +9,13 @@
 
 import { RETURN_OVERRIDE } from './translate.ts';
 import type { TokenTable } from './tok.ts';
+import { real, str } from '../wc3/jass.ts';
+import * as RT from '../config/runtime.ts';
+import { TICKS_PER_SECOND, WC3_UNITS_PER_TILE } from '../config/scale.ts';
+import { EFFECT } from '../config/wc3.ts';
+
+const FACING = real(RT.DEFAULT_FACING);
+const TPS = real(TICKS_PER_SECOND);
 
 type JassType = 'integer' | 'location' | 'unit' | 'nothing';
 const RET_J: Record<number, JassType> = { 0: 'integer', 1: 'location', 2: 'unit', 8: 'nothing' };
@@ -91,7 +98,7 @@ const HEADER_GLOBALS = `
 // Helper JASS functions (placed before the EF_ functions).
 const HELPERS = `
 function EmpSidePlayer takes integer side returns player
-    if side >= 0 and side <= 11 then
+    if side >= 0 and side <= ${RT.MAX_SIDE} then
         return Player(side)
     endif
     return Player(PLAYER_NEUTRAL_PASSIVE)
@@ -99,10 +106,10 @@ endfunction
 
 function EmpPlayerSide takes player p returns integer
     local integer id = GetPlayerId(p)
-    if id <= 11 then
+    if id <= ${RT.MAX_SIDE} then
         return id
     endif
-    return 12
+    return ${RT.NEUTRAL_SIDE}
 endfunction
 
 function EF_B2I takes boolean b returns integer
@@ -117,7 +124,7 @@ function EmpAlive takes unit u returns boolean
 endfunction
 
 function EmpTiles takes integer t returns real
-    return I2R(t) * 128.0
+    return I2R(t) * ${real(WC3_UNITS_PER_TILE)}
 endfunction
 
 function EmpCountEnum takes nothing returns boolean
@@ -226,7 +233,7 @@ function EmpEntranceFor takes integer side returns integer
     set i = 0
     loop
         exitwhen i >= EmpEntrCount
-        if EmpEntrTag[i] != 99 and (side == 0 or i > 0) then
+        if EmpEntrTag[i] != ${RT.NEUTRAL_TAG} and (side == 0 or i > 0) then
             return i
         endif
         set i = i + 1
@@ -238,15 +245,15 @@ endfunction
 // build time (GetSoundIsPlaying is unreliable right after StartSound), so the queue waits by time.
 function EmpSpeechTick takes nothing returns nothing
     local sound s
-    set EmpSpeechLeft = EmpSpeechLeft - 0.25
+    set EmpSpeechLeft = EmpSpeechLeft - ${real(RT.SPEECH_TICK)}
     if EmpSpeechLeft > 0.0 or EmpSpeechHead >= EmpSpeechTail then
         return
     endif
     set s = CreateSound(EmpSpeechQ[EmpSpeechHead], false, false, false, 10, 10, "")
-    call SetSoundVolume(s, 127)
+    call SetSoundVolume(s, ${RT.SPEECH_VOLUME})
     call StartSound(s)
     call KillSoundWhenDone(s)
-    set EmpSpeechLeft = EmpSpeechQLen[EmpSpeechHead] + 0.3
+    set EmpSpeechLeft = EmpSpeechQLen[EmpSpeechHead] + ${real(RT.SPEECH_GAP)}
     // for the debug report: did the engine open/decode the file? (0 = no)
     set EmpSpeechLastMs = GetSoundFileDuration(EmpSpeechQ[EmpSpeechHead])
     set EmpSpeechHead = EmpSpeechHead + 1
@@ -259,10 +266,10 @@ function EmpSpeak takes string path, real seconds returns nothing
     endif
     if EmpSpeechTimer == null then
         set EmpSpeechTimer = CreateTimer()
-        call TimerStart(EmpSpeechTimer, 0.25, true, function EmpSpeechTick)
+        call TimerStart(EmpSpeechTimer, ${real(RT.SPEECH_TICK)}, true, function EmpSpeechTick)
     endif
     // drop lines rather than lag far behind the action
-    if EmpSpeechTail - EmpSpeechHead < 4 and EmpSpeechTail < 8000 then
+    if EmpSpeechTail - EmpSpeechHead < ${RT.SPEECH_QUEUE_MAX} and EmpSpeechTail < ${RT.SPEECH_ARRAY_LIMIT} then
         set EmpSpeechQ[EmpSpeechTail] = path
         set EmpSpeechQLen[EmpSpeechTail] = seconds
         set EmpSpeechTail = EmpSpeechTail + 1
@@ -270,7 +277,7 @@ function EmpSpeak takes string path, real seconds returns nothing
 endfunction
 
 function EmpShow takes string s returns nothing
-    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, 15.0, s)
+    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, ${real(RT.MESSAGE_SECONDS)}, s)
 endfunction
 
 // ---- side AI (simple order-based behaviour) ----
@@ -288,7 +295,7 @@ function EmpAIOrderEnum takes nothing returns boolean
         elseif m == 2 and EmpAITarget[side] != null then
             call IssuePointOrderLoc(u, "move", EmpAITarget[side])
         elseif m == 3 then
-            if IsUnitInRangeXY(u, EmpTmpX, EmpTmpY, 256.0) then
+            if IsUnitInRangeXY(u, EmpTmpX, EmpTmpY, ${real(RT.AI_GUARD_RADIUS)}) then
                 call RemoveUnit(u)
             else
                 call IssuePointOrder(u, "move", EmpTmpX, EmpTmpY)
@@ -300,7 +307,7 @@ function EmpAIOrderEnum takes nothing returns boolean
                 call IssuePointOrder(u, "attack", GetUnitX(EmpAIUnit[side]), GetUnitY(EmpAIUnit[side]))
             endif
         elseif m == 6 then
-            call IssuePointOrder(u, "move", EmpClampX(GetUnitX(u) + GetRandomReal(-800, 800)), EmpClampY(GetUnitY(u) + GetRandomReal(-800, 800)))
+            call IssuePointOrder(u, "move", EmpClampX(GetUnitX(u) + GetRandomReal(-${RT.AI_WANDER}, ${RT.AI_WANDER})), EmpClampY(GetUnitY(u) + GetRandomReal(-${RT.AI_WANDER}, ${RT.AI_WANDER})))
         endif
     endif
     set u = null
@@ -310,7 +317,7 @@ endfunction
 function EmpAITick takes nothing returns nothing
     local integer side = 1
     loop
-        exitwhen side > 12
+        exitwhen side > ${RT.NEUTRAL_SIDE}
         if EmpAIMode[side] != 0 then
             set EmpTmpSide = side
             // nearest map edge point for "exit map"
@@ -325,7 +332,7 @@ endfunction
 function EmpOnAttacked takes nothing returns nothing
     local integer a = EmpPlayerSide(GetOwningPlayer(GetAttacker()))
     local integer b = EmpPlayerSide(GetOwningPlayer(GetTriggerUnit()))
-    set EmpAttacked[a * 16 + b] = true
+    set EmpAttacked[a * ${RT.SIDE_STRIDE} + b] = true
 endfunction
 
 function EmpOnConstructed takes nothing returns nothing
@@ -346,7 +353,7 @@ endfunction
 // Normal Emperor win/lose rule for territory battles: the enemy house loses all buildings ->
 // win; the player has neither buildings nor units -> lose. Story scripts end the game themselves.
 function EmpNormalCheck takes nothing returns nothing
-    if not EmpNormalConditions or EmpEnded or EmpTick < 250 then
+    if not EmpNormalConditions or EmpEnded or EmpTick < ${RT.NORMAL_CHECK_GRACE_TICKS} then
         return
     endif
     if EmpDefendMode then
@@ -373,9 +380,9 @@ const IMPL: Partial<Record<string, string>> = {
   GetPlayerSide: 'return 0',
   GetSecondPlayerSide: 'return 0',
   GetEnemySide: 'return 1',
-  GetNeutralSide: 'return 12',
+  GetNeutralSide: `return ${RT.NEUTRAL_SIDE}`,
   CreateSide: `local integer s = EmpNextSide
-    if EmpNextSide < 11 then
+    if EmpNextSide < ${RT.MAX_SIDE} then
         set EmpNextSide = EmpNextSide + 1
     endif
     set EmpSideBase[s] = -1
@@ -385,7 +392,7 @@ const IMPL: Partial<Record<string, string>> = {
   GetSideSpice: 'return GetPlayerState(EmpSidePlayer(a1), PLAYER_STATE_RESOURCE_GOLD)',
   AddSideCash: 'call AdjustPlayerStateBJ(a2, EmpSidePlayer(a1), PLAYER_STATE_RESOURCE_GOLD)',
   SetSideCash: 'call SetPlayerStateBJ(EmpSidePlayer(a1), PLAYER_STATE_RESOURCE_GOLD, a2)',
-  SetSideColor: 'call SetPlayerColorBJ(EmpSidePlayer(a1), ConvertPlayerColor(ModuloInteger(a2, 12)), true)',
+  SetSideColor: `call SetPlayerColorBJ(EmpSidePlayer(a1), ConvertPlayerColor(ModuloInteger(a2, ${RT.NEUTRAL_SIDE})), true)`,
   GetSideColor: 'return GetHandleId(GetPlayerColor(EmpSidePlayer(a1)))',
   // ---- points ----
   GetScriptPoint: 'return Location(EmpScriptX[a1], EmpScriptY[a1])',
@@ -395,7 +402,7 @@ const IMPL: Partial<Record<string, string>> = {
     loop
         exitwhen i >= EmpBaseCount
         if EmpBaseOwner[i] < 0 then
-            set EmpBaseOwner[i] = 99
+            set EmpBaseOwner[i] = ${RT.NEUTRAL_TAG}
             return Location(EmpBaseX[i], EmpBaseY[i])
         endif
         set i = i + 1
@@ -407,7 +414,7 @@ const IMPL: Partial<Record<string, string>> = {
     local integer pick = -1
     loop
         exitwhen i >= EmpEntrCount
-        if EmpEntrTag[i] == 99 and (pick < 0 or GetRandomInt(0, 1) == 0) then
+        if EmpEntrTag[i] == ${RT.NEUTRAL_TAG} and (pick < 0 or GetRandomInt(0, 1) == 0) then
             set pick = i
         endif
         set i = i + 1
@@ -462,19 +469,19 @@ const IMPL: Partial<Record<string, string>> = {
   NewObject: `if a3 == null or a2 <= 0 then
         return null
     endif
-    return CreateUnit(EmpSidePlayer(a1), a2, GetLocationX(a3) + GetRandomReal(-96, 96), GetLocationY(a3) + GetRandomReal(-96, 96), 270.0)`,
+    return CreateUnit(EmpSidePlayer(a1), a2, GetLocationX(a3) + GetRandomReal(-${RT.SPAWN_SPREAD}, ${RT.SPAWN_SPREAD}), GetLocationY(a3) + GetRandomReal(-${RT.SPAWN_SPREAD}, ${RT.SPAWN_SPREAD}), ${FACING})`,
   NewObjectOffsetOrientation: `if a3 == null or a2 <= 0 then
         return null
     endif
     // offsets are in tiles; Emperor y grows downwards; orientation 0..3 = 90 degree steps
-    return CreateUnit(EmpSidePlayer(a1), a2, GetLocationX(a3) + EmpTiles(a4), GetLocationY(a3) - EmpTiles(a5), 270.0 - 90.0 * a6)`,
+    return CreateUnit(EmpSidePlayer(a1), a2, GetLocationX(a3) + EmpTiles(a4), GetLocationY(a3) - EmpTiles(a5), ${FACING} - ${real(RT.ORIENTATION_STEP)} * a6)`,
   // (side, type, transport unit): spawn next to the transport
   NewObjectInAPC: `if not EmpAlive(a3) or a2 <= 0 then
         return null
     endif
     return CreateUnit(EmpSidePlayer(a1), a2, GetUnitX(a3), GetUnitY(a3), GetUnitFacing(a3))`,
   BuildObject: `local integer b = EmpBaseOfSide(a1)
-    call CreateUnit(EmpSidePlayer(a1), a2, EmpBaseX[b], EmpBaseY[b], 270.0)`,
+    call CreateUnit(EmpSidePlayer(a1), a2, EmpBaseX[b], EmpBaseY[b], ${FACING})`,
   ObjectValid: 'return EF_B2I(EmpAlive(a1))',
   ObjectDestroyed: 'return EF_B2I(a1 == null or not EmpAlive(a1))',
   EventObjectDestroyed: 'return EF_B2I(a1 != null and not EmpAlive(a1))',
@@ -482,7 +489,7 @@ const IMPL: Partial<Record<string, string>> = {
         return 0
     endif
     return R2I(GetUnitLifePercent(a1))`,
-  ObjectMaxHealth: 'return 100',
+  ObjectMaxHealth: `return ${RT.HEALTH_SCALE}`,
   ObjectSetHealth: `if EmpAlive(a1) then
         call SetUnitLifePercentBJ(a1, IMaxBJ(1, a2))
     endif`,
@@ -512,7 +519,7 @@ const IMPL: Partial<Record<string, string>> = {
   ObjectDeploy: `local unit u
     // MCV deploys into a construction yard of its house (resolved at build time: EmpDeployType)
     if EmpAlive(a1) and EmpDeployType(GetUnitTypeId(a1)) != 0 then
-        set u = CreateUnit(GetOwningPlayer(a1), EmpDeployType(GetUnitTypeId(a1)), GetUnitX(a1), GetUnitY(a1), 270.0)
+        set u = CreateUnit(GetOwningPlayer(a1), EmpDeployType(GetUnitTypeId(a1)), GetUnitX(a1), GetUnitY(a1), ${FACING})
         call RemoveUnit(a1)
         set u = null
     endif`,
@@ -527,17 +534,17 @@ const IMPL: Partial<Record<string, string>> = {
   ObjectNearToSide: `if not EmpAlive(a1) then
         return 0
     endif
-    return EF_B2I(EmpSideNear(a2, GetUnitX(a1), GetUnitY(a1), 1280.0))`,
+    return EF_B2I(EmpSideNear(a2, GetUnitX(a1), GetUnitY(a1), ${real(RT.NEAR_OBJECT_TO_SIDE)}))`,
   // (obj, side)
   ObjectNearToSideBase: `local integer b = EmpBaseOfSide(a2)
     if not EmpAlive(a1) then
         return 0
     endif
-    return EF_B2I(IsUnitInRangeXY(a1, EmpBaseX[b], EmpBaseY[b], 2048.0))`,
+    return EF_B2I(IsUnitInRangeXY(a1, EmpBaseX[b], EmpBaseY[b], ${real(RT.NEAR_OBJECT_TO_BASE)}))`,
   ObjectNearToObject: `if not EmpAlive(a1) or not EmpAlive(a2) then
         return 0
     endif
-    return EF_B2I(IsUnitInRange(a1, a2, 1024.0))`,
+    return EF_B2I(IsUnitInRange(a1, a2, ${real(RT.NEAR_OBJECT_TO_OBJECT)}))`,
   // (obj, side)
   ObjectVisibleToSide: `if not EmpAlive(a1) then
         return 0
@@ -552,19 +559,19 @@ const IMPL: Partial<Record<string, string>> = {
     if u == null then
         return 0
     endif
-    return EF_B2I(EmpSideNear(a1, GetUnitX(u), GetUnitY(u), 1536.0))`,
+    return EF_B2I(EmpSideNear(a1, GetUnitX(u), GetUnitY(u), ${real(RT.NEAR_SIDE_TO_OBJECT)}))`,
   SideNearToSideBase: `local integer b = EmpBaseOfSide(a2)
-    return EF_B2I(EmpSideNear(a1, EmpBaseX[b], EmpBaseY[b], 2048.0))`,
+    return EF_B2I(EmpSideNear(a1, EmpBaseX[b], EmpBaseY[b], ${real(RT.NEAR_SIDE_TO_BASE)}))`,
   SideNearToPoint: `if a2 == null then
         return 0
     endif
-    return EF_B2I(EmpSideNear(a1, GetLocationX(a2), GetLocationY(a2), 1024.0))`,
+    return EF_B2I(EmpSideNear(a1, GetLocationX(a2), GetLocationY(a2), ${real(RT.NEAR_SIDE_TO_POINT)}))`,
   SideUnitCount: 'return EmpCount(a1, 1)',
   SideBuildingCount: 'return EmpCount(a1, 2)',
   SideObjectCount: 'return EmpCount(a1, a2)',
   // ---- events ----
-  EventSideAttacksSide: `local boolean b = EmpAttacked[a1 * 16 + a2]
-    set EmpAttacked[a1 * 16 + a2] = false
+  EventSideAttacksSide: `local boolean b = EmpAttacked[a1 * ${RT.SIDE_STRIDE} + a2]
+    set EmpAttacked[a1 * ${RT.SIDE_STRIDE} + a2] = false
     return EF_B2I(b)`,
   EventObjectAttacksSide: 'return 0',
   EventObjectConstructed: `if EmpLastBuiltSide == a1 and EmpLastBuilt != null then
@@ -590,7 +597,7 @@ const IMPL: Partial<Record<string, string>> = {
         set EmpTimerWindow = CreateTimerDialog(EmpTimer)
         call TimerDialogSetTitle(EmpTimerWindow, "Осталось:")
     endif
-    call TimerStart(EmpTimer, I2R(IMaxBJ(a1, 0)) / 25.0, false, null)
+    call TimerStart(EmpTimer, I2R(IMaxBJ(a1, 0)) / ${TPS}, false, null)
     call TimerDialogDisplay(EmpTimerWindow, true)`,
   TimerMessageRemove: `if EmpTimerWindow != null then
         call TimerDialogDisplay(EmpTimerWindow, false)
@@ -641,7 +648,7 @@ const IMPL: Partial<Record<string, string>> = {
         return 1
     endif
     if EmpAIMode[a1] == 2 and EmpAITarget[a1] != null then
-        return EF_B2I(IsUnitInRangeLoc(u, EmpAITarget[a1], 512.0))
+        return EF_B2I(IsUnitInRangeLoc(u, EmpAITarget[a1], ${real(RT.AI_TARGET_REACHED)}))
     endif
     return EF_B2I(GetUnitCurrentOrder(u) == 0)`,
   // ---- mission ----
@@ -657,7 +664,7 @@ const IMPL: Partial<Record<string, string>> = {
   RemoveMapShroud: 'call FogModifierStart(CreateFogModifierRect(Player(0), FOG_OF_WAR_VISIBLE, bj_mapInitialPlayableArea, true, false))',
   RadarEnabled: '',
   RadarAlert: `if a1 != null then
-        call PingMinimapLocForForce(GetPlayersAll(), a1, 3.0)
+        call PingMinimapLocForForce(GetPlayersAll(), a1, ${real(RT.RADAR_PING_SECONDS)})
     endif`,
   CameraLookAtPoint: `if a1 != null then
         set EmpCamSet = true
@@ -665,7 +672,7 @@ const IMPL: Partial<Record<string, string>> = {
     endif`,
   CameraPanToPoint: `if a1 != null then
         set EmpCamSet = true
-        call PanCameraToTimedLocForPlayer(Player(0), a1, I2R(IMaxBJ(a2, 1)) / 25.0)
+        call PanCameraToTimedLocForPlayer(Player(0), a1, I2R(IMaxBJ(a2, 1)) / ${TPS})
     endif`,
   CameraScrollToPoint: 'call EF_CameraPanToPoint(a1, a2)',
   CameraTrackObject: `if EmpAlive(a1) then
@@ -674,16 +681,16 @@ const IMPL: Partial<Record<string, string>> = {
   CameraStopTrack: 'call ResetToGameCameraForPlayer(Player(0), 0)',
   CameraStore: 'set EmpCamStore = GetCameraTargetPositionLoc()',
   CameraRestore: `if EmpCamStore != null then
-        call PanCameraToTimedLocForPlayer(Player(0), EmpCamStore, I2R(IMaxBJ(a1, 1)) / 25.0)
+        call PanCameraToTimedLocForPlayer(Player(0), EmpCamStore, I2R(IMaxBJ(a1, 1)) / ${TPS})
     endif`,
   CameraStartRotate: '',
   CameraStopRotate: '',
   PIPCameraTrackObject: '',
   PIPRelease: '',
   // in-engine cut-scenes: Emperor hides its UI while the script moves the camera
-  DisableUI: `call ShowInterface(false, 0.5)
+  DisableUI: `call ShowInterface(false, ${real(RT.UI_FADE_SECONDS)})
     call EnableUserControl(false)`,
-  EnableUI: `call ShowInterface(true, 0.5)
+  EnableUI: `call ShowInterface(true, ${real(RT.UI_FADE_SECONDS)})
     call EnableUserControl(true)`,
   FreezeGame: 'call PauseAllUnitsBJ(true)',
   UnFreezeGame: 'call PauseAllUnitsBJ(false)',
@@ -722,7 +729,7 @@ const IMPL: Partial<Record<string, string>> = {
         call CreateItem('gold', GetLocationX(a1), GetLocationY(a1))
     endif`,
   NewCrateUnit: `if a1 != null then
-        call CreateUnit(Player(0), a2, GetLocationX(a1), GetLocationY(a1), 270.0)
+        call CreateUnit(Player(0), a2, GetLocationX(a1), GetLocationY(a1), ${FACING})
     endif`,
   ForceWormStrike: `local group g
     local unit u
@@ -730,7 +737,7 @@ const IMPL: Partial<Record<string, string>> = {
         return
     endif
     set g = CreateGroup()
-    call GroupEnumUnitsInRangeOfLoc(g, a1, EmpTiles(3), null)
+    call GroupEnumUnitsInRangeOfLoc(g, a1, EmpTiles(${RT.WORM_STRIKE_TILES}), null)
     loop
         set u = FirstOfGroup(g)
         exitwhen u == null
@@ -739,7 +746,7 @@ const IMPL: Partial<Record<string, string>> = {
             call KillUnit(u)
         endif
     endloop
-    call DestroyEffect(AddSpecialEffectLoc("Objects\\\\Spawnmodels\\\\Undead\\\\ImpaleTargetDust\\\\ImpaleTargetDust.mdl", a1))
+    call DestroyEffect(AddSpecialEffectLoc(${str(EFFECT.wormStrike)}, a1))
     call DestroyGroup(g)
     set g = null`,
   SideNuke: '',
