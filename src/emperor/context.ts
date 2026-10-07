@@ -76,11 +76,21 @@ function loadContext(rawDir: string, localDir?: string): MissionContext {
   const objectTypes = objectTypesFromRules(fs.readFileSync(path.join(rawDir, 'Rules.txt'), 'latin1'));
   const messages = sectionTable(rawDir, 'MissionMessages');
   const tooltips = sectionTable(rawDir, 'ObjectTips');
+  // A key may repeat across sections (ATTrike: ObjectTips name and UnitBriefing description), so
+  // entries are looked up by section + key; the key alone is a fallback for textByKey
+  // (regression test: test/emperor-context.test.ts).
   const local = new Map<string, string>();
+  const localBySection = new Map<string, string>();
+  const sectionKey = (section: string | null, key: string): string => `${String(section).toLowerCase()}\t${key.toLowerCase()}`;
   if (localDir && fs.existsSync(localDir)) {
-    for (const f of utf16Files(localDir)) for (const e of parseStrings(path.join(localDir, f))) local.set(e.key.toLowerCase(), e.text);
+    for (const f of utf16Files(localDir)) {
+      for (const e of parseStrings(path.join(localDir, f))) {
+        local.set(e.key.toLowerCase(), e.text);
+        localBySection.set(sectionKey(e.section, e.key), e.text);
+      }
+    }
   }
-  const text = (e: StringEntry | undefined): string | undefined => (e ? local.get(e.key.toLowerCase()) || e.text : undefined);
+  const text = (e: StringEntry | undefined): string | undefined => (e ? localBySection.get(sectionKey(e.section, e.key)) || e.text : undefined);
   const english = new Map<string, string>();
   for (const f of utf16Files(rawDir)) for (const e of parseStrings(path.join(rawDir, f))) if (!english.has(e.key.toLowerCase())) english.set(e.key.toLowerCase(), e.text);
   return {
