@@ -123,7 +123,9 @@ const campaignName = opt('--name', (autoTest ? CP.AUTOTEST_NAME_PREFIX : '') + C
 let pjassFailures = 0;
 const add = (file: string, buffer: Buffer, title: string, chapter = '', visible = false, script: string | null = null): void => {
   maps.push({ file, buffer, title, chapter, visible });
-  const single = path.join(path.dirname(out), 'maps', file); // individual copies for standalone tests
+  // individual copies for standalone tests; without the campaign imports (models, icons, menu), so
+  // there units show only as their shadows: check looks in a campaign session
+  const single = path.join(path.dirname(out), 'maps', file);
   fs.mkdirSync(path.dirname(single), { recursive: true });
   fs.writeFileSync(single, buffer);
   if (check && script) {
