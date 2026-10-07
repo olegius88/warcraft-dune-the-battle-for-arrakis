@@ -83,6 +83,9 @@
   (по одной, по известной длительности). Проверено в 1.31.1: IMA ADPCM WAV и MP3 открываются движком
   ([src/emperor/bag.ts](src/emperor/bag.ts), [src/emperor/speech.ts](src/emperor/speech.ts),
   [src/emperor/runtime.ts](src/emperor/runtime.ts)).
+- 2026-10-07 Автотест переходов кампании: `build-campaign.ts --autotest` (миссии побеждают сами,
+  хаб пишет отчёты и сам атакует) и инструменты `tools/wc3-guard.ps1`, `tools/wc3-ui.ps1`
+  (действия в меню только когда пользователь не пользуется компьютером).
 - 2026-10-07 Тестовые прогоны пишут JPEG и GIF игрового окна для показа в чате
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
