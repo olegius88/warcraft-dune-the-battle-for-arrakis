@@ -92,6 +92,8 @@ const HEADER_GLOBALS = `
     integer EmpWavesLeft = 0
     boolean EmpEndWin = false
     hashtable EmpPowerTab = null
+    unit EmpVetArgUnit = null
+    integer EmpVetArgLevel = 0
     boolean array EmpLowPower
     boolean EmpResultSent = false
     timer EmpTimer = null
@@ -751,6 +753,11 @@ const IMPL: Partial<Record<string, string>> = {
     call DestroyEffect(AddSpecialEffectLoc(${str(EFFECT.wormStrike)}, a1))
     call DestroyGroup(g)
     set g = null`,
+  // veterancy lives in the mission part of the script (after these functions): hand the
+  // arguments over through globals and call it by name
+  SetVeterancy: `set EmpVetArgUnit = a1
+    set EmpVetArgLevel = a2
+    call ExecuteFunc("EmpVetSetFromArgs")`,
   SideNuke: '',
   SideNukeAll: '',
 };

@@ -154,3 +154,15 @@ test('power: per-type balance table and low-power turret switch in mission maps'
   assert.ok(m.script.includes(`call EmpPowerType('${turretId}', ${turret.power}, true)`), 'turret in the power table, disabled on low power');
   assert.ok(m.script.includes('function EmpPowerTick takes nothing returns nothing'));
 });
+
+// SetVeterancy(obj, level): 51 scripts promote their units at start; was a stub (TODO(runtime)).
+test('SetVeterancy promotes a unit through the veterancy levels', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#H3 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW, 'HHK Heighliner Mission.tok')), phase: 1, name: 'HHK Heighliner Mission' }],
+    meta, ...all, name: 'vet', playerHouse: 'Harkonnen', kind: 'story', hubMap: 'HK_Hub.w3x' });
+  assert.ok(!m.stubbed.includes('SetVeterancy'), 'SetVeterancy implemented');
+  const ef = (m.script.split('function EF_SetVeterancy')[1] ?? '').split('endfunction')[0] ?? '';
+  assert.ok(ef.includes('call ExecuteFunc("EmpVetSetFromArgs")'));
+  assert.match(m.script, /function EmpVetSetFromArgs takes nothing returns nothing/);
+});

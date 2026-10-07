@@ -334,6 +334,34 @@ function EmpVetApply takes unit u, integer lv returns nothing
     call DestroyEffect(AddSpecialEffectTarget(${str(EFFECT.levelUp)}, u, "origin"))
 endfunction
 
+// SetVeterancy(obj, level) of the scripts (EF_SetVeterancy hands the arguments over in globals):
+// apply the missing levels up to the wanted one and give the unit the score of that level.
+function EmpVetSetFromArgs takes nothing returns nothing
+    local unit u = EmpVetArgUnit
+    local integer t
+    local integer h
+    local integer lv
+    local integer n
+    if u == null or not EmpAlive(u) then
+        set u = null
+        return
+    endif
+    set t = GetUnitTypeId(u)
+    set h = GetHandleId(u)
+    set lv = LoadInteger(EmpVetUnit, h, 1)
+    set n = LoadInteger(EmpVet, t, 1)
+    loop
+        exitwhen lv >= EmpVetArgLevel or lv >= n
+        set lv = lv + 1
+        call EmpVetApply(u, lv)
+    endloop
+    call SaveInteger(EmpVetUnit, h, 1, lv)
+    if lv > 0 then
+        call SaveInteger(EmpVetUnit, h, 0, IMaxBJ(LoadInteger(EmpVetUnit, h, 0), LoadInteger(EmpVet, t, lv * ${RT.VET_SLOT_STRIDE} + 1)))
+    endif
+    set u = null
+endfunction
+
 function EmpOnKill takes nothing returns nothing
     local unit k = GetKillingUnit()
     local unit d = GetTriggerUnit()
