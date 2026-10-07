@@ -3,8 +3,11 @@
 // Header layout: mdx-m3-viewer src/parsers/blp/image.ts (39 int32: magic, content,
 // alphaBits, width, height, type, hasMipmaps, offsets[16], sizes[16]) + 256 BGRA palette.
 
+import { scanStart } from './jpeg.ts';
+
 const BLP1_MAGIC = 0x31504c42; // "BLP1"
 const CONTENT_PALETTE = 1;
+const CONTENT_JPEG = 0;
 
 export type Rgb = [number, number, number];
 
@@ -174,6 +177,29 @@ function writeBlpImage(img: RgbaImage, { alpha = false, mipmaps = true }: { alph
   return Buffer.concat([header, pal, ...levels]);
 }
 
+/**
+ * BLP1 with JPEG content (content 0) around a whole baseline JPEG: the shared header is everything
+ * up to the scan data (size at offset 156, bytes from 160), the single level is the scan data; the
+ * reader joins the two (mdx-m3-viewer src/parsers/blp/image.ts getMipmap). No mipmaps: movie
+ * frames are UI textures. Blizzard's own JPEG BLPs hold B, G, R, A components without a colour
+ * transform; the 1.31.1 client also shows ffmpeg's YCbCr JPEGs right (src/smoke/build-fmv-probe.ts).
+ */
+function blpFromJpeg(jpeg: Buffer, width: number, height: number): Buffer {
+  const split = scanStart(jpeg);
+  const header = Buffer.alloc(160);
+  header.writeInt32LE(BLP1_MAGIC, 0);
+  header.writeInt32LE(CONTENT_JPEG, 4);
+  header.writeInt32LE(0, 8); // alpha bits
+  header.writeInt32LE(width, 12);
+  header.writeInt32LE(height, 16);
+  header.writeInt32LE(5, 20); // picture type, as writeBlpImage without alpha
+  header.writeInt32LE(0, 24); // no mipmaps
+  header.writeInt32LE(160 + split, 28);
+  header.writeInt32LE(jpeg.length - split, 92);
+  header.writeInt32LE(split, 156);
+  return Buffer.concat([header, jpeg]);
+}
+
 /** Decode one level of a palette BLP1 (tests; the inverse of writeBlpImage). */
 function readBlpPaletted(buf: Buffer, level = 0): RgbaImage {
   if (buf.readInt32LE(0) !== BLP1_MAGIC || buf.readInt32LE(4) !== CONTENT_PALETTE) throw new Error('not a palette BLP1');
@@ -190,4 +216,4 @@ function readBlpPaletted(buf: Buffer, level = 0): RgbaImage {
   return { width, height, rgba };
 }
 
-export { writeBlpPaletted, writeBlpImage, readBlpPaletted, medianCut, resize, pow2Ceil };
+export { writeBlpPaletted, writeBlpImage, blpFromJpeg, readBlpPaletted, medianCut, resize, pow2Ceil };
