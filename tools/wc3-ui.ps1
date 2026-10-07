@@ -140,6 +140,11 @@ try {
     # A real click lands on whatever window is under the point: click only when the game is restored,
     # in front and its own window is under the point (2026-10-07 two clicks were computed against a
     # minimised game window and went to the screen outside it).
+    # always-on-top windows (2026-10-07: a Firefox picture-in-picture window) cover the game even when
+    # it is in front: make the game topmost for the click (undone in finally)
+    [void][W.Ui]::SetWindowPos($h, [IntPtr](-1), 0, 0, 0, 0, 0x13) # HWND_TOPMOST, no move/size/activation
+    $topmost = $true
+    Start-Sleep -Milliseconds 150
     $under = [W.Ui]::GetAncestor([W.Ui]::WindowFromPoint($pt), 2) # GA_ROOT
     $fg = [W.Ui]::GetForegroundWindow()
     for ($retry = 0; $retry -lt 3 -and $fg -ne $h; $retry++) {
@@ -164,6 +169,7 @@ try {
   }
 } finally {
   [void][W.Ui]::SetCursorPos($cursor.X, $cursor.Y)
+  if ($topmost) { [void][W.Ui]::SetWindowPos($h, [IntPtr](-2), 0, 0, 0, 0, 0x13) } # HWND_NOTOPMOST
   [void][W.Ui]::SetWindowPos($h, [IntPtr]1, 0, 0, 0, 0, 0x13) # game to the bottom, no activation
   [void](Set-Front $userWindow)
   [void][W.Ui]::ClipCursor([IntPtr]::Zero)
