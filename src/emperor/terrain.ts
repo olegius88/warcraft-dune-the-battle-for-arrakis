@@ -1,4 +1,4 @@
-// Emperor map (test.xbf meta) -> Warcraft III terrain description for src/wc3/map.js.
+// Emperor map (test.xbf meta) -> Warcraft III terrain description for src/wc3/map.ts.
 //
 // Scale: 1 Emperor tile (32 world units) = 1 WC3 cell (128 units). Emperor row 0 is the top
 // edge; WC3 y grows upwards, so rows are flipped. The Emperor map is placed inside a WC3 map
@@ -12,17 +12,38 @@
 // unverified; plateau heights are uniform for now.
 
 import { PATH } from '../wc3/formats.ts';
+import type { Boundary, Corner } from '../wc3/formats.ts';
+import type { Rgb } from '../wc3/blp.ts';
+import type { MapMeta } from './mapxbf.ts';
 
-const T = { SAND: 0, ROCK: 1, CLIFF: 2, NBROCK: 3, INFROCK: 4, DUSTBOWL: 5, MAPEDGE: 6, RAMP: 7 };
+const T = { SAND: 0, ROCK: 1, CLIFF: 2, NBROCK: 3, INFROCK: 4, DUSTBOWL: 5, MAPEDGE: 6, RAMP: 7 } as const;
 
 // Barrens tiles (TerrainArt/Terrain.slk ids); index = w3e ground texture slot.
 const GROUND = ['Bdsr', 'Bdrh', 'Bflr', 'Bdrr', 'Bdsd', 'Bdrt'];
-const TEX = { SAND: 0, ROCK: 1, CLIFF: 2, NBROCK: 3, DUST: 4, SPICE: 5 };
-const MINIMAP = [[214, 170, 104], [120, 98, 80], [80, 66, 56], [140, 118, 96], [186, 140, 86], [205, 110, 40]];
+const TEX = { SAND: 0, ROCK: 1, CLIFF: 2, NBROCK: 3, DUST: 4, SPICE: 5 } as const;
+const MINIMAP: Rgb[] = [[214, 170, 104], [120, 98, 80], [80, 66, 56], [140, 118, 96], [186, 140, 86], [205, 110, 40]];
 
 const PLATEAU = 1.2; // in w3e "layers" (×128 world units)
 
-function tileHeight(t) {
+/** WC3 terrain built from an Emperor map; also maps Emperor coordinates to WC3 ones. */
+export interface EmperorTerrain {
+  /** WC3 cells */
+  width: number;
+  height: number;
+  boundary: Boundary;
+  /** WC3 cell of Emperor tile x=0 / of the Emperor bottom row */
+  offset: [number, number];
+  tileset: string;
+  ground: string[];
+  cliffs: string[];
+  corner: (x: number, y: number) => Corner;
+  pathing: (px: number, py: number) => number;
+  minimapColor: (cx: number, cy: number) => Rgb;
+  /** Emperor world units (32 per tile, y down) -> WC3 world coordinates (centre origin) */
+  toWorld: (ex: number, ey: number) => [number, number];
+}
+
+function tileHeight(t: number): number {
   switch (t) {
     case T.ROCK: case T.NBROCK: case T.INFROCK: return PLATEAU;
     case T.CLIFF: return PLATEAU * 0.6;
@@ -31,35 +52,33 @@ function tileHeight(t) {
   }
 }
 
-/**
- * @param {object} meta  result of mapxbf.readMeta
- * @returns {{width,height,boundary,offset:[number,number],tileset,ground,cliffs,corner,pathing,minimapColor,toWorld}}
- */
-function buildTerrain(meta) {
+/** meta: result of mapxbf.readMeta (needs mapSize and tiles). */
+function buildTerrain(meta: MapMeta): EmperorTerrain {
+  if (!meta.mapSize || !meta.tiles) throw new Error('map meta without MapSize/Tiles');
   const [W, H] = meta.mapSize;
   const tiles = meta.tiles;
   const spice = meta.spice;
   const B = 4; // boundary cells on each side
-  const pad = (n) => Math.ceil((n + 2 * B) / 32) * 32;
+  const pad = (n: number): number => Math.ceil((n + 2 * B) / 32) * 32;
   const width = pad(W);
   const height = pad(H);
   const ox = Math.floor((width - W) / 2); // WC3 cell of Emperor tile x=0
   const oy = Math.floor((height - H) / 2); // WC3 cell row of Emperor bottom row
-  const boundary = [ox, width - ox - W, oy, height - oy - H];
+  const boundary: Boundary = [ox, width - ox - W, oy, height - oy - H];
 
-  const tileAt = (cx, cy) => { // WC3 cell -> Emperor tile type (or -1 outside)
+  const tileAt = (cx: number, cy: number): number => { // WC3 cell -> Emperor tile type (or -1 outside)
     const tx = cx - ox;
     const ty = H - 1 - (cy - oy);
     if (tx < 0 || ty < 0 || tx >= W || ty >= H) return -1;
-    return tiles[ty * W + tx];
+    return tiles[ty * W + tx] as number;
   };
-  const spiceAt = (cx, cy) => {
+  const spiceAt = (cx: number, cy: number): number => {
     const tx = cx - ox;
     const ty = H - 1 - (cy - oy);
     if (!spice || tx < 0 || ty < 0 || tx >= W || ty >= H) return 0;
-    return spice[ty * W + tx];
+    return spice[ty * W + tx] as number;
   };
-  const texOf = (t, cx, cy) => {
+  const texOf = (t: number, cx: number, cy: number): number => {
     if (t < 0 || t === T.MAPEDGE) return TEX.SAND;
     if (spiceAt(cx, cy) > 0 && (t === T.SAND || t === T.DUSTBOWL)) return TEX.SPICE;
     switch (t) {
@@ -72,22 +91,24 @@ function buildTerrain(meta) {
   };
 
   // Corner (x, y) is shared by cells (x-1..x, y-1..y).
-  const corner = (x, y) => {
-    let h = 0, n = 0, tex = TEX.SAND, best = -1;
-    for (const [dx, dy] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) {
+  const NEIGHBOURS: Array<[number, number]> = [[-1, -1], [0, -1], [-1, 0], [0, 0]];
+  const RANK = [0, 3, 4, 2, 1, 5];
+  const corner = (x: number, y: number): Corner => {
+    let h = 0, n = 0, tex: number = TEX.SAND, best = -1;
+    for (const [dx, dy] of NEIGHBOURS) {
       const t = tileAt(x + dx, y + dy);
       if (t < 0) continue;
       h += tileHeight(t); n++;
       const tx = texOf(t, x + dx, y + dy);
       // prefer the "strongest" texture so cliffs/rock edges stay visible
-      const rank = [0, 3, 4, 2, 1, 5][tx];
+      const rank = RANK[tx] as number;
       if (rank > best) { best = rank; tex = tx; }
     }
     const outside = x < boundary[0] || x > width - boundary[1] || y < boundary[2] || y > height - boundary[3];
     return { texture: tex, height: n ? h / n : 0, layer: 2, cliff: 15, boundary: outside };
   };
 
-  const pathing = (px, py) => {
+  const pathing = (px: number, py: number): number => {
     const cx = Math.floor(px / 4);
     const cy = Math.floor(py / 4);
     const t = tileAt(cx, cy);
@@ -98,10 +119,10 @@ function buildTerrain(meta) {
     return PATH.NO_WATER | PATH.NO_BUILD;
   };
 
-  const minimapColor = (cx, cy) => MINIMAP[texOf(tileAt(cx, cy), cx, cy)];
+  const minimapColor = (cx: number, cy: number): Rgb => MINIMAP[texOf(tileAt(cx, cy), cx, cy)] as Rgb;
 
   /** Emperor world units (32 per tile, y down) -> WC3 world coordinates (centre origin). */
-  const toWorld = (ex, ey) => {
+  const toWorld = (ex: number, ey: number): [number, number] => {
     const cx = ox + ex / 32;
     const cy = oy + (H - ey / 32);
     return [(cx - width / 2) * 128, (cy - height / 2) * 128];

@@ -1,16 +1,56 @@
-// Emperor units/buildings (rules.js) -> Warcraft III custom object data (war3map.w3u) built on
+// Emperor units/buildings (rules.ts) -> Warcraft III custom object data (war3map.w3u) built on
 // stock WC3 models, plus the combat table (war3mapMisc.txt DamageBonus*) derived from Emperor
 // warheads. Version 1 uses stand-in models (decision 2026-10-07); XBF conversion is a later track.
 //
 // Scaling (Emperor -> WC3): HP /2, bullet damage /2, reload ticks /25 = seconds, range tiles *128,
 // speed (game coords per tick) *40, view range tiles *128, build time ticks /25 = seconds.
 // TODO(power): Emperor power (windtraps vs consumers) is not modelled; buildings work unpowered.
-// Veterancy: Rules.txt levels are applied at run time by mission.js (EmpVetData / EmpOnKill).
+// Veterancy: Rules.txt levels are applied at run time by mission.ts (EmpVetData / EmpOnKill).
 
 import { writeObjects, idAllocator } from '../wc3/objects.ts';
+import type { ObjectDef, ObjectMod } from '../wc3/objects.ts';
+import type { Rules, RulesObject, Warhead } from './rules.ts';
+
+type Race = 'human' | 'orc' | 'undead';
+type RaceOrNeutral = Race | 'neutral';
+
+/** Custom WC3 object made from an Emperor object (emperor = null: helper objects). */
+export interface UnitObject extends ObjectDef {
+  id: string;
+  emperor: RulesObject | null;
+}
+
+export interface UnitIds {
+  /** harvest ability (Ahar with Emperor capacity) */
+  harvestAbility: string;
+  /** spice field (gold mine) */
+  spiceField: string;
+  /** house prefix (AT/HK/OR) -> builder unit spawned by a construction yard */
+  builders: Record<string, string>;
+  mcvBuilders: Record<string, string>;
+  /** territory marker of the Arrakis hub */
+  territoryMarker: string;
+}
+
+export interface UnitData {
+  objects: UnitObject[];
+  /** Emperor name -> WC3 id */
+  rawcode: Map<string, string>;
+  ids: UnitIds;
+  /** war3mapMisc.txt with the DamageBonus table */
+  misc: string;
+  w3u: Buffer;
+  w3a: Buffer;
+}
+
+export interface CombatTable {
+  /** warhead name -> WC3 attack type */
+  attackOf: Map<string, string>;
+  misc: string;
+}
 
 // Emperor armour -> WC3 defense type ('udty').
-const ARMOUR = {
+const ARMOUR: Partial<Record<string, string>> = {
   None: 'none', BPV: 'small', Light: 'small', Medium: 'medium', Heavy: 'large', Concrete: 'fort', Walls: 'fort',
   Building: 'fort', CY: 'fort', Harvester: 'normal', Invulnerable: 'divine', Aircraft: 'hero',
 };
@@ -18,10 +58,10 @@ const WC3_ARMOUR = ['small', 'medium', 'large', 'fort', 'normal', 'hero', 'divin
 // Only attack types without side effects (magic/spells interact with spell immunity).
 const WC3_ATTACK = ['normal', 'pierce', 'siege', 'chaos', 'hero'];
 
-const RACE = { Atreides: 'human', Harkonnen: 'orc', Ordos: 'undead' };
+const RACE: Partial<Record<string, Race>> = { Atreides: 'human', Harkonnen: 'orc', Ordos: 'undead' };
 
 // Stock model choice: [match(o) -> boolean, base unit id, scale]
-const UNIT_BASES = [
+const UNIT_BASES: Array<[(o: RulesObject) => boolean, string, number]> = [
   [(o) => /worm/i.test(o.name), 'ucry', 2.5],
   [(o) => /Carryall|EITS|DropShip|Frigate|Scavenger|INFlyer/i.test(o.name), 'nzep', 1.0],
   [(o) => o.canFly || /Orni|Gunship|ADP|NIAP/i.test(o.name), 'hgyr', 1.1],
@@ -43,7 +83,7 @@ const UNIT_BASES = [
 ];
 
 // Buildings: [regex on name, {human, orc, undead, neutral}, scale]
-const BUILDING_BASES = [
+const BUILDING_BASES: Array<[RegExp, Record<RaceOrNeutral, string>, number]> = [
   [/ConYard/i, { human: 'htow', orc: 'ogre', undead: 'unpl', neutral: 'htow' }, 1.0],
   [/Windtrap/i, { human: 'hhou', orc: 'otrb', undead: 'uzig', neutral: 'hhou' }, 1.0],
   [/Barracks/i, { human: 'hbar', orc: 'obar', undead: 'usep', neutral: 'hbar' }, 1.0],
@@ -57,22 +97,22 @@ const BUILDING_BASES = [
   [/.*/, { human: 'hvlt', orc: 'ovln', undead: 'utom', neutral: 'nmrk' }, 1.0],
 ];
 
-function warheadVector(w) {
+function warheadVector(w: Warhead): number[] {
   // average Emperor percentages per WC3 armour class
-  const sums = Object.fromEntries(WC3_ARMOUR.map((a) => [a, []]));
-  for (const [em, wc] of Object.entries(ARMOUR)) if (w.vs[em] != null) sums[wc].push(w.vs[em]);
+  const sums: Record<string, number[]> = Object.fromEntries(WC3_ARMOUR.map((a) => [a, [] as number[]]));
+  for (const [em, wc] of Object.entries(ARMOUR)) { const v = w.vs[em]; if (v != null && wc) sums[wc].push(v); }
   return WC3_ARMOUR.map((a) => (sums[a].length ? sums[a].reduce((x, y) => x + y, 0) / sums[a].length : 100) / 100);
 }
 
 /** k-means (k = 5) of warhead vectors -> WC3 attack type per warhead + DamageBonus table rows. */
-function combatTable(warheads) {
+function combatTable(warheads: Map<string, Warhead>): CombatTable {
   const names = [...warheads.keys()].sort();
-  const vecs = names.map((n) => warheadVector(warheads.get(n)));
+  const vecs = names.map((n) => warheadVector(warheads.get(n) as Warhead));
   const k = Math.min(WC3_ATTACK.length, vecs.length);
   let cent = vecs.slice(0, k).map((v) => v.slice());
   // deterministic init: spread by index
   cent = Array.from({ length: k }, (_, i) => vecs[Math.floor((i * vecs.length) / k)].slice());
-  let assign = new Array(vecs.length).fill(0);
+  let assign: number[] = Array.from({ length: vecs.length }, () => 0);
   for (let it = 0; it < 50; it++) {
     assign = vecs.map((v) => cent.map((c) => c.reduce((s, x, j) => s + (x - v[j]) ** 2, 0)).reduce((bi, d, i, a) => (d < a[bi] ? i : bi), 0));
     cent = cent.map((c, i) => {
@@ -80,7 +120,7 @@ function combatTable(warheads) {
       return mem.length ? c.map((_, j) => mem.reduce((s, v) => s + v[j], 0) / mem.length) : c;
     });
   }
-  const attackOf = new Map(names.map((n, i) => [n, WC3_ATTACK[assign[i]]]));
+  const attackOf = new Map(names.map((n, i): [string, string] => [n, WC3_ATTACK[assign[i]] as string]));
   const misc = ['[Misc]'];
   cent.forEach((c, i) => {
     const key = WC3_ATTACK[i][0].toUpperCase() + WC3_ATTACK[i].slice(1);
@@ -89,37 +129,37 @@ function combatTable(warheads) {
   return { attackOf, misc: misc.join('\r\n') + '\r\n' };
 }
 
-const str = (field, value) => ({ field, type: 'string', value: String(value) });
-const int = (field, value) => ({ field, type: 'int', value: Math.round(value) });
-const unreal = (field, value) => ({ field, type: 'unreal', value });
-const real = (field, value) => ({ field, type: 'real', value });
+const str = (field: string, value: string | number | undefined): ObjectMod => ({ field, type: 'string', value: String(value) });
+const int = (field: string, value: number): ObjectMod => ({ field, type: 'int', value: Math.round(value) });
+const unreal = (field: string, value: number): ObjectMod => ({ field, type: 'unreal', value });
+const real = (field: string, value: number): ObjectMod => ({ field, type: 'real', value });
 
-/**
- * @param {{objects: Map}} rules  from loadRules
- * @param {(name:string)=>string} displayName  localised name lookup (falls back to the id)
- */
-function buildUnitData(rules, displayName = (n) => n) {
+/** displayName: localised name lookup (falls back to the id). */
+function buildUnitData(rules: Rules, displayName: (name: string) => string = (n) => n): UnitData {
   const nextId = idAllocator();
-  const warheads = new Map();
+  const warheads = new Map<string, Warhead>();
   for (const o of rules.objects.values()) for (const t of o.turrets) if (t.bullet && t.bullet.warhead) warheads.set(t.bullet.warhead.name, t.bullet.warhead);
   const combat = combatTable(warheads);
 
-  const rawcode = new Map(); // Emperor name -> WC3 id
-  const objects = [];
+  const rawcode = new Map<string, string>(); // Emperor name -> WC3 id
+  const objects: UnitObject[] = [];
   const all = [...rules.objects.values()];
   for (const o of all) rawcode.set(o.name, nextId('x'));
+  const idOf = (name: string): string => rawcode.get(name) as string;
 
   for (const o of all) {
-    const race = RACE[o.house] || 'neutral';
-    let base, scale;
+    const race: RaceOrNeutral = RACE[o.house] || 'neutral';
+    let base: string, scale: number;
     if (o.category === 'Building') {
-      const b = BUILDING_BASES.find(([re]) => re.test(o.name));
+      // the last entry matches every name
+      const b = BUILDING_BASES.find(([re]) => re.test(o.name)) as (typeof BUILDING_BASES)[number];
       base = b[1][race] || b[1].neutral; scale = b[2];
     } else {
-      const b = UNIT_BASES.find(([m]) => m(o));
+      // the last entry matches every object
+      const b = UNIT_BASES.find(([m]) => m(o)) as (typeof UNIT_BASES)[number];
       base = b[1]; scale = b[2];
     }
-    const mods = [
+    const mods: ObjectMod[] = [
       str('unam', displayName(o.name)),
       int('uhpm', Math.max(10, o.health / 2)),
       str('udty', ARMOUR[o.armour] || 'normal'),
@@ -132,24 +172,25 @@ function buildUnitData(rules, displayName = (n) => n) {
     ];
     if (o.category !== 'Building' && o.speed > 0) mods.push(int('umvs', Math.min(522, Math.max(60, o.speed * 40))));
     const weapon = o.turrets.find((t) => t.bullet && t.bullet.damage > 0);
-    if (weapon) {
+    if (weapon && weapon.bullet) {
       const b = weapon.bullet;
       mods.push(int('uaen', 1));
       mods.push(int('ua1b', Math.max(1, b.damage / 2)), int('ua1d', 1), int('ua1s', 1));
       mods.push(int('ua1r', Math.max(1, b.range) * 128), unreal('uacq', Math.max(b.range, o.viewRange) * 128));
       mods.push(unreal('ua1c', Math.max(0.2, weapon.reload / 25)));
-      mods.push(str('ua1t', combat.attackOf.get(b.warhead && b.warhead.name) || 'normal'));
+      mods.push(str('ua1t', (b.warhead && combat.attackOf.get(b.warhead.name)) || 'normal'));
       mods.push(str('ua1g', b.antiAircraft ? 'air' : 'ground,structure,debris,item,ward'));
     } else if (o.category !== 'Building' || /Wall/i.test(o.name)) {
       mods.push(int('uaen', 0));
     }
-    objects.push({ base, id: rawcode.get(o.name), mods, emperor: o });
+    objects.push({ base, id: idOf(o.name), mods, emperor: o });
   }
 
   // ---- economy / construction objects (ids fixed so the runtime can refer to them) ----
   const HARVEST_ABILITY = 'A000'; // Ahar with Emperor capacity (700 credits per load)
-  const ids = { harvestAbility: HARVEST_ABILITY, spiceField: 'xS00', builders: {}, mcvBuilders: {} };
-  const abilities = [{ base: 'Ahar', id: HARVEST_ABILITY, mods: [
+  // Territory marker of the Arrakis hub map: invulnerable, unarmed, house-coloured tower.
+  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: 'xS00', builders: {}, mcvBuilders: {}, territoryMarker: 'xM00' };
+  const abilities: ObjectDef[] = [{ base: 'Ahar', id: HARVEST_ABILITY, mods: [
     { field: 'Har3', type: 'int', value: 700, level: 1, column: 3 },
     { field: 'Har2', type: 'int', value: 0, level: 1, column: 2 },
     { field: 'anam', type: 'string', value: 'Сбор специи' },
@@ -158,14 +199,13 @@ function buildUnitData(rules, displayName = (n) => n) {
   objects.push({ base: 'ngol', id: ids.spiceField, mods: [str('unam', 'Поле специи'), real('usca', 0.6), real('ussc', 0.6),
     int('uclr', 255), int('uclg', 140), int('uclb', 40)], emperor: null });
 
-  // Territory marker of the Arrakis hub map: invulnerable, unarmed, house-coloured tower.
-  ids.territoryMarker = 'xM00';
   objects.push({ base: 'hgtw', id: ids.territoryMarker, mods: [str('unam', 'Территория'), str('uabi', 'Avul'), int('uaen', 0),
     real('usca', 0.7), real('ussc', 0.7), str('upgr', ''), str('ures', '')], emperor: null });
 
-  const houseOf = (o) => (/^(AT|HK|OR)/.exec(o.name) || [])[1] || null;
-  const houseBuildings = (h) => all.filter((b) => b.category === 'Building' && b.cost > 0 && houseOf(b) === h && /ConYard/.test(b.primaryBuilding.join(',')));
-  const ownVariant = (list, h) => list.find((n) => n.startsWith(h)) || list[0];
+  const houseOf = (o: RulesObject): string | null => (/^(AT|HK|OR)/.exec(o.name) || [])[1] || null;
+  const houseBuildings = (h: string): RulesObject[] => all.filter((b) => b.category === 'Building' && b.cost > 0 && houseOf(b) === h && /ConYard/.test(b.primaryBuilding.join(',')));
+  const ownVariant = (list: string[], h: string): string => list.find((n) => n.startsWith(h)) || (list[0] as string);
+  const HOUSE_NAME: Record<string, string> = { AT: 'Atreides', HK: 'Harkonnen', OR: 'Ordos' };
 
   for (const h of ['AT', 'HK', 'OR']) {
     // Builder spawned by a finished construction yard; builds the house's buildings.
@@ -173,7 +213,7 @@ function buildUnitData(rules, displayName = (n) => n) {
     ids.builders[h] = builderId;
     objects.push({ base: 'hpea', id: builderId, mods: [str('unam', 'Строитель'), str('uabi', 'AHbu'),
       str('ubui', houseBuildings(h).map((b) => rawcode.get(b.name)).join(',')), int('uaen', 0), int('ugol', 0), int('ufoo', 0),
-      str('urac', RACE[{ AT: 'Atreides', HK: 'Harkonnen', OR: 'Ordos' }[h]])], emperor: null });
+      str('urac', RACE[HOUSE_NAME[h] as string])], emperor: null });
   }
 
   for (const obj of objects) {
@@ -186,7 +226,7 @@ function buildUnitData(rules, displayName = (n) => n) {
       // Production: units whose PrimaryBuilding names this building.
       const trains = all.filter((u) => u.category === 'Unit' && u.cost > 0 && u.primaryBuilding.includes(o.name)).map((u) => rawcode.get(u.name));
       obj.mods.push(str('utra', trains.join(',')));
-      const abil = [];
+      const abil: string[] = [];
       if (/Refinery/i.test(o.name)) abil.push('Argd');
       obj.mods.push(str('uabi', abil.join(',')));
     } else if (o.harvester || /Harvester/.test(o.name)) {
@@ -200,7 +240,7 @@ function buildUnitData(rules, displayName = (n) => n) {
     // Requirements: the own-house variant of the SecondaryBuilding (Emperor accepts any house's).
     if (o.secondaryBuilding.length && h) {
       const req = ownVariant(o.secondaryBuilding, h);
-      if (rawcode.has(req)) obj.mods.push(str('ureq', rawcode.get(req)));
+      if (rawcode.has(req)) obj.mods.push(str('ureq', idOf(req)));
     }
   }
   return {
