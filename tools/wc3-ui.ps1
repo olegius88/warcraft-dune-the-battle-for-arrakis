@@ -35,6 +35,7 @@ Add-Type -Namespace W -Name Ui -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
 [DllImport("user32.dll")] public static extern bool ClientToScreen(System.IntPtr h, ref POINT p);
 [DllImport("user32.dll")] public static extern bool GetClientRect(System.IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);
 [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, uint data, System.UIntPtr extra);
 [DllImport("user32.dll")] public static extern bool PostMessage(System.IntPtr h, uint m, System.IntPtr w, System.IntPtr l);
 [DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int cmd);
@@ -140,8 +141,16 @@ try {
     # in front and its own window is under the point (2026-10-07 two clicks were computed against a
     # minimised game window and went to the screen outside it).
     $under = [W.Ui]::GetAncestor([W.Ui]::WindowFromPoint($pt), 2) # GA_ROOT
-    if ([W.Ui]::IsIconic($h) -or [W.Ui]::GetForegroundWindow() -ne $h -or $under -ne $h) {
-      "click skipped: game window not in front or not under ($($pt.X),$($pt.Y))"
+    $fg = [W.Ui]::GetForegroundWindow()
+    for ($retry = 0; $retry -lt 3 -and $fg -ne $h; $retry++) {
+      [void](Set-Front $h); Start-Sleep -Milliseconds 300
+      $fg = [W.Ui]::GetForegroundWindow(); $under = [W.Ui]::GetAncestor([W.Ui]::WindowFromPoint($pt), 2)
+    }
+    if ([W.Ui]::IsIconic($h) -or $fg -ne $h -or $under -ne $h) {
+      # which window is in the way (diagnostics for the next attempt)
+      $who = { param($w) $id = [uint32]0; [void][W.Ui]::GetWindowThreadProcessId($w, [ref]$id); (Get-Process -Id $id -ErrorAction SilentlyContinue).ProcessName }
+      $wr = New-Object W.Ui+RECT; [void][W.Ui]::GetWindowRect($h, [ref]$wr)
+      "click skipped: game window not in front or not under ($($pt.X),$($pt.Y)); iconic=$([W.Ui]::IsIconic($h)) front=$(& $who $fg) under=$(& $who $under) window=($($wr.L),$($wr.T))-($($wr.R),$($wr.B)) client=$($r.R)x$($r.B)"
       $skipped = $true
       return
     }

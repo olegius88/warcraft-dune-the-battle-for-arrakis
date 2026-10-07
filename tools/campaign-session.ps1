@@ -35,6 +35,8 @@ function Idle { $li = New-Object CS.Win+LASTINPUTINFO; $li.cbSize = 8; [void][CS
 function Game { Get-Process 'Warcraft III' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1 }
 $step = 0
 function Shot([string]$name) {
+  # a capture restores a minimised game (without activating it): not while the user works
+  if ((Idle) -lt 20) { return }
   $script:step++
   & ./tools/wc3-ui.ps1 -Action Capture -Out ('{0}{1:d2}-{2}.png' -f $ShotsPrefix, $script:step, $name) | Out-Null
 }
@@ -79,14 +81,18 @@ try {
     $tries = @($MissionKeys | ForEach-Object { @{ Action = 'Key'; Vk = $_ } }) + @(
       @{ Action = 'PostClick'; Fx = $MissionFx; Fy = $MissionFy },
       @{ Action = 'Click'; Fx = $MissionFx; Fy = $MissionFy })
+    $started = $false
     foreach ($try in $tries) {
       & ./tools/wc3-ui.ps1 @try -IdleSeconds 20
       $script:lastOwn = Get-Date
       $wait = (Get-Date).AddSeconds(45)
       while ((Get-Date) -lt $wait -and -not ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since)) { YieldIfUserBack; Start-Sleep 1 }
       Shot $try.Action
-      if ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since) { "mission started by $($try.Action) $($try.Vk)"; break }
+      if ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since) { "mission started by $($try.Action) $($try.Vk)"; $started = $true; break }
     }
+    # nothing started the mission: the campaign screen would just sit there (2026-10-07: 20 minutes of
+    # captures, the game minimised again and again while the user worked)
+    if (-not $started) { 'mission not started: session ends'; return }
   }
   $end = (Get-Date).AddMinutes($Minutes)
   $next = Get-Date
