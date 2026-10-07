@@ -23,9 +23,7 @@ import { ensureMap } from './preview-map.ts';
 import { loadAll } from './build-mission.ts';
 import { buildCampaign } from '../wc3/map.ts';
 
-const ROOT = path.join(import.meta.dirname, '..', '..');
-const RAW = path.join(ROOT, 'data', 'emperor', 'raw');
-const GAME = process.env.EMPEROR_DIR || 'G:\\Games\\Emperor';
+import { RAW_DIR, CAMPAIGN_OUT, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
 const HOUSE_NAME: Record<HouseCode, House> = { AT: 'Atreides', HK: 'Harkonnen', OR: 'Ordos' };
 const HOUSE_RU: Record<HouseCode, string> = { AT: 'Атрейдесы', HK: 'Харконнены', OR: 'Ордосы' };
 const isHouseCode = (s: string): s is HouseCode => s === 'AT' || s === 'HK' || s === 'OR';
@@ -37,12 +35,12 @@ const houses: HouseCode[] = opt('--houses', 'AT,HK,OR').split(',').map((h) => {
   return h;
 });
 const [tFrom = 1, tTo = 33] = opt('--territories', '1-33').split('-').map(Number);
-const out = opt('--out', path.join(ROOT, 'build', 'campaign', 'EmperorDune.w3n'));
+const out = opt('--out', CAMPAIGN_OUT);
 
 const all = loadAll();
-const folders = [...new Set(['MAPS0001', 'MAPS0002'].flatMap((a) => readIndex(path.join(GAME, 'DATA', `${a}.RFH`)).map((e) => e.name.split('/')[0] as string)))];
-const camp = loadCampaign(RAW, folders);
-const tok = (name: string): Buffer => fs.readFileSync(path.join(RAW, `${name}.tok`));
+const folders = [...new Set(['MAPS0001', 'MAPS0002'].flatMap((a) => readIndex(gameData(`${a}.RFH`)).map((e) => e.name.split('/')[0] as string)))];
+const camp = loadCampaign(RAW_DIR, folders);
+const tok = (name: string): Buffer => fs.readFileSync(path.join(RAW_DIR, `${name}.tok`));
 const metaCache = new Map<string, MapMeta>();
 const metaOf = (needle: string): MapMeta => {
   let meta = metaCache.get(needle);
@@ -68,11 +66,11 @@ const add = (file: string, buffer: Buffer, title: string, chapter = '', visible 
   fs.mkdirSync(path.dirname(single), { recursive: true });
   fs.writeFileSync(single, buffer);
   if (check && script) {
-    const jf = path.join(ROOT, 'build', 'pjass', file.replace(/\.w3x$/, '.j'));
+    const jf = path.join(PJASS_OUT_DIR, file.replace(/\.w3x$/, '.j'));
     fs.mkdirSync(path.dirname(jf), { recursive: true });
     fs.writeFileSync(jf, script);
     try {
-      execFileSync(path.join(ROOT, 'tools', 'bin', 'pjass.exe'), [path.join(ROOT, 'data', 'wc3', 'common.j'), path.join(ROOT, 'data', 'wc3', 'blizzard.j'), jf], { stdio: 'pipe' });
+      execFileSync(PJASS_EXE, [COMMON_J, BLIZZARD_J, jf], { stdio: 'pipe' });
     } catch (e) {
       pjassFailures++;
       const errs = String((e as { stdout?: Buffer }).stdout).split('\n').filter((l) => /\.j:\d+/.test(l)).slice(0, 5);

@@ -1,22 +1,22 @@
 // Decompile every mission script into data/emperor/scripts/<name>.txt with object types,
 // message keys and tooltip keys resolved; message/tooltip text (Russian) is appended as comments.
 //
-// Usage: node src/emperor/decompile-all.js [--game G:\Games\Emperor]
+// Usage: node src/emperor/decompile-all.ts [--game G:\Games\Emperor]
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadTokenTable, decompile } from './tok.ts';
+import { GAME_DIR, RAW_DIR, SCRIPTS_DIR, LOCAL_STRINGS_DIR } from '../config/paths.ts';
 import { loadContext } from './context.ts';
 
 const args = process.argv.slice(2);
 const opt = (n: string, d: string): string => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] as string : d; };
-const game = opt('--game', process.env.EMPEROR_DIR || 'G:\\Games\\Emperor');
-const root = path.join(import.meta.dirname, '..', '..');
-const raw = path.join(root, 'data', 'emperor', 'raw');
-const out = path.join(root, 'data', 'emperor', 'scripts');
+const game = opt('--game', GAME_DIR);
+const raw = RAW_DIR;
+const out = SCRIPTS_DIR;
 
 const table = loadTokenTable(path.join(game, 'Game.exe'));
-const ctx = loadContext(raw, path.join(raw, 'loose', 'strings'));
+const ctx = loadContext(raw, LOCAL_STRINGS_DIR);
 fs.mkdirSync(out, { recursive: true });
 
 let count = 0;

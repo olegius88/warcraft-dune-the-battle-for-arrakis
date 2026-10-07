@@ -12,12 +12,13 @@ import path from 'node:path';
 import { buildMap, buildCampaign } from '../wc3/map.ts';
 import { PATH } from '../wc3/formats.ts';
 import { str } from '../wc3/jass.ts';
+import { SMOKE_OUT_DIR } from '../config/paths.ts';
 import type { ScriptPlayer } from '../wc3/jass.ts';
 import type { Boundary, Corner } from '../wc3/formats.ts';
 
 const args = process.argv.slice(2);
 const opt = <D extends string | null>(name: string, def: D): string | D => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] as string : def; };
-const outDir = opt('--out', path.join(import.meta.dirname, '..', '..', 'build', 'smoke'));
+const outDir = opt('--out', SMOKE_OUT_DIR);
 const bikPath = opt('--bik', null);
 
 const W = 64, H = 64;

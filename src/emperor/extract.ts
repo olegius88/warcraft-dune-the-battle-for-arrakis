@@ -2,16 +2,17 @@
 // user's installed game into data/emperor/raw/. Later archives override earlier ones
 // (MODEL0002 patches MODEL0001), matching the game's own load order.
 //
-// Usage: node src/emperor/extract.js [--game G:\Games\Emperor] [--out data/emperor/raw]
+// Usage: node src/emperor/extract.ts [--game G:\Games\Emperor] [--out data/emperor/raw]
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { extractArchive } from './rfh.ts';
 
+import { GAME_DIR, RAW_DIR } from '../config/paths.ts';
 const args = process.argv.slice(2);
 const opt = (n: string, d: string): string => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] as string : d; };
-const game = opt('--game', process.env.EMPEROR_DIR || 'G:\\Games\\Emperor');
-const out = opt('--out', path.join(import.meta.dirname, '..', '..', 'data', 'emperor', 'raw'));
+const game = opt('--game', GAME_DIR);
+const out = opt('--out', RAW_DIR);
 
 const ARCHIVES = ['CAMPAIGN0001', 'MISSIONS0001', 'MODEL0001', 'MODEL0002', 'STRINGS0001', 'STRINGS0002', 'AI0001', 'UI0001', 'UI0002'];
 

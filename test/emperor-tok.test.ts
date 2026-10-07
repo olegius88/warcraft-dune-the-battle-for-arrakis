@@ -1,5 +1,5 @@
 // Checks the reverse-engineered Emperor script format against the user's installed game.
-// Skipped when the game or the extracted data (node src/emperor/extract.js) is absent.
+// Skipped when the game or the extracted data (node src/emperor/extract.ts) is absent.
 
 import test from 'node:test';
 import assert from 'node:assert';
@@ -8,15 +8,15 @@ import path from 'node:path';
 import { loadTokenTable, splitLines, decodeLine } from '../src/emperor/tok.ts';
 import { loadContext } from '../src/emperor/context.ts';
 
-const GAME = process.env.EMPEROR_DIR || 'G:\\Games\\Emperor';
-const RAW = path.join(import.meta.dirname, '..', 'data', 'emperor', 'raw');
-const have = fs.existsSync(path.join(GAME, 'Game.exe')) && fs.existsSync(path.join(RAW, 'Rules.txt'));
+import { RAW_DIR, GAME_EXE } from '../src/config/paths.ts';
+const RAW = RAW_DIR;
+const have = fs.existsSync(GAME_EXE) && fs.existsSync(path.join(RAW, 'Rules.txt'));
 const opts = { skip: have ? false : 'Emperor game/data not available' };
 
 const scripts = () => fs.readdirSync(RAW).filter((f) => /\.tok$/i.test(f) && f !== 'header.tok');
 
 test('token table from Game.exe: 181 entries with the expected keywords', opts, () => {
-  const t = loadTokenTable(path.join(GAME, 'Game.exe'));
+  const t = loadTokenTable(GAME_EXE);
   assert.strictEqual(t.length, 181);
   assert.strictEqual(t[0].name, 'ModelTick');
   assert.strictEqual(t[0xa5].name, 'if');
@@ -43,7 +43,7 @@ test('every script decodes; line count equals header field; parentheses balance'
 });
 
 test('object type ids resolve to the right categories in context', opts, () => {
-  const t = loadTokenTable(path.join(GAME, 'Game.exe'));
+  const t = loadTokenTable(GAME_EXE);
   const ctx = loadContext(RAW);
   const seen: Record<string, Set<string>> = { BuildObject: new Set(), Delivery: new Set(), ObjectDetonate: new Set() };
   for (const f of scripts()) {

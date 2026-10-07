@@ -1,6 +1,6 @@
 // Build a WC3 preview map from one Emperor map folder: converted terrain, a footman group at the
 // player's base point and markers (wisps) on every GameElements point, so the conversion can be
-// checked in-game. Usage: node src/emperor/preview-map.js "<map folder substring>" [out.w3x]
+// checked in-game. Usage: node src/emperor/preview-map.ts "<map folder substring>" [out.w3x]
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,15 +11,14 @@ import { buildTerrain } from './terrain.ts';
 import { buildMap } from '../wc3/map.ts';
 import { real } from '../wc3/jass.ts';
 
-const GAME = process.env.EMPEROR_DIR || 'G:\\Games\\Emperor';
-const MAPS_DIR = path.join(import.meta.dirname, '..', '..', 'data', 'emperor', 'maps');
+import { MAPS_DIR, PREVIEW_OUT, gameData } from '../config/paths.ts';
 
 /** Extract (once) the files of map folders whose name contains `needle`; returns folder paths. */
 function ensureMap(needle: string): string[] {
   const found = fs.existsSync(MAPS_DIR) ? fs.readdirSync(MAPS_DIR).filter((d) => d.includes(needle)) : [];
   if (found.length) return found.map((d) => path.join(MAPS_DIR, d));
   for (const arch of ['MAPS0001', 'MAPS0002']) {
-    for (const { name, data } of readArchive(path.join(GAME, 'DATA', arch), (n) => n.includes(needle) && /\/(test\.xbf|map\.inf)$/i.test(n))) {
+    for (const { name, data } of readArchive(gameData(arch), (n) => n.includes(needle) && /\/(test\.xbf|map\.inf)$/i.test(n))) {
       const p = path.join(MAPS_DIR, name);
       fs.mkdirSync(path.dirname(p), { recursive: true });
       fs.writeFileSync(p, data);
@@ -71,7 +70,7 @@ endfunction`,
 
 if (import.meta.main) {
   const needle = process.argv[2] || '#T11 ';
-  const out = process.argv[3] || path.join(import.meta.dirname, '..', '..', 'build', 'preview', 'Preview.w3x');
+  const out = process.argv[3] || PREVIEW_OUT;
   const folders = ensureMap(needle);
   if (!folders.length) throw new Error(`no map folder matching ${needle}`);
   const r = previewMap(folders[0] as string);

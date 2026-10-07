@@ -8,7 +8,11 @@
 // position-scored AI builder (ai.ini); AI units are produced without paying; waves attack the
 // player's base point every 150 s.
 
-import { real } from '../wc3/jass.ts';
+import { real, str } from '../wc3/jass.ts';
+import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
+import { EMPEROR_TILE } from '../config/scale.ts';
+import { MAX_SIDE, DEFAULT_FACING } from '../config/runtime.ts';
+import * as C from '../config/battle.ts';
 import type { MapMeta } from './mapxbf.ts';
 import type { EmperorTerrain } from './terrain.ts';
 import type { UnitData } from './units.ts';
@@ -41,18 +45,10 @@ export interface BattleSetup {
   clusters: number;
 }
 
-const HOUSE_PREFIX: Record<string, string> = { Atreides: 'AT', Harkonnen: 'HK', Ordos: 'OR' };
-const PREFIXES = ['AT', 'HK', 'OR']; // index = EmpEnemyHouse / house id
+const PREFIXES = HOUSE_CODES; // index = EmpEnemyHouse / house id
+const FACING = real(DEFAULT_FACING);
 
-// Enemy base template: [Emperor building suffix, dx, dy] in tiles from the base point.
-const BASE_TEMPLATE: Array<[string, number, number]> = [
-  ['ConYard', 0, 0], ['SmWindtrap', -5, -4], ['SmWindtrap', -5, 0], ['Refinery', 5, -4], ['Barracks', 5, 2],
-  ['Factory', 0, 6], ['Outpost', -5, 5], ['Pillbox', -8, -8], ['Pillbox', 8, -8], ['GunTurret', 8, 8], ['GunTurret', -8, 8],
-];
-const INF = ['Infantry', 'LightInf', 'Trooper', 'Sniper', 'Chemical', 'Flamer', 'Mortar', 'AATrooper', 'Kindjal'];
-const VEH = ['Trike', 'Buzzsaw', 'DustScout', 'Mongoose', 'Assault', 'LaserTank', 'Flame', 'Kobra', 'Minotaurus', 'InkVine', 'Missile', 'Devastator', 'SonicTank', 'Deviator'];
-
-/** Group spice tiles into clusters (flood fill with a 2-tile reach). */
+/** Group spice tiles into clusters (flood fill with a SPICE_CLUSTER_REACH-tile reach). */
 function spiceClusters(meta: MapMeta): SpiceCluster[] {
   if (!meta.mapSize || !meta.spice) return [];
   const [W, H] = meta.mapSize;
@@ -67,14 +63,14 @@ function spiceClusters(meta: MapMeta): SpiceCluster[] {
     for (let j = stack.pop(); j !== undefined; j = stack.pop()) {
       const x = j % W, y = (j / W) | 0;
       n++; sx += x; sy += y;
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -C.SPICE_CLUSTER_REACH; dy <= C.SPICE_CLUSTER_REACH; dy++) for (let dx = -C.SPICE_CLUSTER_REACH; dx <= C.SPICE_CLUSTER_REACH; dx++) {
         const nx = x + dx, ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const k = ny * W + nx;
         if (s[k] && !seen[k]) { seen[k] = 1; stack.push(k); }
       }
     }
-    out.push({ x: (sx / n + 0.5) * 32, y: (sy / n + 0.5) * 32, tiles: n });
+    out.push({ x: (sx / n + 0.5) * EMPEROR_TILE, y: (sy / n + 0.5) * EMPEROR_TILE, tiles: n });
   }
   return out;
 }
@@ -89,7 +85,7 @@ function byHouse(lines: string[]): string {
 
 function battleSetup(o: BattleOptions): BattleSetup {
   const rc = (name: string): string | undefined => o.units.rawcode.get(name);
-  const P = HOUSE_PREFIX[o.playerHouse] || 'AT';
+  const P = CODE_BY_HOUSE[o.playerHouse] || 'AT';
   const lines: string[] = [];
   const fns: string[] = [];
 
@@ -102,7 +98,7 @@ function battleSetup(o: BattleOptions): BattleSetup {
   fns.push(`function EmpTechLimits takes nothing returns nothing
     local integer i = 0
     loop
-        exitwhen i > 11
+        exitwhen i > ${MAX_SIDE}
 ${Object.entries(byLevel).map(([lvl, idsAt]) => `        if EmpTechLevel < ${lvl} then\n${idsAt.map((id) => `            call SetPlayerTechMaxAllowed(Player(i), '${id}', 0)`).join('\n')}\n        endif`).join('\n')}
         set i = i + 1
     endloop
@@ -112,7 +108,7 @@ endfunction`);
   const clusters = spiceClusters(o.meta);
   fns.push(`function EmpSpiceFields takes nothing returns nothing
     local unit m
-${clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, 270.0)\n    call SetResourceAmount(m, ${Math.max(2000, c.tiles * 1500)})`; }).join('\n')}
+${clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, ${FACING})\n    call SetResourceAmount(m, ${Math.max(C.SPICE_FIELD_MIN, c.tiles * C.SPICE_PER_TILE)})`; }).join('\n')}
     set m = null
 endfunction`);
 
@@ -162,7 +158,7 @@ endfunction
 function EmpHarvestTick takes nothing returns nothing
     local integer i = 0
     loop
-        exitwhen i > 11
+        exitwhen i > ${MAX_SIDE}
         call GroupEnumUnitsOfPlayer(EmpTmpGroup, Player(i), Filter(function EmpHarvestIdleEnum))
         set i = i + 1
     endloop
@@ -171,9 +167,9 @@ endfunction
 function EmpOnBuildingDone takes nothing returns nothing
     local unit b = GetConstructedStructure()
     local integer t = GetUnitTypeId(b)
-${PREFIXES.map((h, i) => `    if t == '${conYards[i]}' then\n        call CreateUnit(GetOwningPlayer(b), '${o.units.ids.builders[h]}', GetUnitX(b) - 256.0, GetUnitY(b) - 256.0, 270.0)\n    endif`).join('\n')}
+${PREFIXES.map((h, i) => `    if t == '${conYards[i]}' then\n        call CreateUnit(GetOwningPlayer(b), '${o.units.ids.builders[h]}', GetUnitX(b) - ${real(C.BUILDER_OFFSET)}, GetUnitY(b) - ${real(C.BUILDER_OFFSET)}, ${FACING})\n    endif`).join('\n')}
     if ${refineries.map((r) => `t == '${r}'`).join(' or ')} then
-        call CreateUnit(GetOwningPlayer(b), '${harvester}', GetUnitX(b) + 256.0, GetUnitY(b) - 256.0, 270.0)
+        call CreateUnit(GetOwningPlayer(b), '${harvester}', GetUnitX(b) + ${real(C.NEW_HARVESTER_OFFSET)}, GetUnitY(b) - ${real(C.NEW_HARVESTER_OFFSET)}, ${FACING})
     endif
     set b = null
 endfunction
@@ -185,7 +181,7 @@ function EmpOnConstructStart takes nothing returns nothing
     local unit u
     if ${conYards.map((c) => `GetUnitTypeId(b) == '${c}'`).join(' or ')} then
         set g = CreateGroup()
-        call GroupEnumUnitsInRange(g, GetUnitX(b), GetUnitY(b), 900.0, null)
+        call GroupEnumUnitsInRange(g, GetUnitX(b), GetUnitY(b), ${real(C.MCV_CONSUME_RADIUS)}, null)
         loop
             set u = FirstOfGroup(g)
             exitwhen u == null
@@ -208,8 +204,8 @@ endfunction`);
 ${byHouse(perHouse.map((list) => list.map((id, k) => `        if i == ${k} then\n            return '${id}'\n        endif`).join('\n') || '        return 0'))}
     return 0
 endfunction`;
-  const infBy = PREFIXES.map((h) => INF.map((s) => rc(h + s)).filter(isId));
-  const vehBy = PREFIXES.map((h) => VEH.map((s) => rc(h + s)).filter(isId));
+  const infBy = PREFIXES.map((h) => C.ENEMY_INFANTRY.map((s) => rc(h + s)).filter(isId));
+  const vehBy = PREFIXES.map((h) => C.ENEMY_VEHICLES.map((s) => rc(h + s)).filter(isId));
   fns.push(pickFn('EmpEnemyInf', infBy));
   fns.push(pickFn('EmpEnemyVeh', vehBy));
   fns.push(`// random unit of the enemy house allowed at the current tech level (vehicles if veh)
@@ -218,34 +214,34 @@ function EmpEnemyPick takes boolean veh returns integer
     local integer t
     loop
         if veh then
-            set t = EmpEnemyVeh(GetRandomInt(0, 13))
+            set t = EmpEnemyVeh(GetRandomInt(0, ${C.ENEMY_VEHICLES.length - 1}))
         else
-            set t = EmpEnemyInf(GetRandomInt(0, 8))
+            set t = EmpEnemyInf(GetRandomInt(0, ${C.ENEMY_INFANTRY.length - 1}))
         endif
         if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
             return t
         endif
         set tries = tries + 1
-        exitwhen tries > 20
+        exitwhen tries > ${C.ENEMY_PICK_TRIES}
     endloop
     return EmpEnemyInf(0)
 endfunction`);
-  const enemyBase = PREFIXES.map((h) => BASE_TEMPLATE.map(([sfx, dx, dy]) => (rc(h + sfx) ? `        call CreateUnit(Player(1), '${rc(h + sfx)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), 270.0)` : '')).filter(Boolean).join('\n'));
+  const enemyBase = PREFIXES.map((h) => C.BASE_TEMPLATE.map(([sfx, dx, dy]) => (rc(h + sfx) ? `        call CreateUnit(Player(1), '${rc(h + sfx)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), ${FACING})` : '')).filter(Boolean).join('\n'));
   // the player's own base for defence battles (own house template at the player's base point)
-  const playerBase = BASE_TEMPLATE.map(([sfx, dx, dy]) => (rc(P + sfx) ? `    call CreateUnit(Player(0), '${rc(P + sfx)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), 270.0)` : '')).filter(Boolean).join('\n');
+  const playerBase = C.BASE_TEMPLATE.map(([sfx, dx, dy]) => (rc(P + sfx) ? `    call CreateUnit(Player(0), '${rc(P + sfx)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), ${FACING})` : '')).filter(Boolean).join('\n');
   const barracksOf = PREFIXES.map((h) => rc(`${h}Barracks`));
   const factoryOf = PREFIXES.map((h) => rc(`${h}Factory`));
   fns.push(`function EmpStartForces takes nothing returns nothing
     local location p = EF_GetEntrancePoint(0)
     local integer b = EmpBaseOfSide(1)
-${playerArmy.map((id) => `    call CreateUnit(Player(0), '${id}', GetLocationX(p) + GetRandomReal(-200, 200), GetLocationY(p) + GetRandomReal(-200, 200), 270.0)`).join('\n')}
+${playerArmy.map((id) => `    call CreateUnit(Player(0), '${id}', GetLocationX(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), GetLocationY(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), ${FACING})`).join('\n')}
     call SetCameraPositionLocForPlayer(Player(0), p)
     set EmpCamSet = true
 ${byHouse(enemyBase)}
-    call CreateUnit(Player(1), '${harvester}', EmpBaseX[b] + 512.0, EmpBaseY[b] - 512.0, 270.0)
-    call CreateUnit(Player(1), EmpEnemyPick(false), EmpBaseX[b] + 300.0, EmpBaseY[b] + 300.0, 270.0)
-    call CreateUnit(Player(1), EmpEnemyPick(false), EmpBaseX[b] - 300.0, EmpBaseY[b] + 300.0, 270.0)
-    call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, 3000)
+    call CreateUnit(Player(1), '${harvester}', EmpBaseX[b] + ${real(C.BASE_HARVESTER_OFFSET)}, EmpBaseY[b] - ${real(C.BASE_HARVESTER_OFFSET)}, ${FACING})
+    call CreateUnit(Player(1), EmpEnemyPick(false), EmpBaseX[b] + ${real(C.BASE_GUARD_OFFSET)}, EmpBaseY[b] + ${real(C.BASE_GUARD_OFFSET)}, ${FACING})
+    call CreateUnit(Player(1), EmpEnemyPick(false), EmpBaseX[b] - ${real(C.BASE_GUARD_OFFSET)}, EmpBaseY[b] + ${real(C.BASE_GUARD_OFFSET)}, ${FACING})
+    call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, ${C.START_CREDITS})
     call RemoveLocation(p)
     set p = null
 endfunction
@@ -261,9 +257,9 @@ function EmpEnemyProduce takes nothing returns nothing
         call GroupRemoveUnit(g, u)
         set t = GetUnitTypeId(u)
         if EmpAlive(u) and (${barracksOf.map((id) => `t == '${id}'`).join(' or ')}) then
-            call CreateUnit(Player(1), EmpEnemyPick(false), GetUnitX(u), GetUnitY(u) - 256.0, 270.0)
+            call CreateUnit(Player(1), EmpEnemyPick(false), GetUnitX(u), GetUnitY(u) - ${real(C.PRODUCED_INFANTRY_OFFSET)}, ${FACING})
         elseif EmpAlive(u) and (${factoryOf.map((id) => `t == '${id}'`).join(' or ')}) then
-            call CreateUnit(Player(1), EmpEnemyPick(true), GetUnitX(u), GetUnitY(u) - 320.0, 270.0)
+            call CreateUnit(Player(1), EmpEnemyPick(true), GetUnitX(u), GetUnitY(u) - ${real(C.PRODUCED_VEHICLE_OFFSET)}, ${FACING})
         endif
     endloop
     call DestroyGroup(g)
@@ -282,13 +278,13 @@ function EmpDefendStart takes nothing returns nothing
     local integer b = EmpBaseOfSide(0)
     local location e = EF_GetEntrancePoint(1)
 ${playerBase}
-    call CreateUnit(Player(0), '${harvester}', EmpBaseX[b] + 512.0, EmpBaseY[b] - 512.0, 270.0)
-${playerArmy.slice(1, 4).map((id) => `    call CreateUnit(Player(0), '${id}', EmpBaseX[b] + GetRandomReal(-300, 300), EmpBaseY[b] + GetRandomReal(-300, 300), 270.0)`).join('\n')}
+    call CreateUnit(Player(0), '${harvester}', EmpBaseX[b] + ${real(C.BASE_HARVESTER_OFFSET)}, EmpBaseY[b] - ${real(C.BASE_HARVESTER_OFFSET)}, ${FACING})
+${playerArmy.slice(C.DEFEND_ARMY_FROM, C.DEFEND_ARMY_TO).map((id) => `    call CreateUnit(Player(0), '${id}', EmpBaseX[b] + GetRandomReal(-${C.DEFEND_ARMY_SPREAD}, ${C.DEFEND_ARMY_SPREAD}), EmpBaseY[b] + GetRandomReal(-${C.DEFEND_ARMY_SPREAD}, ${C.DEFEND_ARMY_SPREAD}), ${FACING})`).join('\n')}
     call SetCameraPositionForPlayer(Player(0), EmpBaseX[b], EmpBaseY[b])
     set EmpCamSet = true
-    call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, 2500)
+    call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, ${C.DEFEND_CREDITS})
     set EmpDefendMode = true
-    set EmpWavesLeft = 4
+    set EmpWavesLeft = ${C.DEFEND_WAVES}
     call RemoveLocation(e)
     set e = null
 endfunction
@@ -301,15 +297,15 @@ function EmpDefendWave takes nothing returns nothing
     endif
     set e = EF_GetEntrancePoint(1)
     loop
-        exitwhen k >= 3 + EmpTechLevel / 2
-        call CreateUnit(Player(1), EmpEnemyPick(GetRandomInt(0, 2) > 0), GetLocationX(e) + GetRandomReal(-250, 250), GetLocationY(e) + GetRandomReal(-250, 250), 270.0)
+        exitwhen k >= ${C.DEFEND_WAVE_BASE} + EmpTechLevel / 2
+        call CreateUnit(Player(1), EmpEnemyPick(GetRandomInt(0, 2) > 0), GetLocationX(e) + GetRandomReal(-${C.DEFEND_WAVE_SPREAD}, ${C.DEFEND_WAVE_SPREAD}), GetLocationY(e) + GetRandomReal(-${C.DEFEND_WAVE_SPREAD}, ${C.DEFEND_WAVE_SPREAD}), ${FACING})
         set k = k + 1
     endloop
     set EmpWavesLeft = EmpWavesLeft - 1
     set EmpAIMode[1] = 1
     set EmpAITargetSide[1] = 0
-    call PingMinimapLocForForce(GetPlayersAll(), e, 4.0)
-    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, 8.0, "Ментат: Враг атакует! Осталось волн: " + I2S(EmpWavesLeft))
+    call PingMinimapLocForForce(GetPlayersAll(), e, ${real(C.DEFEND_WAVE_PING_SECONDS)})
+    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, ${real(C.DEFEND_WAVE_MESSAGE_SECONDS)}, ${str(C.DEFEND_WAVE_MESSAGE)} + I2S(EmpWavesLeft))
     call RemoveLocation(e)
     set e = null
 endfunction`);
@@ -322,7 +318,7 @@ endfunction`);
     set tr = CreateTrigger()
     set i = 0
     loop
-        exitwhen i > 11
+        exitwhen i > ${MAX_SIDE}
         call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_CONSTRUCT_FINISH, null)
         set i = i + 1
     endloop
@@ -330,21 +326,21 @@ endfunction`);
     set tr = CreateTrigger()
     set i = 0
     loop
-        exitwhen i > 11
+        exitwhen i > ${MAX_SIDE}
         call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_CONSTRUCT_START, null)
         set i = i + 1
     endloop
     call TriggerAddAction(tr, function EmpOnConstructStart)
-    call TimerStart(CreateTimer(), 3.0, true, function EmpHarvestTick)
+    call TimerStart(CreateTimer(), ${real(C.HARVEST_CHECK_PERIOD)}, true, function EmpHarvestTick)
 ${o.territoryBattle && !o.defend ? `    call EmpStartForces()
-    call TimerStart(CreateTimer(), 20.0, true, function EmpEnemyProduce)
-    call TimerStart(CreateTimer(), 150.0, true, function EmpEnemyWave)` : ''}
+    call TimerStart(CreateTimer(), ${real(C.ENEMY_PRODUCE_PERIOD)}, true, function EmpEnemyProduce)
+    call TimerStart(CreateTimer(), ${real(C.ENEMY_WAVE_PERIOD)}, true, function EmpEnemyWave)` : ''}
 ${o.territoryBattle && o.defend ? `    call EmpDefendStart()
-    call TimerStart(CreateTimer(), 75.0, true, function EmpDefendWave)` : ''}
+    call TimerStart(CreateTimer(), ${real(C.DEFEND_WAVE_PERIOD)}, true, function EmpDefendWave)` : ''}
     set tr = null
 endfunction`);
   lines.push('    call EmpBattleInit()');
   return { functions: fns.join('\n\n'), init: lines.join('\n'), clusters: clusters.length };
 }
 
-export { battleSetup, spiceClusters, HOUSE_PREFIX, PREFIXES };
+export { battleSetup, spiceClusters };

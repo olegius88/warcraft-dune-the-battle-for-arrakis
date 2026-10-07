@@ -4,11 +4,10 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
-import path from 'node:path';
 import { readBag, readData, toFile } from '../src/emperor/bag.ts';
+import { gameData } from '../src/config/paths.ts';
 
-const GAME = process.env.EMPEROR_DIR || 'G:\\Games\\Emperor';
-const BAGS = ['DIALOG\\DIALOG.BAG', 'SFX\\AUDIO.BAG', 'MUSIC\\MUSIC.BAG'].map((f) => path.join(GAME, 'DATA', f));
+const BAGS = [gameData('DIALOG', 'DIALOG.BAG'), gameData('SFX', 'AUDIO.BAG'), gameData('MUSIC', 'MUSIC.BAG')];
 function must<T>(v: T | undefined): T {
   assert.ok(v !== undefined, 'entry found');
   return v;

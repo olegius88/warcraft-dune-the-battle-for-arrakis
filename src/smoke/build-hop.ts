@@ -8,8 +8,9 @@ import path from 'node:path';
 import { buildMap } from '../wc3/map.ts';
 import { str } from '../wc3/jass.ts';
 
+import { HOP_OUT } from '../config/paths.ts';
 const target = process.argv[2];
-const out = process.argv[3] || path.join(import.meta.dirname, '..', '..', 'build', 'test', 'Hop.w3x');
+const out = process.argv[3] || HOP_OUT;
 const mode = process.argv[4] || 'victory'; // 'victory' = SetNextLevelBJ+CustomVictoryBJ, 'direct' = ChangeLevel only
 if (!target) throw new Error('target map path required');
 

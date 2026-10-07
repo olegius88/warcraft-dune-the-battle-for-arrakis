@@ -17,8 +17,7 @@ import type { UnitData } from './units.ts';
 import type { TokenTable } from './tok.ts';
 import type { Speech } from './speech.ts';
 
-const ROOT = path.join(import.meta.dirname, '..', '..');
-const RAW = path.join(ROOT, 'data', 'emperor', 'raw');
+import { RAW_DIR, LOCAL_STRINGS_DIR, GAME_DIR, GAME_EXE, MISSIONS_OUT_DIR } from '../config/paths.ts';
 
 /** Everything a mission build needs from the extracted game data. */
 export interface EmperorData {
@@ -30,12 +29,12 @@ export interface EmperorData {
 }
 
 function loadAll(): EmperorData {
-  const ctx = loadContext(RAW, path.join(RAW, 'loose', 'strings'));
-  const rules = loadRules(path.join(RAW, 'Rules.txt'));
+  const ctx = loadContext(RAW_DIR, LOCAL_STRINGS_DIR);
+  const rules = loadRules(path.join(RAW_DIR, 'Rules.txt'));
   const tooltipName = new Map(ctx.tooltips.map((t) => [t.key.toLowerCase(), ctx.tooltipText(ctx.tooltips.indexOf(t))]));
   const units = buildUnitData(rules, (n) => tooltipName.get(n.toLowerCase()) || n);
-  const table = loadTokenTable(path.join(process.env.EMPEROR_DIR || 'G:\\Games\\Emperor', 'Game.exe'));
-  const speech = loadSpeech(process.env.EMPEROR_DIR || 'G:\\Games\\Emperor');
+  const table = loadTokenTable(GAME_EXE);
+  const speech = loadSpeech(GAME_DIR);
   return { ctx, rules, units, table, speech };
 }
 
@@ -54,10 +53,10 @@ if (import.meta.main) {
   const all = loadAll();
   const folder = ensureMap(mapNeedle)[0];
   const meta = readMeta(path.join(folder, 'test.xbf'));
-  const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW, script)), phase: 1, name: script }], meta, ...all, name: path.basename(script, '.tok'),
+  const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW_DIR, script)), phase: 1, name: script }], meta, ...all, name: path.basename(script, '.tok'),
     territoryBattle: territory, defaultEnemyHouse: asHouse(enemyHouse) || 'Harkonnen', playerHouse: HOUSE_BY_CODE[script.slice(0, 2).toUpperCase()] || 'Atreides', defaultTech: techLevel,
     debugName: path.basename(script, '.tok'), hubMap: 'Arrakis.w3x' });
-  const out = outArg || path.join(ROOT, 'build', 'missions', path.basename(script, '.tok') + '.w3x');
+  const out = outArg || path.join(MISSIONS_OUT_DIR, path.basename(script, '.tok') + '.w3x');
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, m.buffer);
   fs.writeFileSync(out.replace(/\.w3x$/, '.j'), m.script);

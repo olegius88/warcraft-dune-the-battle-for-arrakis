@@ -1,5 +1,5 @@
 // Mission maps built from the user's installed Emperor data.
-// Skipped when the game or the extracted data (node src/emperor/extract.js) is absent.
+// Skipped when the game or the extracted data (node src/emperor/extract.ts) is absent.
 
 import test from 'node:test';
 import assert from 'node:assert';
@@ -10,9 +10,9 @@ import { readMeta } from '../src/emperor/mapxbf.ts';
 import { ensureMap } from '../src/emperor/preview-map.ts';
 import { buildMission } from '../src/emperor/mission.ts';
 
-const GAME = process.env.EMPEROR_DIR || 'G:\\Games\\Emperor';
-const RAW = path.join(import.meta.dirname, '..', 'data', 'emperor', 'raw');
-const have = fs.existsSync(path.join(GAME, 'Game.exe')) && fs.existsSync(path.join(RAW, 'Rules.txt'));
+import { RAW_DIR, GAME_EXE } from '../src/config/paths.ts';
+const RAW = RAW_DIR;
+const have = fs.existsSync(GAME_EXE) && fs.existsSync(path.join(RAW, 'Rules.txt'));
 const opts = { skip: have ? false : 'Emperor game/data not available' };
 
 // Regression: HK_S_Heighliner showed "Победа!" right after the start. The script's win check is
