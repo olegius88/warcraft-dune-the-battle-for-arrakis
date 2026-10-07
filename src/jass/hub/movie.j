@@ -76,7 +76,6 @@ function EmpMovieNext takes nothing returns nothing
     endloop
     // the show is over: interface and music back, then what was waiting for it
     call EmpMovieLog("end")
-    call SetGameSpeed(EmpMovieSpeed)
     set EmpMoviePlaying = false
     call BlzFrameSetVisible(EmpMovieView, false)
     call BlzFrameSetVisible(EmpMovieBlack, false)
@@ -118,12 +117,9 @@ function EmpMoviePlay takes code after returns nothing
         set ui = null
     endif
     set EmpMoviePlaying = true
-    // frames are switched by a game timer, the sound plays in real time: the campaign runs at the
-    // player's game speed (2026-10-07: the movies ran about 1.25 times too fast, while timers of a
-    // standalone map at speed 2 run 1:1 with real time - src/smoke/build-speed-probe.ts)
-    set EmpMovieSpeed = GetGameSpeed()
-    call EmpMovieLog("speed " + I2S(GetHandleId(EmpMovieSpeed)))
-    call SetGameSpeed(MAP_SPEED_NORMAL)
+    // frames are switched by a game timer, the sound plays in real time; at the campaign's speed 2
+    // they matched within a second over 323 s (2026-10-07: 156.5 / 55.5 / 111 s game, 157 / 55 / 112 s
+    // real). The report keeps the speed in case a player's setting changes that.
     call EmpMovieLog("speed " + I2S(GetHandleId(GetGameSpeed())))
     call StopMusic(false)
     call BlzHideOriginFrames(true)
