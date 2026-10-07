@@ -148,7 +148,9 @@ function buildMission(p: MissionParams): BuiltMission {
     else if (/Crate/i.test(n)) {
       // Rules.txt CrateGiftObject: a unit type or CASH<n>; unknown gifts (GUNiabTank) -> 500 credits
       const gift = (p.rules && p.rules.crates && p.rules.crates.get(n)) || '';
-      const cash = /^CASH(d+)/i.exec(gift);
+      // was /^CASH(d+)/ (a heredoc ate the backslash): money crates gave 500 instead of n
+      // (regression test: test/emperor-mission.test.ts)
+      const cash = /^CASH(\d+)/i.exec(gift);
       const id = cash ? null : p.units.rawcode.get(gift);
       placed.push(`    call EmpAddCrate(${at}, ${id ? `'${id}'` : 0}, ${id ? 0 : cash ? cash[1] : 500})`);
     }

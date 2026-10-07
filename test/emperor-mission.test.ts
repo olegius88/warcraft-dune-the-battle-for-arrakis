@@ -120,3 +120,19 @@ test('mission messages play the original speech', opts, () => {
   assert.ok(m.imports['war3mapImported\\speech\\YK-G004.wav'], 'speech file imported into the map');
   assert.match(m.script, /call EmpSpeak\(EmpMsgSound\[a1\], EmpMsgSoundLen\[a1\]\)/);
 });
+
+// Regression: money crates gave 500 credits instead of CrateGiftObject = CASH2000. The CASH<n>
+// pattern had lost its backslash (written through a shell heredoc: "CASH(d+)" instead of a digit
+// class), so it never matched and every money crate fell back to the 500-credit default. The crate
+// test above only checked a unit crate. Guaranteed now: CASH<n> crates give n credits.
+test('money crates give the credits of CrateGiftObject CASH<n>', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#D1 ')[0] as string, 'test.xbf'));
+  assert.ok(meta.buildings?.some((b) => b.name === 'MoneyCrate'), '#D1 has a money crate');
+  const m = buildMission({
+    scripts: [], meta, ...all, name: 'money-crate', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x',
+  });
+  const placedBody = (m.script.split('function EmpPlaced takes nothing returns nothing')[1] ?? '').split('endfunction')[0] ?? '';
+  assert.ok(placedBody.includes(', 0, 2000)'), 'money crate registered with 2000 credits');
+  assert.ok(!placedBody.includes(', 0, 500)'), 'no 500-credit fallback for a CASH crate');
+});
