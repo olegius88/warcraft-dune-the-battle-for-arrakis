@@ -59,6 +59,8 @@ export const INITIAL_CAMERA_DELAY = 0.5;
 export const CRATE_TICK = 0.5;
 export const CRATE_RADIUS = 160;
 export const CRATE_DEFAULT_CASH = 500;
+/** Crates of the scripts (NewCrate*) disappear after this many ticks (Rules.txt [Crate] Lifespan). */
+export const CRATE_LIFESPAN_TICKS = 10000;
 
 /** Veterancy self-repair: share of max HP per second (TODO(veterancy): Emperor's rate unknown). */
 export const VET_SELF_REPAIR_RATE = 0.01;
@@ -89,6 +91,44 @@ export const ORIENTATION_STEP = 90;
  * scripts map to AIRSTRIKE_SLOTS slots. */
 export const AIRSTRIKE_SECONDS = 60;
 export const AIRSTRIKE_SLOTS = 64;
+
+/** Main camera spin (CameraStartRotate(speed, direction); direction 2 = the other way): degrees per
+ * second for speed 1, update period. TODO(camera): Emperor's spin speed unit is not documented. */
+export const CAMERA_SPIN_DEGREES = 10;
+export const CAMERA_SPIN_PERIOD = 0.05;
+/** WC3 camera rotation the spin returns to (the default game camera looks north). */
+export const CAMERA_DEFAULT_ROTATION = 90;
+/** CameraZoomTo(zoom 0..100, ticks): WC3 camera distance at zoom 0 and at zoom 100. */
+export const CAMERA_ZOOM_NEAR = 1000;
+export const CAMERA_ZOOM_FAR = 2500;
+
+/** PIP (Emperor's picture-in-picture view; WC3 has no second viewport): its target is revealed in
+ * this radius for the player and pinged on the minimap; a tracked object is followed this often. */
+export const PIP_REVEAL_RADIUS = 1024;
+export const PIP_PING_SECONDS = 2;
+export const PIP_UPDATE = 0.5;
+
+/** SetThreatLevel: AI units attack the most threatening object type within this radius first. */
+export const AI_THREAT_RADIUS = 1536;
+/** BehaviourNormal: AI units further than this from their own base return to it. */
+export const AI_HOME_RADIUS = 1536;
+
+/** Shroud areas opened by RemoveShroud, remembered so ReplaceShroud can close them again. */
+export const SHROUD_SLOTS = 64;
+
+/** Super weapon strike (SideNuke, SideNukeAll, FireSpecialWeapon): radius, damage. */
+export const NUKE_RADIUS = 1024;
+export const NUKE_DAMAGE = 2000;
+
+/** Special crates: bomb damage and radius, stealth duration and radius around the taker. */
+export const CRATE_BOMB_DAMAGE = 300;
+export const CRATE_BOMB_RADIUS = 384;
+export const CRATE_STEALTH_SECONDS = 60;
+export const CRATE_STEALTH_RADIUS = 768;
+/** EmpCrateGift codes of the crates that give no unit (> 0 is a unit type, 0 = credits). */
+export const CRATE_KIND = { bomb: -1, stealth: -2, shroud: -3 } as const;
+/** Alpha of a stealthed unit when the invisibility ability cannot be added. */
+export const STEALTH_ALPHA = 90;
 
 /** sounds.txt section that holds the spoken mission briefings (key = mission script name). */
 export const SPEECH_BRIEFING_SECTION = 'Briefing';

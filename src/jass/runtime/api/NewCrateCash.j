@@ -1,3 +1,1 @@
-    if a1 != null then
-        call CreateItem('gold', GetLocationX(a1), GetLocationY(a1))
-    endif
+    call EmpScriptCrate(a1, 0, {{RT.CRATE_DEFAULT_CASH}})

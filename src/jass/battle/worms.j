@@ -11,15 +11,19 @@ function EmpOnSand takes real x, real y returns boolean
 endfunction
 
 function EmpSandTarget takes unit u returns boolean
-    return u != null and EmpAlive(u) and u != EmpWorm and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and not IsUnitType(u, UNIT_TYPE_FLYING) and GetPlayerId(GetOwningPlayer(u)) <= {{MAX_SIDE}} and EmpOnSand(GetUnitX(u), GetUnitY(u))
+    // SideRepelsWorms: that side's units are left alone
+    return u != null and EmpAlive(u) and u != EmpWorm and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and not IsUnitType(u, UNIT_TYPE_FLYING) and GetPlayerId(GetOwningPlayer(u)) <= {{MAX_SIDE}} and not EmpWormRepel[GetPlayerId(GetOwningPlayer(u))] and EmpOnSand(GetUnitX(u), GetUnitY(u))
 endfunction
 
-// a random unit standing on sand (reservoir sampling over all sides), or null
+// a random unit standing on sand (reservoir sampling over all sides), or null; units of the sides
+// that attract worms (SideAttractsWorms) are picked first when any of them is on sand
 function EmpSandVictim takes nothing returns unit
     local group g = CreateGroup()
     local unit u
     local unit pick = null
+    local unit lure = null
     local integer n = 0
+    local integer nl = 0
     local integer i = 0
     loop
         exitwhen i > {{MAX_SIDE}}
@@ -33,12 +37,22 @@ function EmpSandVictim takes nothing returns unit
                 if GetRandomInt(1, n) == 1 then
                     set pick = u
                 endif
+                if EmpWormAttract[i] then
+                    set nl = nl + 1
+                    if GetRandomInt(1, nl) == 1 then
+                        set lure = u
+                    endif
+                endif
             endif
         endloop
         set i = i + 1
     endloop
     call DestroyGroup(g)
     set g = null
+    if lure != null then
+        set pick = lure
+    endif
+    set lure = null
     return pick
 endfunction
 

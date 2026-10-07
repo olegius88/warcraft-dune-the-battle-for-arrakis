@@ -28,3 +28,12 @@ test('every runtime API file names a function of the Game.exe token table', opts
   const rt = buildRuntime(table);
   for (const n of apiBodies().keys()) assert.ok(!rt.stubbed.includes(n), `${n} stubbed`);
 });
+
+// Every function of the Emperor API has a body except the listed ones. Script syntax that the
+// token table lists as functions (int/obj/pos/if) gets no EF_ function at all.
+test('only the known API functions are still stubs', opts, () => {
+  const rt = buildRuntime(loadTokenTable(GAME_EXE));
+  // TODO(reinforcements): SetReinforcements needs the Rules.txt reinforcement system
+  assert.deepStrictEqual(rt.stubbed, ['SetReinforcements']);
+  assert.doesNotMatch(rt.functions, /function EF_(int|obj|pos|if) /);
+});

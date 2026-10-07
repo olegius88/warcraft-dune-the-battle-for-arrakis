@@ -23,7 +23,7 @@ import { CACHE_FILE, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, K
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
 import { TICK_SECONDS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
-import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON } from '../config/wc3.ts';
+import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON, ART_ABILITY } from '../config/wc3.ts';
 import * as SC from '../config/scenery.ts';
 import { SHUFFLE_BATTLE_MUSIC } from '../config/music.ts';
 
@@ -224,7 +224,7 @@ function buildMission(p: MissionParams): BuiltMission {
 
   // values of the src/jass/mission files
   const scope = {
-    CACHE_FILE, CAT, K, RT, ITEM, EFFECT, ICON, FACING, ARMOR_REDUCTION, TICK_SECONDS, HOUSE_ID, OTHER_ENEMY_COLOR,
+    CACHE_FILE, CAT, K, RT, ITEM, EFFECT, ICON, ART_ABILITY, FACING, ARMOR_REDUCTION, TICK_SECONDS, HOUSE_ID, OTHER_ENEMY_COLOR,
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,

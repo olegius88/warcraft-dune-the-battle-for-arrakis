@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+### Added
+- 2026-10-07 API скриптов Emperor реализован полностью, кроме `SetReinforcements`
+  ([src/jass/runtime/api/](src/jass/runtime/api)):
+  - камера: вращение (`CameraStartRotate`/`CameraStopRotate`), зум, `CameraIs*`;
+  - PIP-окно Emperor: в WC3 нет второго вида, поэтому цель PIP открывается из тумана и отмечается
+    на миникарте, отслеживаемый объект сопровождается;
+  - `ReplaceShroud` закрывает области, открытые `RemoveShroud`;
+  - ИИ: `SideAIEncounterIgnore`/`Attack` (идти мимо врага или атаковать по пути),
+    `SideAIBehaviourNormal` (держаться у своей базы), `SetThreatLevel` (атаковать самый опасный
+    тип объектов рядом);
+  - ящики скриптов `NewCrate*` (деньги, юнит, бомба, невидимость, туман) исчезают через
+    `Lifespan` из Rules.txt [Crate];
+  - черви: `SideAttractsWorms`/`SideRepelsWorms`;
+  - удар супероружия `SideNuke`/`SideNukeAll`/`FireSpecialWeapon`;
+  - `ObjectUndeploy` (стройплощадка обратно в MCV), `GetIsolatedEntrance` и прочие точки.
+  Модели эффектов берутся из данных стандартных способностей (`GetAbilityEffectById`), так что
+  пути всегда существуют. Для служебных слов скриптов (`int`/`obj`/`pos`/`if`) функции больше
+  не генерируются.
+
 ### Changed
 - 2026-10-07 JASS вынесен из строк `.ts` в файлы [src/jass/](src/jass/README.md): хаб
   (`hub/*.j`), связка миссии (`mission/*.j`: ящики, ветеранство, game cache, старт), битва за территорию

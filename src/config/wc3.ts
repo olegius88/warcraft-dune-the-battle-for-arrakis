@@ -53,6 +53,19 @@ export const ABILITY = {
   build: 'AHbu',
   returnResources: 'Argd',
   invulnerable: 'Avul',
+  /** permanent invisibility (rawcode not in common.ai; EmpStealth checks UnitAddAbility's result) */
+  invisibility: 'Apiv',
+} as const;
+
+/** Stock abilities whose art (GetAbilityEffectById, common.j) is used for effects, so the model
+ * paths come from the game's own data. Codes: data/wc3/common.ai. */
+export const ART_ABILITY = {
+  /** super weapon strike */
+  nuke: 'AUin',
+  /** bomb crate */
+  bomb: 'AHfs',
+  /** stealth crate */
+  stealth: 'AOws',
 } as const;
 
 /** Stock units used as helpers. */

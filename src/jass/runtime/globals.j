@@ -66,3 +66,31 @@
     boolean EmpResultSent = false
     timer EmpTimer = null
     timerdialog EmpTimerWindow = null
+    item array EmpCrateItem
+    integer array EmpCrateGift
+    integer array EmpCrateCash
+    integer array EmpCrateEnd
+    integer EmpCrateCount = 0
+    group EmpStealthGroup = null
+    integer EmpStealthEnd = 0
+    timer EmpCamSpinTimer = null
+    real EmpCamSpin = 0.0
+    integer EmpCamMoveEnd = 0
+    fogmodifier EmpPipFog = null
+    timer EmpPipTimer = null
+    unit EmpPipUnit = null
+    real EmpPipX = 0.0
+    real EmpPipY = 0.0
+    real EmpPipStoreX = 0.0
+    real EmpPipStoreY = 0.0
+    integer EmpPipMoveEnd = 0
+    boolean EmpPipSpin = false
+    boolean array EmpAIIgnore
+    hashtable EmpThreat = null
+    boolean EmpThreatAny = false
+    fogmodifier array EmpShroudMod
+    real array EmpShroudX
+    real array EmpShroudY
+    integer EmpShroudCount = 0
+    boolean array EmpWormAttract
+    boolean array EmpWormRepel

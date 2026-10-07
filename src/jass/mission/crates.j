@@ -1,22 +1,19 @@
-// Crates (Emperor: a unit driving over the crate gets CrateGiftObject). WC3 items need an
-// inventory, which Emperor units do not have, so the pickup is a proximity check
-// (regression test: test/emperor-mission.test.ts).
-function EmpAddCrate takes real x, real y, integer gift, integer cash returns nothing
-    set EmpCrateItem[EmpCrateCount] = CreateItem('{{ITEM.crate}}', x, y)
-    call SetItemInvulnerable(EmpCrateItem[EmpCrateCount], true)
-    set EmpCrateGift[EmpCrateCount] = gift
-    set EmpCrateCash[EmpCrateCount] = cash
-    set EmpCrateCount = EmpCrateCount + 1
-endfunction
-
+// Crate pickup (crates are created by EmpAddCrate in the runtime helpers): a unit of a real side
+// within CRATE_RADIUS takes it (regression test: test/emperor-mission.test.ts). Crates of the
+// scripts (NewCrate*) disappear after Rules.txt [Crate] Lifespan; crates placed in the map stay.
 function EmpCrateTick takes nothing returns nothing
     local integer i = 0
     local group g = CreateGroup()
     local unit u
     local unit taker
     local player who
+    call EmpStealthExpire()
     loop
         exitwhen i >= EmpCrateCount
+        if EmpCrateItem[i] != null and EmpCrateEnd[i] > 0 and EmpTick >= EmpCrateEnd[i] then
+            call RemoveItem(EmpCrateItem[i])
+            set EmpCrateItem[i] = null
+        endif
         if EmpCrateItem[i] != null then
             set taker = null
             call GroupEnumUnitsInRange(g, GetItemX(EmpCrateItem[i]), GetItemY(EmpCrateItem[i]), {{real RT.CRATE_RADIUS}}, null)
@@ -30,8 +27,16 @@ function EmpCrateTick takes nothing returns nothing
             endloop
             if taker != null then
                 set who = GetOwningPlayer(taker)
-                if EmpCrateGift[i] != 0 then
+                if EmpCrateGift[i] > 0 then
                     call CreateUnit(who, EmpCrateGift[i], GetUnitX(taker), GetUnitY(taker), {{FACING}})
+                elseif EmpCrateGift[i] == {{RT.CRATE_KIND.bomb}} then
+                    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.bomb}}', EFFECT_TYPE_TARGET, 0), GetUnitX(taker), GetUnitY(taker)))
+                    call EmpDamageArea(GetUnitX(taker), GetUnitY(taker), {{real RT.CRATE_BOMB_RADIUS}}, {{real RT.CRATE_BOMB_DAMAGE}})
+                elseif EmpCrateGift[i] == {{RT.CRATE_KIND.stealth}} then
+                    call EmpStealthAround(taker)
+                elseif EmpCrateGift[i] == {{RT.CRATE_KIND.shroud}} then
+                    // the taker's map is covered by the shroud again
+                    call SetFogStateRect(who, FOG_OF_WAR_MASKED, bj_mapInitialPlayableArea, false)
                 else
                     call SetPlayerState(who, PLAYER_STATE_RESOURCE_GOLD, GetPlayerState(who, PLAYER_STATE_RESOURCE_GOLD) + EmpCrateCash[i])
                 endif

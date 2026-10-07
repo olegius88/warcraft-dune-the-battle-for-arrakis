@@ -132,6 +132,162 @@ function EmpStrikeAdd takes integer slot, integer side, integer t, location from
     set u = null
 endfunction
 
+// ---- crates (Emperor: a unit driving over a crate gets its gift). WC3 items need an inventory,
+// which Emperor units do not have, so the pickup is a proximity check (EmpCrateTick, mission part).
+// gift > 0: unit type; gift == 0: cash credits; gift < 0: special crate (config CRATE_KIND).
+function EmpAddCrate takes real x, real y, integer gift, integer cash returns nothing
+    set EmpCrateItem[EmpCrateCount] = CreateItem('{{ITEM.crate}}', x, y)
+    call SetItemInvulnerable(EmpCrateItem[EmpCrateCount], true)
+    set EmpCrateGift[EmpCrateCount] = gift
+    set EmpCrateCash[EmpCrateCount] = cash
+    set EmpCrateEnd[EmpCrateCount] = 0
+    set EmpCrateCount = EmpCrateCount + 1
+endfunction
+
+// a crate dropped by a script (NewCrate*): it disappears after Rules.txt [Crate] Lifespan
+function EmpScriptCrate takes location l, integer gift, integer cash returns nothing
+    if l == null then
+        return
+    endif
+    call EmpAddCrate(GetLocationX(l), GetLocationY(l), gift, cash)
+    set EmpCrateEnd[EmpCrateCount - 1] = EmpTick + {{RT.CRATE_LIFESPAN_TICKS}}
+endfunction
+
+// damage every unit and building in radius r around (x, y); a unit left with no life dies
+function EmpDamageArea takes real x, real y, real r, real dmg returns nothing
+    local group g = CreateGroup()
+    local unit u
+    call GroupEnumUnitsInRange(g, x, y, r, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and u != EmpWorm then
+            if GetWidgetLife(u) <= dmg then
+                call KillUnit(u)
+            else
+                call SetWidgetLife(u, GetWidgetLife(u) - dmg)
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
+// super weapon strike (Death Hand / SideNuke): the model comes from a stock ability (config ART_ABILITY)
+function EmpNukeAt takes real x, real y returns nothing
+    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.nuke}}', EFFECT_TYPE_TARGET, 0), x, y))
+    call EmpDamageArea(x, y, {{real RT.NUKE_RADIUS}}, {{real RT.NUKE_DAMAGE}})
+endfunction
+
+// stealth crate: the taker's units around it turn invisible for CRATE_STEALTH_SECONDS. The
+// invisibility ability code is not in common.ai, so a failed UnitAddAbility falls back to a
+// see-through look (visual only).
+function EmpStealthAround takes unit taker returns nothing
+    local group g = CreateGroup()
+    local unit u
+    if EmpStealthGroup == null then
+        set EmpStealthGroup = CreateGroup()
+    endif
+    call GroupEnumUnitsInRange(g, GetUnitX(taker), GetUnitY(taker), {{real RT.CRATE_STEALTH_RADIUS}}, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and GetOwningPlayer(u) == GetOwningPlayer(taker) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+            if not UnitAddAbility(u, '{{ABILITY.invisibility}}') then
+                call SetUnitVertexColor(u, 255, 255, 255, {{RT.STEALTH_ALPHA}})
+            endif
+            call GroupAddUnit(EmpStealthGroup, u)
+        endif
+    endloop
+    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.stealth}}', EFFECT_TYPE_CASTER, 0), GetUnitX(taker), GetUnitY(taker)))
+    set EmpStealthEnd = EmpTick + R2I({{real RT.CRATE_STEALTH_SECONDS}} * {{TPS}})
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
+// end of a stealth crate's effect (called by the crate tick)
+function EmpStealthExpire takes nothing returns nothing
+    local unit u
+    if EmpStealthGroup == null or EmpTick < EmpStealthEnd then
+        return
+    endif
+    loop
+        set u = FirstOfGroup(EmpStealthGroup)
+        exitwhen u == null
+        call GroupRemoveUnit(EmpStealthGroup, u)
+        call UnitRemoveAbility(u, '{{ABILITY.invisibility}}')
+        call SetUnitVertexColor(u, 255, 255, 255, 255)
+    endloop
+endfunction
+
+// ---- PIP: Emperor's picture-in-picture view of a point or object. WC3 has no second viewport, so
+// the PIP target is revealed for the player (PIP_REVEAL_RADIUS) and pinged on the minimap.
+function EmpPipShow takes real x, real y, boolean ping returns nothing
+    if EmpPipFog != null then
+        call DestroyFogModifier(EmpPipFog)
+    endif
+    set EmpPipX = x
+    set EmpPipY = y
+    set EmpPipFog = CreateFogModifierRadius(Player(0), FOG_OF_WAR_VISIBLE, x, y, {{real RT.PIP_REVEAL_RADIUS}}, true, false)
+    call FogModifierStart(EmpPipFog)
+    if ping then
+        call PingMinimap(x, y, {{real RT.PIP_PING_SECONDS}})
+    endif
+endfunction
+
+function EmpPipTick takes nothing returns nothing
+    if EmpAlive(EmpPipUnit) then
+        call EmpPipShow(GetUnitX(EmpPipUnit), GetUnitY(EmpPipUnit), false)
+    endif
+endfunction
+
+function EmpPipFollow takes unit u returns nothing
+    set EmpPipUnit = u
+    if EmpPipTimer == null then
+        set EmpPipTimer = CreateTimer()
+        call TimerStart(EmpPipTimer, {{real RT.PIP_UPDATE}}, true, function EmpPipTick)
+    endif
+    if EmpAlive(u) then
+        call EmpPipShow(GetUnitX(u), GetUnitY(u), true)
+    endif
+endfunction
+
+// ---- main camera spin (CameraStartRotate)
+function EmpCamSpinTick takes nothing returns nothing
+    call SetCameraFieldForPlayer(Player(0), CAMERA_FIELD_ROTATION, GetCameraField(CAMERA_FIELD_ROTATION) * bj_RADTODEG + EmpCamSpin * {{real RT.CAMERA_SPIN_PERIOD}}, {{real RT.CAMERA_SPIN_PERIOD}})
+endfunction
+
+// ---- AI target choice by threat (SetThreatLevel): the most threatening object type near u
+function EmpThreatTarget takes unit u returns unit
+    local group g
+    local unit v
+    local unit best = null
+    local integer bt = 0
+    local integer t
+    if not EmpThreatAny then
+        return null
+    endif
+    set g = CreateGroup()
+    call GroupEnumUnitsInRange(g, GetUnitX(u), GetUnitY(u), {{real RT.AI_THREAT_RADIUS}}, null)
+    loop
+        set v = FirstOfGroup(g)
+        exitwhen v == null
+        call GroupRemoveUnit(g, v)
+        if EmpAlive(v) and GetOwningPlayer(v) != GetOwningPlayer(u) and not IsUnitAlly(v, GetOwningPlayer(u)) then
+            set t = LoadInteger(EmpThreat, GetUnitTypeId(v), 0)
+            if t > bt then
+                set bt = t
+                set best = v
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return best
+endfunction
+
 function EmpBaseOfSide takes integer side returns integer
     local integer i = EmpSideBase[side]
     if i >= 0 and i < EmpBaseCount then
@@ -217,18 +373,35 @@ endfunction
 
 // ---- side AI (simple order-based behaviour) ----
 // modes: 0 none, 1 aggressive (attack nearest enemy base), 2 move to point, 3 exit map,
-//        4 guard object, 5 attack object, 6 headless chicken, 7 stop
+//        4 guard object, 5 attack object, 6 headless chicken, 7 stop, 8 normal (stay near own base)
+// EmpAIIgnore[side] (SideAIEncounterIgnore): moving units do not fight on the way.
+// Units that may fight first attack the most threatening object type nearby (SetThreatLevel).
 function EmpAIOrderEnum takes nothing returns boolean
     local unit u = GetFilterUnit()
     local integer side = EmpTmpSide
     local integer m = EmpAIMode[side]
     local integer b
+    local unit th = null
+    local string mv = "attack"
+    if EmpAIIgnore[side] then
+        set mv = "move"
+    endif
     if EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and GetUnitCurrentOrder(u) == 0 then
-        if m == 1 then
+        if (m == 1 or m == 8 or (m == 2 and not EmpAIIgnore[side])) then
+            set th = EmpThreatTarget(u)
+        endif
+        if th != null then
+            call IssueTargetOrder(u, "attack", th)
+        elseif m == 1 then
             set b = EmpBaseOfSide(EmpAITargetSide[side])
             call IssuePointOrder(u, "attack", EmpBaseX[b], EmpBaseY[b])
+        elseif m == 8 then
+            set b = EmpBaseOfSide(side)
+            if not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], {{real RT.AI_HOME_RADIUS}}) then
+                call IssuePointOrder(u, "attack", EmpBaseX[b], EmpBaseY[b])
+            endif
         elseif m == 2 and EmpAITarget[side] != null then
-            call IssuePointOrderLoc(u, "move", EmpAITarget[side])
+            call IssuePointOrderLoc(u, mv, EmpAITarget[side])
         elseif m == 3 then
             if IsUnitInRangeXY(u, EmpTmpX, EmpTmpY, {{real RT.AI_GUARD_RADIUS}}) then
                 call RemoveUnit(u)
@@ -246,6 +419,7 @@ function EmpAIOrderEnum takes nothing returns boolean
         endif
     endif
     set u = null
+    set th = null
     return false
 endfunction
 

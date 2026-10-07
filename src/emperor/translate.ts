@@ -57,6 +57,9 @@ const RET: Record<number, VarType | 'void'> = { 0: 'int', 1: 'pos', 2: 'obj', 8:
 // token table declares them void: "v0 = ObjectChange(...)").
 const RETURN_OVERRIDE: Record<string, number> = { ObjectChange: 2, ObjectInfect: 2 };
 const ARG = (code: number): VarType => (code === 1 ? 'pos' : code === 2 ? 'obj' : 'int');
+/** Script syntax the token table lists as functions (kind 0): declarations and "if". The
+ * translator handles them itself, so runtime.ts generates no EF_ function for them. */
+const SYNTAX_TOKENS: ReadonlySet<string> = new Set(['int', 'obj', 'pos', 'if']);
 const JASS_TYPE: Record<VarType, string> = { int: 'integer', obj: 'unit', pos: 'location' };
 const NULL: Record<VarType, string> = { int: '0', obj: 'null', pos: 'null' };
 
@@ -280,4 +283,4 @@ function translateScript(tok: Buffer, table: TokenTable, ctx: TranslateContext, 
   return { globals, body, used: tr.used, messages: tr.messages, tooltips: tr.tooltips };
 }
 
-export { translateScript, lex, RETURN_OVERRIDE };
+export { translateScript, lex, RETURN_OVERRIDE, SYNTAX_TOKENS };

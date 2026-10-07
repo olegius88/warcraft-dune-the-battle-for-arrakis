@@ -8,7 +8,3 @@
     integer EmpTerritory = {{territory}}
     hashtable EmpVet = null
     hashtable EmpVetUnit = null
-    item array EmpCrateItem
-    integer array EmpCrateGift
-    integer array EmpCrateCash
-    integer EmpCrateCount = 0
