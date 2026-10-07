@@ -1,4 +1,5 @@
 
+{{movieFunctions}}
 function EmpData takes nothing returns nothing
 {{dataLines}}
 endfunction
@@ -49,9 +50,11 @@ function EmpNoGainCheck takes nothing returns boolean
     if EmpNoGain >= {{noGain.lose}} then
         call StoreInteger(EmpCache, {{CAT}}, {{K.init}}, 0)
         call SaveGameCache(EmpCache)
-        call CustomDefeatBJ(Player(0), {{str NO_GAIN_LOST}})
+        call EmpMovieAdd({{mv.lost}})
+        set EmpEnding = 2
         return true
     elseif EmpNoGain == {{noGain.warning}} then
+        call EmpMovieAdd({{mv.warning}})
         call EmpSay({{str NO_GAIN_WARNING}})
     endif
 {{/if}}    return false
@@ -74,7 +77,8 @@ function EmpLoad takes nothing returns nothing
         set EmpNoGain = 0
         call EmpPhaseTech()
         call StoreInteger(EmpCache, {{CAT}}, {{K.house}}, {{me}})
-        call StoreInteger(EmpCache, {{CAT}}, {{K.result}}, -1){{#if story.civilWar}}
+        call StoreInteger(EmpCache, {{CAT}}, {{K.result}}, -1)
+        call EmpMovieAdd({{mv.start}}){{#if story.civilWar}}
         call StoreInteger(EmpCache, {{CAT}}, {{K.storyStep}}, 0){{/if}}
         call EmpSave()
         return
@@ -208,6 +212,40 @@ function EmpStoryMap takes nothing returns string
     return ""
 endfunction
 
+// movie of the story mission of the current phase: when it is accepted, or after it was lost
+function EmpStoryMovie takes boolean failed returns string
+    local boolean foe0 = GetStoredInteger(EmpCache, {{CAT}}, {{K.homeAttackEnemy}}) == {{foes.0}}
+    if EmpPhase == {{PHASE.first}} then
+        if failed then
+            return {{mv.failedHeighliner}}
+        endif
+        return {{mv.heighliner}}
+    elseif EmpPhase == {{PHASE.second}} then{{#if story.civilWar}}
+        if GetStoredInteger(EmpCache, {{CAT}}, {{K.storyStep}}) == 1 then
+            if failed then
+                return {{mv.failedCivilWar}}
+            endif
+            return {{mv.civilWar}}
+        endif{{/if}}
+        if failed then
+            return {{mv.failedHomeDefence}}
+        endif
+        return {{mv.homeDefence}}
+    elseif EmpPhase == {{PHASE.homeAttack}} then
+        if failed and foe0 then
+            return {{mv.failedHomeAttack0}}
+        elseif failed then
+            return {{mv.failedHomeAttack1}}
+        endif
+    elseif EmpPhase == {{PHASE.final}} and failed then
+        if foe0 then
+            return {{mv.failedFinal0}}
+        endif
+        return {{mv.failedFinal1}}
+    endif
+    return ""
+endfunction
+
 function EmpOfferStory takes nothing returns boolean
     local string m = EmpStoryMap()
     if m == "" then
@@ -290,8 +328,10 @@ function EmpApplyResult takes nothing returns boolean
                 call EmpPhaseTech()
                 if t == {{jpFoe0}} then
                     call StoreInteger(EmpCache, {{CAT}}, {{K.homeAttackEnemy}}, {{foes.0}})
+                    call EmpMovieAdd({{mv.homeAttack0}})
                 else
                     call StoreInteger(EmpCache, {{CAT}}, {{K.homeAttackEnemy}}, {{foes.1}})
+                    call EmpMovieAdd({{mv.homeAttack1}})
                 endif
                 call EmpSay("Вражеская столица захвачена. Готовьтесь к вторжению на их родную планету!")
             endif
@@ -311,7 +351,8 @@ function EmpApplyResult takes nothing returns boolean
                 // final mission won
                 call EmpSave()
                 call EmpSay("|cffffcc00Арракис принадлежит вам! Кампания завершена.|r")
-                call CustomVictoryBJ(Player(0), true, true)
+                call EmpMovieAdd({{mv.won}})
+                set EmpEnding = 1
                 return true
             endif
 {{#if story.civilWar}}            if EmpPhase == {{PHASE.second}} and GetStoredInteger(EmpCache, {{CAT}}, {{K.storyStep}}) == 0 then
@@ -328,12 +369,23 @@ function EmpApplyResult takes nothing returns boolean
                 set EmpBattles = 0
                 set EmpNoGain = 0
                 call EmpPhaseTech()
+                if EmpPhase == {{PHASE.second}} then
+                    call EmpMovieAdd({{mv.phase2}})
+                else
+                    call EmpMovieAdd({{mv.phase3}})
+                endif
                 call EmpSay("|cffffcc00Начинается фаза " + I2S(EmpPhase) + ".|r")
             elseif EmpPhase == {{PHASE.homeAttack}} then
                 set EmpPhase = {{PHASE.final}}
+                if GetStoredInteger(EmpCache, {{CAT}}, {{K.homeAttackEnemy}}) == {{foes.0}} then
+                    call EmpMovieAdd({{mv.final0}})
+                else
+                    call EmpMovieAdd({{mv.final1}})
+                endif
                 call EmpSay("|cffffcc00Родной мир врага пал. Остался последний бой — Император!|r")
             endif
         else
+            call EmpMovieAdd(EmpStoryMovie(true))
             call EmpSay("Сюжетная миссия провалена. Попробуйте снова.")
         endif
     endif
@@ -355,7 +407,13 @@ function EmpOnDialog takes nothing returns nothing
         call EmpSay("Мы отступили с территории «" + EmpTName[EmpPendTerr] + "».")
         call EmpSave()
         call EmpDraw()
-    elseif EmpDialogMode == 2 or EmpDialogMode == 3 then
+    elseif EmpDialogMode == 2 then
+        if yes then
+            call EmpMovieAdd(EmpStoryMovie(false))
+            call EmpMoviePlay(function EmpGo)
+            return
+        endif
+    elseif EmpDialogMode == 3 then
         if yes then
             call EmpGo()
             return
@@ -403,7 +461,28 @@ function EmpOnSelect takes nothing returns nothing
     call EmpAsk("Атаковать «" + EmpTName[n] + "»?", "В бой!", "Отмена")
 endfunction
 
-{{autoTestFunctions}}function EmpHubStart takes nothing returns nothing
+{{autoTestFunctions}}function EmpHubResume takes nothing returns nothing
+    if EmpEnding == 1 then
+        call CustomVictoryBJ(Player(0), true, true)
+        return
+    elseif EmpEnding == 2 then
+        call CustomDefeatBJ(Player(0), {{str NO_GAIN_LOST}})
+        return
+    endif
+    call EmpStatus(){{#if o.autoTest}}
+    call EmpAutoReport(){{/if}}
+    if EmpOfferStory() then
+        return
+    endif
+    if {{#if o.autoTest}}false and {{/if}}GetStoredInteger(EmpCache, {{CAT}}, {{K.lastKind}}) == 0 and EmpCounterAttack() then
+        call StoreInteger(EmpCache, {{CAT}}, {{K.lastKind}}, 1)
+        return
+    endif
+    call StoreInteger(EmpCache, {{CAT}}, {{K.lastKind}}, 0)
+    set EmpBusy = false
+endfunction
+
+function EmpHubStart takes nothing returns nothing
     local trigger tr = CreateTrigger()
     set EmpDialog = DialogCreate()
     call TriggerRegisterDialogEvent(tr, EmpDialog)
@@ -422,6 +501,8 @@ endfunction
     call FogEnable(false)
     call FogMaskEnable(false)
     call EmpData()
+    // frame table of the movies; was never filled, so every movie was skipped (test/movies.test.ts)
+    call EmpMovieData()
     call EmpLoad()
     call EmpDraw()
     call SetCameraField(CAMERA_FIELD_TARGET_DISTANCE, {{real V.HUB_CAMERA_DISTANCE}}, 0.0)
@@ -429,20 +510,7 @@ endfunction
     call EmpStatus()
     call EmpSay("Выберите вражескую территорию рядом с вашими землями, чтобы атаковать.")
     set EmpBusy = true
-    if EmpApplyResult() then
-        call EmpDraw()
-        return
-    endif
+    call EmpApplyResult()
     call EmpDraw()
-    call EmpStatus(){{#if o.autoTest}}
-    call EmpAutoReport(){{/if}}
-    if EmpOfferStory() then
-        return
-    endif
-    if {{#if o.autoTest}}false and {{/if}}GetStoredInteger(EmpCache, {{CAT}}, {{K.lastKind}}) == 0 and EmpCounterAttack() then
-        call StoreInteger(EmpCache, {{CAT}}, {{K.lastKind}}, 1)
-        return
-    endif
-    call StoreInteger(EmpCache, {{CAT}}, {{K.lastKind}}, 0)
-    set EmpBusy = false
+    call EmpMoviePlay(function EmpHubResume)
 endfunction

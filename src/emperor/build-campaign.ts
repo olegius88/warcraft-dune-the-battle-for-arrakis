@@ -6,6 +6,7 @@
 //     with ChangeLevel from the hub).
 // Usage: node src/emperor/build-campaign.ts [--houses AT,HK,OR] [--territories 1-33] [--out file.w3n] [--check]
 //        [--autotest] [--name "campaign name"]   (--autotest: see config/campaign.ts AUTOTEST_*)
+//        [--no-movies | --movies]   (movie slide shows in the hubs: on, off for --autotest)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,6 +32,11 @@ import { buildCampaign } from '../wc3/map.ts';
 import { loadMusic } from './music.ts';
 
 import { loadPhaseRules } from './phase-rules.ts';
+import { loadMovies, houseMovies } from './movies.ts';
+import { convertMovie, blackTexture } from './fmv.ts';
+import type { MovieFiles } from './fmv.ts';
+import type { HubMovies } from './hub.ts';
+import { MOVIE_PATH } from '../config/movies.ts';
 import { RAW_DIR, CAMPAIGN_OUT, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
 
 const args = process.argv.slice(2);
@@ -78,6 +84,23 @@ interface BuiltEntry {
 const maps: BuiltEntry[] = [];
 const check = args.includes('--check');
 const autoTest = args.includes('--autotest');
+// movies: converted once (ffmpeg), imported into the hub of each house that shows them
+const withMovies = args.includes('--movies') || (!autoTest && !args.includes('--no-movies'));
+const movieEntries = withMovies ? loadMovies(path.join(RAW_DIR, 'MOVIES.TXT')) : [];
+const converted = new Map<string, MovieFiles>();
+const hubMovies = (h: HouseCode): HubMovies | undefined => {
+  if (!withMovies) return undefined;
+  const events = houseMovies(movieEntries, h);
+  const frames = new Map<string, number>();
+  const files: Record<string, Buffer> = { [MOVIE_PATH.black]: blackTexture() };
+  for (const name of new Set(Object.values(events).flat())) {
+    let m = converted.get(name);
+    if (!m) { m = convertMovie(name); converted.set(name, m); }
+    frames.set(name, m.frames);
+    Object.assign(files, m.files);
+  }
+  return { events, frames, files };
+};
 const campaignName = opt('--name', (autoTest ? CP.AUTOTEST_NAME_PREFIX : '') + CP.CAMPAIGN_NAME);
 let pjassFailures = 0;
 const add = (file: string, buffer: Buffer, title: string, chapter = '', visible = false, script: string | null = null): void => {
@@ -167,7 +190,7 @@ for (const h of houses) {
   storyMission('end', 'End', story.end, `${HOUSE_RU[h]}: Последняя битва`);
 
   const hubMap = buildHub({
-    house: h, campaign: camp, units: all.units, autoTest, music: useMusic(music ? music.hub(h) : []), phaseRules,
+    house: h, campaign: camp, units: all.units, autoTest, music: useMusic(music ? music.hub(h) : []), phaseRules, movies: hubMovies(h),
     battleMap: (kind, n) => battleFile[`${kind}:${n}`] || null,
     storyMap: { heighliner: storyFile.heighliner, homeDefence: storyFile.homeDefence, civilWar: storyFile.civilWar, homeAttack: storyFile.homeAttack, end: storyFile.end },
   });

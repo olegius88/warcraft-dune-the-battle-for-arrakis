@@ -5,6 +5,21 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-07 Ролики Emperor в хабах кампании (слайд-шоу). `PlayCinematic` из карты в 1.31.1 ничего
+  не показывает, поэтому:
+  - ffmpeg переводит кадры BIK в JPEG 512×512, 2 кадра/с, а звук — в MP3
+    ([src/emperor/fmv.ts](src/emperor/fmv.ts));
+  - кадры упаковываются в BLP1 с JPEG ([src/wc3/blp.ts](src/wc3/blp.ts) `blpFromJpeg`,
+    [src/wc3/jpeg.ts](src/wc3/jpeg.ts)). Проверено в игре: обычный YCbCr JPEG от ffmpeg
+    показывается с верными цветами;
+  - [src/emperor/movies.ts](src/emperor/movies.ts) читает `MOVIES.TXT` с цепочками роликов;
+  - таблица «событие хаба → ролики» для каждого Дома — [src/config/movies.ts](src/config/movies.ts):
+    начало кампании, начало фаз, сюжетные миссии, вторжение, финал, провалы, предупреждение и
+    поражение без захватов;
+  - проигрыватель на UI-фрейме поверх экрана — [src/jass/hub/movie.j](src/jass/hub/movie.j), Esc
+    пропускает ролик. Победа и поражение кампании ждут конца роликов;
+  - около 60 МБ на хаб; `--no-movies` собирает без них, `--autotest` — без них по умолчанию;
+  - проверочная карта: [src/smoke/build-fmv-probe.ts](src/smoke/build-fmv-probe.ts).
 - 2026-10-07 ИИ битвы за территорию по `ai.ini` ([src/emperor/ai-rules.ts](src/emperor/ai-rules.ts),
   [src/jass/battle/forces.j](src/jass/battle/forces.j)):
   - производство — пехота/техника 20/80;
@@ -192,6 +207,12 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-07 Хаб не заполнял таблицу кадров роликов (`EmpMovieData`), и проигрыватель пропускал все
+  ролики — найдено прогоном в игре; регрессия в [test/movies.test.ts](test/movies.test.ts).
+- 2026-10-07 Сессия кампании ([tools/campaign-session.ps1](tools/campaign-session.ps1)) 20 минут
+  делала снимки экрана кампании, хотя миссия не запустилась, и снова и снова сворачивала игру.
+  Теперь сессия сразу заканчивается, а снимок не делается, пока пользователь активен. Пропущенный
+  клик пишет, какое окно мешает ([tools/wc3-ui.ps1](tools/wc3-ui.ps1)).
 - 2026-10-07 Денежные ящики давали 500 кредитов вместо `CASH2000` (шаблон `CASH<n>` потерял
   обратный слеш); затронуты 36 карт ([src/emperor/mission.ts](src/emperor/mission.ts), регрессия
   [test/emperor-mission.test.ts](test/emperor-mission.test.ts)).
