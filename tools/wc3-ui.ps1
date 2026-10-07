@@ -40,6 +40,8 @@ Add-Type -Namespace W -Name Ui -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool IsIconic(System.IntPtr h);
 [DllImport("user32.dll")] public static extern bool ClipCursor(System.IntPtr r);
 [DllImport("user32.dll")] public static extern bool SetWindowPos(System.IntPtr h, System.IntPtr after, int x, int y, int cx, int cy, uint flags);
+[DllImport("user32.dll")] public static extern System.IntPtr WindowFromPoint(POINT p);
+[DllImport("user32.dll")] public static extern System.IntPtr GetAncestor(System.IntPtr h, uint flags);
 '@
 function Get-IdleSeconds {
   $li = New-Object W.Ui+LASTINPUTINFO; $li.cbSize = 8
@@ -119,6 +121,15 @@ try {
     $pt = New-Object W.Ui+POINT
     $pt.X = [int](($r.R - $r.L) * $Fx); $pt.Y = [int](($r.B - $r.T) * $Fy)
     [void][W.Ui]::ClientToScreen($h, [ref]$pt)
+    # A real click lands on whatever window is under the point: click only when the game is restored,
+    # in front and its own window is under the point (2026-10-07 two clicks were computed against a
+    # minimised game window and went to the screen outside it).
+    $under = [W.Ui]::GetAncestor([W.Ui]::WindowFromPoint($pt), 2) # GA_ROOT
+    if ([W.Ui]::IsIconic($h) -or [W.Ui]::GetForegroundWindow() -ne $h -or $under -ne $h) {
+      "click skipped: game window not in front or not under ($($pt.X),$($pt.Y))"
+      $skipped = $true
+      return
+    }
     [void][W.Ui]::SetCursorPos($pt.X, $pt.Y)
     Start-Sleep -Milliseconds 150   # hover: glue buttons highlight first
     [W.Ui]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero) # LEFTDOWN
@@ -134,3 +145,5 @@ try {
   [void][W.Ui]::ClipCursor([IntPtr]::Zero)
   $pause.ReleaseMutex(); $pause.Dispose()
 }
+# callers stop their sequence on a skipped click (exit code 3)
+if ($skipped) { exit 3 }
