@@ -3,12 +3,11 @@
 #   - starts only after the user has been idle -StartIdle seconds; every menu action waits for an
 #     idle user too (tools/wc3-ui.ps1) and a click happens only on the game's own window (exit 3
 #     otherwise, which ends the session);
-#   - no focus guard during the session (it minimised the game and made captures empty): instead,
-#     whenever the user touches mouse/keyboard while the game is in front, the game is minimised
-#     at once and the session waits for the user to be idle again;
-#   - a capture after every step: <ShotsPrefix>NN-<step>.png.
-# Usage: pwsh tools/campaign-session.ps1 -Campaign build\autotest\AutoTest.w3n -ListFy 0.208 -MissionFy 0.629
-#        [-Minutes 20] [-StartIdle 120]
+#   - the game is kept behind the user's windows (KeepGameBehind), never minimised;
+#   - the mission is started by a click posted to the game window (-KeysOnly tries keys first);
+#     the session ends at once when nothing started it;
+#   - a capture after every step and every 30 s: <ShotsPrefix>NN-<step>.png.
+# Usage: pwsh tools/campaign-session.ps1 -Campaign build/autotest/AutoTest.w3n -KeysOnly [-Minutes 20] [-StartIdle 120]
 param(
   [Parameter(Mandatory = $true)][string]$Campaign,
   [string]$InstallAs = 'AAA_EmperorAutoTest.w3n',
@@ -27,33 +26,43 @@ $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 Add-Type -Namespace CS -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow();
-[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int cmd);
-[StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
-[DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO p);
 [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr h);
+[DllImport("user32.dll")] public static extern bool SetWindowPos(System.IntPtr h, System.IntPtr after, int x, int y, int cx, int cy, uint flags);
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, out uint pid);
+[DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
+[DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
 '@
 # Physical pixels: the display is scaled (125 %) and an unaware process gets scaled coordinates and
 # window captures cut to the scaled size (2026-10-07: the game's right quarter was never captured and
 # button positions measured on those captures missed the buttons).
 [void][CS.Win]::SetProcessDPIAware()
-function Idle { $li = New-Object CS.Win+LASTINPUTINFO; $li.cbSize = 8; [void][CS.Win]::GetLastInputInfo([ref]$li); ([Environment]::TickCount - $li.dwTime) / 1000 }
 function Game { Get-Process 'Warcraft III' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1 }
 $step = 0
 function Shot([string]$name) {
-  # a capture restores a minimised game (without activating it): not while the user works
-  if ((Idle) -lt 20) { return }
   $script:step++
   & ./tools/wc3-ui.ps1 -Action Capture -Out ('{0}{1:d2}-{2}.png' -f $ShotsPrefix, $script:step, $name) | Out-Null
 }
-# The user is back while the game is in front: minimise it at once. Input in the first seconds after
-# one of our own actions is ours (wc3-ui.ps1 moves the real cursor), not the user's.
+# The game stays behind the user's windows: it takes the focus at start and at every level change;
+# then it goes to the bottom and the window the user was in gets the focus back (captures work on a
+# covered window). Only our own input actions bring it to the front, for a moment (wc3-ui.ps1).
+# 2026-10-07 this minimised the game "when the user was back" by GetLastInputInfo instead, but the
+# running game itself counts as input: 44 minimisations while the user was away.
 $script:lastOwn = Get-Date
-function YieldIfUserBack {
+$script:userWindow = [CS.Win]::GetForegroundWindow()
+function KeepGameBehind {
   $g = Game
-  if ($g -and ((Get-Date) - $script:lastOwn).TotalSeconds -gt 5 -and (Idle) -lt 2 -and [CS.Win]::GetForegroundWindow() -eq $g.MainWindowHandle) {
-    [void][CS.Win]::ShowWindow($g.MainWindowHandle, 6) # SW_MINIMIZE
-    'user back: game minimised'
-  }
+  $fg = [CS.Win]::GetForegroundWindow()
+  if (-not $g -or $fg -ne $g.MainWindowHandle) { if ($fg -ne [IntPtr]::Zero) { $script:userWindow = $fg }; return }
+  if (((Get-Date) - $script:lastOwn).TotalSeconds -lt 5) { return }
+  [void][CS.Win]::SetWindowPos($g.MainWindowHandle, [IntPtr]1, 0, 0, 0, 0, 0x13) # HWND_BOTTOM, no activation
+  $id = [uint32]0
+  $t = [CS.Win]::GetWindowThreadProcessId($fg, [ref]$id)
+  $me = [CS.Win]::GetCurrentThreadId()
+  $a = [CS.Win]::AttachThreadInput($me, $t, $true)
+  [void][CS.Win]::SetForegroundWindow($script:userWindow)
+  if ($a) { [void][CS.Win]::AttachThreadInput($me, $t, $false) }
+  'game sent behind'
 }
 function Ui([hashtable]$a) {
   & ./tools/wc3-ui.ps1 @a -IdleSeconds 20
@@ -70,7 +79,7 @@ Copy-Item $Campaign $target -Force
 & ./tools/wc3-ui.ps1 -Action Launch
 try {
   $until = (Get-Date).AddSeconds(20)
-  while ((Get-Date) -lt $until) { YieldIfUserBack; Start-Sleep -Milliseconds 300 }
+  while ((Get-Date) -lt $until) { KeepGameBehind; Start-Sleep -Milliseconds 300 }
   Shot 'menu'
   Ui @{ Action = 'Key'; Vk = 0x53 }; Start-Sleep 3; Shot 'single'      # S: single player
   Ui @{ Action = 'Key'; Vk = 0x55 }; Start-Sleep 3; Shot 'custom'      # U: custom campaigns
@@ -91,7 +100,7 @@ try {
       & ./tools/wc3-ui.ps1 @try -IdleSeconds 20
       $script:lastOwn = Get-Date
       $wait = (Get-Date).AddSeconds(45)
-      while ((Get-Date) -lt $wait -and -not ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since)) { YieldIfUserBack; Start-Sleep 1 }
+      while ((Get-Date) -lt $wait -and -not ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since)) { KeepGameBehind; Start-Sleep 1 }
       Shot $try.Action
       if ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since) { "mission started by $($try.Action) $($try.Vk)"; $started = $true; break }
     }
@@ -102,7 +111,7 @@ try {
   $end = (Get-Date).AddMinutes($Minutes)
   $next = Get-Date
   while ((Get-Date) -lt $end -and (Game)) {
-    YieldIfUserBack
+    KeepGameBehind
     if ((Get-Date) -ge $next) { Shot 'run'; $next = (Get-Date).AddSeconds(30) }
     Start-Sleep -Milliseconds 300
   }
