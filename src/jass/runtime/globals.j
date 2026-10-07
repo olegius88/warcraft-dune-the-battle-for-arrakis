@@ -156,6 +156,16 @@
     integer array EmpAiSwPalace
     integer array EmpAiSwTicks
     integer EmpAiSwFrom = -1
+    // ai_difficulty.ini by tech level (battle.ts EmpAiData)
+    integer array EmpAiTMax
+    integer array EmpAiTBuildings
+    real array EmpAiTBuildDelay
+    real array EmpAiTUnitDelay
+    real array EmpAiTGap
+    integer array EmpAiTFirst
+    integer array EmpAiTMinDef
+    integer array EmpAiTMaxDef
+    integer array EmpAiTTurrets
     string array EmpAiLogLine
     integer EmpAiLogCount = 0
     integer array EmpPowerSum

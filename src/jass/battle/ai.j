@@ -15,6 +15,11 @@
 // after TicksUntilAbandonForming. Simplifications: sites are tried on rings around the base point
 // (Perpendicular and Rotation weights are not used: WC3 buildings do not turn).
 {{dataFunction}}
+// the row of ai_difficulty.ini for the battle's tech level (1..8)
+function EmpAiT takes nothing returns integer
+    return IMinBJ(IMaxBJ(EmpTechLevel, 1), {{C.AI_TECH_LEVELS}})
+endfunction
+
 // what the AI did, for unattended checks: CustomMapData\{{aiReport}}, one line per entry
 function EmpAiLog takes string s returns nothing
     local integer i = 0
@@ -409,6 +414,12 @@ function EmpAiBuild takes nothing returns nothing
             set skip[c] = EmpAiRatio[c] <= 0
             set c = c + 1
         endloop
+        // ai_difficulty.ini NumBuildings: beyond it only defences (MaxTurretsAllowed) are added
+        if count[0] + count[2] + count[3] >= EmpAiTBuildings[EmpAiT()] then
+            set skip[0] = true
+            set skip[2] = true
+            set skip[3] = true
+        endif
         // the category furthest below its share; one that cannot be built now (turrets before
         // their tech level or over the low-tech limit, refineries at the limit, no allowed type)
         // gives way to the next one instead of stopping the builder for good
@@ -430,7 +441,7 @@ function EmpAiBuild takes nothing returns nothing
             exitwhen best < 0
             set skip[best] = true
             if best == 1 then
-                if {{ai.buildsDefences}} and EmpTechLevel >= {{ai.firstTechTurrets}} and (EmpTechLevel >= {{C.AI_LOW_TECH_BELOW}} or EmpAiCount(-1) < {{ai.maxTurretsLowTech}}) then
+                if {{ai.buildsDefences}} and EmpTechLevel >= {{ai.firstTechTurrets}} and (EmpTechLevel >= {{C.AI_LOW_TECH_BELOW}} or EmpAiCount(-1) < {{ai.maxTurretsLowTech}}) and EmpAiCount(-1) < EmpAiTTurrets[EmpAiT()] then
                     set t = EmpAiPick(1)
                 elseif {{ai.buildsDefences}} and EmpEnemyGold() >= {{ai.minMoneyWalls}} and EmpAiWalls() then
                     return
@@ -629,7 +640,13 @@ function EmpAiWave takes nothing returns nothing
     local integer b = EmpBaseOfSide(1)
     local boolean stay = GetRandomInt(1, 100) > {{ai.retreatChance}}
     local integer n = 0
+    local integer home = 0
+    local integer send
     if not EmpAiKnown or EmpAiForming then
+        return
+    endif
+    // ai_difficulty.ini FirstAttackDelay (ticks)
+    if EmpTick < EmpAiTFirst[EmpAiT()] then
         return
     endif
     set EmpAiStageX = EmpBaseX[b] + (EmpAiKnownX - EmpBaseX[b]) * {{real C.AI_STAGING_SHARE}}
@@ -640,7 +657,18 @@ function EmpAiWave takes nothing returns nothing
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if EmpAiHomeUnit(u) and GetRandomInt(1, 100) > {{ai.defencePercent}} then
+        if EmpAiHomeUnit(u) then
+            set home = home + 1
+        endif
+    endloop
+    // PercentageOfUnitsForDefence stay home, within Minimum / MaximumUnitsForDefence (ai_difficulty.ini)
+    set send = home - IMinBJ(IMaxBJ(home * {{ai.defencePercent}} / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAiHomeUnit(u) and n < send then
             call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 3)
             call SaveBoolean(EmpWaveTab, GetHandleId(u), 0, stay)
             call IssuePointOrder(u, "move", EmpAiStageX, EmpAiStageY)
@@ -663,6 +691,6 @@ function EmpAiInit takes nothing returns nothing
     call TriggerAddAction(tr, function EmpAiOnAttacked)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiTactics)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiSuperweapon)
-    call TimerStart(CreateTimer(), {{real wavePeriod}}, true, function EmpAiWave)
+    call TimerStart(CreateTimer(), EmpAiTGap[EmpAiT()], true, function EmpAiWave)
     set tr = null
 endfunction

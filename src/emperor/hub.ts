@@ -172,8 +172,10 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   const musicList = o.music && o.music.length ? str(o.music.join(';')) : '';
   // automatic flow test: one report line per hub visit; on the first visit attack the first
   // reachable territory that has a battle map (enemy capitals stay closed before the last war phase)
+  // the report shows the sub-house alliances the missions stored (mission campaign.j)
+  const allyReport = Object.keys(SUBHOUSE_TAGS).map((t) => ` + " ally${t}=" + I2S(GetStoredInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.allyPrefix + t)}))`).join('');
   const autoTestFunctions = renderFile(jassFile('hub/autotest'), {
-    AUTOTEST_HUB_DELAY, CAT, K, KIND_ID, TERRITORY_COUNT, me, musicList,
+    AUTOTEST_HUB_DELAY, CAT, K, KIND_ID, TERRITORY_COUNT, me, musicList, allyReport,
     notEnemyCapitalN: jp.filter((_, h) => h !== me).map((x) => `n != ${x}`).join(' and '),
     jFirstTrack: str(o.music?.[0] ?? ''),
     jReportPrefix: str(`${DEBUG_REPORT_DIR}\\${HOUSES[me]}_Hub_`),

@@ -91,4 +91,17 @@ test('the shipped ai.ini: building ratios, site weights, strategy values', { ski
   assert.strictEqual(ai.ticksDefendHarvester, 7500);
   assert.strictEqual(ai.ticksAbandonForming, 1500);
   assert.strictEqual(ai.buildsDefences, true);
+  // ai_difficulty.ini next to it: per tech level, [Tech1] the default of every key
+  assert.strictEqual(ai.tech.length, 9, 'index = tech level 1..8');
+  assert.deepStrictEqual(ai.tech[1], { maxUnits: 22, numBuildings: 7, buildingDelay: 1200, firstAttackDelay: 5000, gapBetweenScripts: 1300, unitDelay: 875, minDefence: 2, maxDefence: 5, maxTurrets: 0 });
+  assert.deepStrictEqual(ai.tech[4], { maxUnits: 40, numBuildings: 8, buildingDelay: 480, firstAttackDelay: 1500, gapBetweenScripts: 600, unitDelay: 525, minDefence: 6, maxDefence: 10, maxTurrets: 4 });
+  assert.strictEqual(ai.tech[8]?.unitDelay, 100);
+});
+
+test('ai_difficulty.ini: a key missing in a tech level comes from [Tech1]', async () => {
+  const { parseAiDifficulty } = await import('../src/emperor/ai-rules.ts');
+  const t = parseAiDifficulty('[Tech1]\nMaxAiUnits=22\nUnitDelay=875 // 35 seconds\n[Tech2]\nMaxAiUnits=23\n');
+  assert.strictEqual(t[2]?.maxUnits, 23);
+  assert.strictEqual(t[2]?.unitDelay, 875);
+  assert.strictEqual(t[8]?.maxUnits, 22, 'levels without a section are Tech1');
 });

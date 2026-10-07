@@ -22,6 +22,8 @@ export const gameData = (...parts: string[]): string => path.join(GAME_DIR, 'DAT
 export const DATA_DIR = path.join(PROJECT_ROOT, 'data');
 /** Archive contents (CAMPAIGN/MISSIONS/STRINGS/...) unpacked by extract.ts. */
 export const RAW_DIR = path.join(DATA_DIR, 'emperor', 'raw');
+/** ai_difficulty.ini (next to ai.ini in RAW_DIR): AI values per tech level */
+export const AI_DIFFICULTY_FILE = 'ai_difficulty.ini';
 /** Loose DATA files copied next to the archives (localised strings, dialog tables). */
 export const LOOSE_DIR = path.join(RAW_DIR, 'loose');
 export const LOCAL_STRINGS_DIR = path.join(LOOSE_DIR, 'strings');

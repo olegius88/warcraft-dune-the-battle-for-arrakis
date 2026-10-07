@@ -66,20 +66,20 @@ endfunction
 {{aiFunctions}}
 
 // The enemy pays for what it makes (Rules.txt Cost; its harvesters earn its credits like the
-// player's). Every period: a unit of the ai.ini mix (Foot / Tank) from a barracks or factory, and,
-// while its construction yard stands and it keeps MinMoneyToConstructBuildings, one destroyed
-// building of its template rebuilt (paid: building costs were missing from EmpCostTab, rebuilds were
-// free until 2026-10-08), or else the base builder's turn (ai.j).
+// player's). Every UnitDelay (ai_difficulty.ini, by tech level): a unit of the ai.ini mix (Foot /
+// Tank) from a barracks or factory, up to MaxAiUnits.
 function EmpEnemyProduce takes nothing returns nothing
-    local group g = CreateGroup()
+    local group g
     local unit u
     local unit at = null
     local boolean veh = GetRandomInt(1, {{ai.foot}} + {{ai.tank}}) > {{ai.foot}}
     local integer t
     local integer n
     local integer c
-    local integer k
-    local integer b = EmpBaseOfSide(1)
+    if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] then
+        return
+    endif
+    set g = CreateGroup()
     call GroupEnumUnitsOfPlayer(g, Player(1), null)
     loop
         set u = FirstOfGroup(g)
@@ -107,6 +107,16 @@ function EmpEnemyProduce takes nothing returns nothing
         endif
         set at = null
     endif
+endfunction
+
+// Every BuildingDelay (ai_difficulty.ini): while its construction yard stands and it keeps
+// MinMoneyToConstructBuildings, one destroyed building of its template rebuilt (paid: building costs
+// were missing from EmpCostTab, rebuilds were free until 2026-10-08), or else the base builder's turn
+// (ai.j).
+function EmpEnemyBuildTurn takes nothing returns nothing
+    local integer c
+    local integer k
+    local integer b = EmpBaseOfSide(1)
     // entry 0 of a template is the construction yard
     set k = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
     // EmpAiReserve (what unit production leaves) is set on every way out: it kept a stale value
@@ -132,6 +142,12 @@ function EmpEnemyProduce takes nothing returns nothing
     endloop
     // the template stands: the base builder grows the base (ai.j)
     call EmpAiBuild()
+endfunction
+
+// the pace of the enemy by its tech level (ai_difficulty.ini; after EmpAiInit, which loads it)
+function EmpAiStartPace takes nothing returns nothing
+    call TimerStart(CreateTimer(), EmpAiTUnitDelay[EmpAiT()], true, function EmpEnemyProduce)
+    call TimerStart(CreateTimer(), EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
 endfunction
 
 // ---- defence battles: the player holds a base; the attacker's army (UnitValueAttacker) arrives

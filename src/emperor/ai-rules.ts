@@ -9,6 +9,9 @@
 //   [Strategy] scouting, defence, attack waves, turrets, money limits, tactic timers (ticks)
 
 import fs from 'node:fs';
+import path from 'node:path';
+import { AI_DIFFICULTY_FILE } from '../config/paths.ts';
+import { AI_TECH_LEVELS } from '../config/battle.ts';
 import { parseSections } from './rules.ts';
 
 export interface PositionWeights {
@@ -50,9 +53,50 @@ export interface AiRules {
   firstTechDefendCY: number;
   ticksSeesIntoShroud: number;
   ticksAbandonForming: number;
+  /** ai_difficulty.ini by tech level (index 1..8; 0 unused = Tech1) */
+  tech: AiTech[];
 }
 
-function parseAiRules(text: string): AiRules {
+/** ai_difficulty.ini [TechN] (ticks): MaxAiUnits, NumBuildings, BuildingDelay, FirstAttackDelay,
+ * GapBetweenNewScripts, UnitDelay, Minimum/MaximumUnitsForDefence, MaxTurretsAllowed. Its comments
+ * ("UnitDelay=875 // 35 seconds") also give 25 ticks per second. */
+export interface AiTech {
+  maxUnits: number;
+  numBuildings: number;
+  buildingDelay: number;
+  firstAttackDelay: number;
+  gapBetweenScripts: number;
+  unitDelay: number;
+  minDefence: number;
+  maxDefence: number;
+  maxTurrets: number;
+}
+
+
+
+/** [Tech1] holds the defaults of every tech level ("unless redefined"). */
+function parseAiDifficulty(text: string): AiTech[] {
+  const { sections } = parseSections(text);
+  const get = (lvl: number, key: string): number => {
+    for (const l of [lvl, 1]) {
+      const e = sections.get(`tech${l}`)?.entries.find(([k]) => k === key);
+      const n = e ? parseFloat(e[1]) : Number.NaN;
+      if (Number.isFinite(n)) return n;
+    }
+    return 0;
+  };
+  return Array.from({ length: AI_TECH_LEVELS + 1 }, (_, i) => {
+    const l = Math.max(1, i);
+    return {
+      maxUnits: get(l, 'MaxAiUnits'), numBuildings: get(l, 'NumBuildings'), buildingDelay: get(l, 'BuildingDelay'),
+      firstAttackDelay: get(l, 'FirstAttackDelay'), gapBetweenScripts: get(l, 'GapBetweenNewScripts'), unitDelay: get(l, 'UnitDelay'),
+      minDefence: get(l, 'MinimumUnitsForDefence'), maxDefence: get(l, 'MaximumUnitsForDefence'), maxTurrets: get(l, 'MaxTurretsAllowed'),
+    };
+  });
+}
+
+/** difficulty: the text of ai_difficulty.ini (empty: every value 0) */
+function parseAiRules(text: string, difficulty = ''): AiRules {
   const { sections } = parseSections(text);
   const get = (sec: string, key: string, d: number): number => {
     const e = sections.get(sec.toLowerCase())?.entries.find(([k]) => k === key);
@@ -93,11 +137,14 @@ function parseAiRules(text: string): AiRules {
     firstTechDefendCY: s('FirstTechLevelForDefendCYTactic', 0),
     ticksSeesIntoShroud: s('TicksUntilAISeesIntoShroud', 0),
     ticksAbandonForming: s('TicksUntilAbandonForming', 0),
+    tech: parseAiDifficulty(difficulty),
   };
 }
 
+/** ai.ini and the ai_difficulty.ini next to it */
 function loadAiRules(file: string): AiRules {
-  return parseAiRules(fs.readFileSync(file, 'latin1'));
+  const difficulty = path.join(path.dirname(file), AI_DIFFICULTY_FILE);
+  return parseAiRules(fs.readFileSync(file, 'latin1'), fs.existsSync(difficulty) ? fs.readFileSync(difficulty, 'latin1') : '');
 }
 
-export { parseAiRules, loadAiRules };
+export { parseAiRules, parseAiDifficulty, loadAiRules };

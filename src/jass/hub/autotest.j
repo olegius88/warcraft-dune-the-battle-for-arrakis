@@ -25,7 +25,7 @@ function EmpAutoReport takes nothing returns nothing
     call SaveGameCache(EmpCache)
     call PreloadGenClear()
     call PreloadGenStart()
-    call Preload("visit=" + I2S(v) + " phase=" + I2S(EmpPhase) + " tech=" + I2S(EmpTech) + " captured=" + I2S(EmpCaptured) + " owned=" + I2S(EmpCount({{me}})){{#if musicList}} + " music=" + I2S(GetSoundFileDuration({{jFirstTrack}})){{/if}})
+    call Preload("visit=" + I2S(v) + " phase=" + I2S(EmpPhase) + " tech=" + I2S(EmpTech) + " captured=" + I2S(EmpCaptured) + " owned=" + I2S(EmpCount({{me}})){{allyReport}}{{#if musicList}} + " music=" + I2S(GetSoundFileDuration({{jFirstTrack}})){{/if}})
     call PreloadGenEnd({{jReportPrefix}} + I2S(v) + ".pld")
     if v == 1 then
         call TimerStart(CreateTimer(), {{real AUTOTEST_HUB_DELAY}}, false, function EmpAutoAttack)

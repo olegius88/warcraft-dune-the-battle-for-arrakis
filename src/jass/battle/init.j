@@ -27,8 +27,9 @@ function EmpBattleInit takes nothing returns nothing
     call EmpReinfStart(0, EmpReinfInitial, EmpReinfSubsequent)
     call EmpReinfStart(1, EmpReinfInitial, EmpReinfSubsequent)
 {{/if}}{{#if attackBattle}}    call EmpStartForces()
-    call TimerStart(CreateTimer(), {{real C.ENEMY_PRODUCE_PERIOD}}, true, function EmpEnemyProduce)
-    call EmpAiInit(){{/if}}
+    // production, the builder and the tactics start with their ai_difficulty.ini pace (ai.j)
+    call EmpAiInit()
+    call EmpAiStartPace(){{/if}}
 {{#if defendBattle}}    call EmpDefendStart()
     call TimerStart(CreateTimer(), {{real C.DEFEND_ATTACK_DELAY}}, false, function EmpDefendWave){{/if}}
     set tr = null

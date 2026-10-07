@@ -36,8 +36,6 @@ export const MCV_CONSUME_RADIUS = 900;
 
 /** Timers. */
 export const HARVEST_CHECK_PERIOD = 3;
-export const ENEMY_PRODUCE_PERIOD = 20;
-export const ENEMY_WAVE_PERIOD = 150;
 /** Defence: the attacker's army arrives this long after the start, spread around its entrance;
  * later only its reinforcement sets come. */
 export const DEFEND_ATTACK_DELAY = 45;
@@ -101,3 +99,5 @@ export const AI_ESCORTS = 2;
 export const AI_CY_ALARM_SECONDS = 15;
 /** Debug report of the AI (DuneTest\<map>_AI.pld): lines kept. */
 export const AI_REPORT_LINES = 60;
+/** ai_difficulty.ini has [Tech1]..[Tech8]. */
+export const AI_TECH_LEVELS = 8;

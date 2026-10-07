@@ -11,7 +11,8 @@
 // buildings, the chance that an attack wave falls back.
 // The base builder (BuildingConstructionRatios, PositionAlgorithmRatios*, turret / refinery / wall
 // rules) and the tactics (scouts, base defence, harvester escorts, construction yard defence, staged
-// waves every ENEMY_WAVE_PERIOD scaled by LargeAttackModifier) are in src/jass/battle/ai.j.
+// waves every GapBetweenNewScripts scaled by LargeAttackModifier; the pace by tech level from
+// ai_difficulty.ini) are in src/jass/battle/ai.j.
 // TODO(ai): simplified against Emperor: the start base is a fixed template rebuilt first; sites are
 // tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not turn); buildings
 // appear after BuildTime without a construction phase. The original AI code is not in the data, so
@@ -248,6 +249,14 @@ endfunction`;
     });
     aiLines.push(`    set EmpAiUpgCount[${hi}] = ${list.length}`);
   });
+  // ai_difficulty.ini by tech level (index 1..8): delays in seconds, counts, ticks of the first attack
+  ai.tech.forEach((t, lvl) => {
+    if (lvl < 1) return;
+    aiLines.push(`    set EmpAiTMax[${lvl}] = ${t.maxUnits}`, `    set EmpAiTBuildings[${lvl}] = ${t.numBuildings}`,
+      `    set EmpAiTBuildDelay[${lvl}] = ${real(Math.max(1, t.buildingDelay) / TICKS_PER_SECOND)}`, `    set EmpAiTUnitDelay[${lvl}] = ${real(Math.max(1, t.unitDelay) / TICKS_PER_SECOND)}`,
+      `    set EmpAiTGap[${lvl}] = ${real((Math.max(1, t.gapBetweenScripts) / TICKS_PER_SECOND) * (100 / Math.max(1, ai.largeAttackModifier)))}`,
+      `    set EmpAiTFirst[${lvl}] = ${t.firstAttackDelay}`, `    set EmpAiTMinDef[${lvl}] = ${t.minDefence}`, `    set EmpAiTMaxDef[${lvl}] = ${t.maxDefence}`, `    set EmpAiTTurrets[${lvl}] = ${t.maxTurrets}`);
+  });
   // the house's palace super weapon (src/emperor/superweapons.ts): charge type, palace, charge ticks
   const sw = o.rules ? superweapons(o.rules) : [];
   PREFIXES.forEach((h, hi) => {
@@ -262,7 +271,6 @@ endfunction`;
   const aiFunctions = renderFile(jassFile('battle/ai'), {
     C, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND,
     aiReport: o.aiReport ?? '',
-    wavePeriod: (C.ENEMY_WAVE_PERIOD * 100) / Math.max(1, ai.largeAttackModifier),
     dataFunction: `function EmpAiData takes nothing returns nothing\n${aiLines.join('\n')}\nendfunction\n`,
   });
   fns.push(jass('forces', {

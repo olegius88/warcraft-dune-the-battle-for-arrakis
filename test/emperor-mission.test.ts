@@ -146,6 +146,23 @@ test('objects with ExcludeFromCampaignLose do not keep a side alive in the norma
   assert.ok(check.length > 0 && !/EmpCount\(/.test(check) && /EmpLoseCount\(/.test(check), 'normal rule counts through EmpLoseCount');
 });
 
+// The enemy's pace was invented (ENEMY_PRODUCE_PERIOD 20 s, ENEMY_WAVE_PERIOD 150 s) although
+// ai_difficulty.ini gives it per tech level. Found by an independent audit 2026-10-08.
+test('enemy AI pace from ai_difficulty.ini by tech level', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'pace', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes('set EmpAiTUnitDelay[1] = 35.0') && m.script.includes('set EmpAiTBuildDelay[4] = 19.2'), 'delays in seconds (875 / 480 ticks)');
+  assert.ok(m.script.includes('set EmpAiTMax[1] = 22') && m.script.includes('set EmpAiTTurrets[3] = 2') && m.script.includes('set EmpAiTFirst[1] = 5000'));
+  assert.ok(m.script.includes('call TimerStart(CreateTimer(), EmpAiTUnitDelay[EmpAiT()], true, function EmpEnemyProduce)'), 'unit delay');
+  assert.ok(m.script.includes('call TimerStart(CreateTimer(), EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)'), 'building delay');
+  assert.ok(m.script.includes('if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] then'), 'MaxAiUnits');
+  assert.ok(m.script.includes('if EmpTick < EmpAiTFirst[EmpAiT()] then'), 'FirstAttackDelay');
+  assert.ok(m.script.includes('EmpAiCount(-1) < EmpAiTTurrets[EmpAiT()]'), 'MaxTurretsAllowed');
+  assert.ok(m.script.includes('>= EmpAiTBuildings[EmpAiT()]'), 'NumBuildings');
+  assert.ok(!m.script.includes('function EmpEnemyWave'), 'no invented wave period');
+});
+
 // Building upgrades (Rules.txt UpgradeCost / UpgradeTechLevel / UpgradeBuildTime) were missing, so
 // the 35 types with UpgradedPrimaryRequired (Kindjal, Kobra, the house turrets...) were buildable
 // without them. Each upgradable building now researches a custom upgrade (war3map.w3q) that those
@@ -468,7 +485,7 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes('local boolean veh = GetRandomInt(1, 20 + 80) > 20'), 'Foot / Tank mix');
-  assert.ok(m.script.includes('GetRandomInt(1, 100) > 24 then'), 'defence share stays home');
+  assert.ok(m.script.includes('set send = home - IMinBJ(IMaxBJ(home * 24 / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])'), 'defence share stays home (within ai_difficulty.ini bounds)');
   assert.ok(m.script.includes('local boolean stay = GetRandomInt(1, 100) > 50'), 'retreat chance');
   assert.ok(m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'rebuild money');
   const yard = all.units.rawcode.get('HKConYard');
