@@ -60,3 +60,9 @@ export const MORPH_FRAME_STEP = 2;
 
 /** The overhead attachment point sits this far above the top of a model (WC3 units). */
 export const OVERHEAD_GAP = 30;
+
+/** House colour: textures whose name starts with "=" have saturated blue panels that Emperor paints
+ * in the side's colour (ArtIni.txt Recolor); they become the WC3 team colour. Blue panel = a pixel
+ * whose blue clearly dominates (=At_Hk_patch_high0000_256: 6.9 % of the pixels, the panels only). */
+export const HOUSE_COLOUR_TEXTURE = (file: string): boolean => file.startsWith('=');
+export const HOUSE_COLOUR_PIXEL = (r: number, g: number, b: number): boolean => b > 60 && b > r * 2 && b > g * 1.6;

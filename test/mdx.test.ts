@@ -135,3 +135,26 @@ test('unit data: a converted model goes into the model field, at scale 1', { ski
   assert.strictEqual(trike?.mods.find((m) => m.field === UNIT_FIELD.scale)?.value, 1);
   assert.ok(data.models['Emperor\\Models\\AT_Trike.mdx'], 'the model file comes with the unit data');
 });
+
+// House colour: Emperor recolours the saturated blue panels of its "=" textures to the side's
+// colour (ArtIni.txt Recolor); converted models showed them blue for every side. Now they use the
+// WC3 team colour: a team colour layer under the texture, whose blue panels are transparent.
+test('XBF -> MDX: house-colour textures ("=") get a team colour layer and see-through blue panels', { skip: fs.existsSync(archive + '.RFH') ? false : 'Emperor not installed' }, async () => {
+  const path = await import('node:path');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const { buildModels } = await import('../src/emperor/models.ts');
+  const { readBlpPaletted } = await import('../src/wc3/blp.ts');
+  const { RAW_DIR } = await import('../src/config/paths.ts');
+  const set = buildModels(['ATTrike'], loadArtIni(path.join(RAW_DIR, 'ArtIni.txt')));
+  const m = new MdlxModel();
+  m.load(new Uint8Array(set.files['Emperor\\Models\\AT_Trike.mdx'] as Buffer));
+  const team = m.textures.findIndex((t: { replaceableId: number }) => t.replaceableId === 1);
+  assert.ok(team >= 0, 'a team colour texture');
+  const mat = m.materials.find((x: { layers: Array<{ textureId: number }> }) => x.layers.length === 2);
+  assert.ok(mat && mat.layers[0].textureId === team, 'team colour under the texture');
+  const tex = m.textures[mat.layers[1].textureId].path as string;
+  const blp = readBlpPaletted(set.files[tex] as Buffer);
+  let clear = 0;
+  for (let i = 3; i < blp.rgba.length; i += 4) if (blp.rgba[i] === 0) clear++;
+  assert.ok(clear > blp.rgba.length / 4 * 0.03, `${clear} transparent pixels`);
+});

@@ -166,6 +166,8 @@ export interface TextureRef {
   /** archive path of the converted texture */
   path: string;
   alpha: boolean;
+  /** house colour: drawn over a team colour layer (its house-colour panels are transparent) */
+  teamColour?: boolean;
 }
 
 export interface ConvertedModel {
@@ -199,10 +201,18 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     if (id !== undefined) return id;
     const t = texture(file);
     const texId = textures.length;
-    textures.push({ path: t ? t.path : '', replaceableId: t ? 0 : 0 });
+    textures.push({ path: t ? t.path : '' });
     if (t) usedFiles.push(file);
     id = materials.length;
-    materials.push({ layers: [{ filterMode: t && t.alpha ? FILTER.transparent : FILTER.none, flags: M.TWO_SIDED ? LAYER_FLAG.twoSided : 0, textureId: texId }] });
+    const flags = M.TWO_SIDED ? LAYER_FLAG.twoSided : 0;
+    if (t?.teamColour) {
+      // WC3 team colour under the texture (replaceable id 1), the texture blended over it
+      let team = textures.findIndex((x) => x.replaceableId === 1);
+      if (team < 0) { team = textures.length; textures.push({ path: '', replaceableId: 1 }); }
+      materials.push({ layers: [{ filterMode: FILTER.none, flags, textureId: team }, { filterMode: FILTER.blend, flags, textureId: texId }] });
+    } else {
+      materials.push({ layers: [{ filterMode: t && t.alpha ? FILTER.transparent : FILTER.none, flags, textureId: texId }] });
+    }
     materialOf.set(file.toLowerCase(), id);
     return id;
   };

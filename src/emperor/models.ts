@@ -12,7 +12,7 @@ import { readTga } from '../wc3/tga.ts';
 import { writeBlpImage, resize, pow2Ceil } from '../wc3/blp.ts';
 import { writeMdx } from '../wc3/mdx.ts';
 import { gameData } from '../config/paths.ts';
-import { MODEL_PATH, MAX_TEXTURE_SIZE } from '../config/models.ts';
+import { MODEL_PATH, MAX_TEXTURE_SIZE, HOUSE_COLOUR_TEXTURE, HOUSE_COLOUR_PIXEL } from '../config/models.ts';
 
 export interface ModelSet {
   /** Emperor object name -> value of the unit model field */
@@ -49,7 +49,7 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
       const key = baseName(file).replace(/_H0\.xbf$/i, '');
       try {
         const scene = readXbf(data);
-        const ref = (tex: string): TextureRef => { textureFiles.add(tex.toLowerCase()); return { path: MODEL_PATH.texture(tex), alpha: false }; };
+        const ref = (tex: string): TextureRef => { textureFiles.add(tex.toLowerCase()); return { path: MODEL_PATH.texture(tex), alpha: false, teamColour: HOUSE_COLOUR_TEXTURE(tex) }; };
         const { model } = xbfToMdx(key, scene, readAnimations(data), ref);
         set.files[MODEL_PATH.model(key)] = writeMdx(model);
         field = MODEL_PATH.modelField(key);
@@ -66,7 +66,12 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
     const img = readTga(f.data);
     const side = (n: number): number => Math.min(MAX_TEXTURE_SIZE, pow2Ceil(n));
     let alpha = false;
-    for (let i = 3; i < img.rgba.length; i += 4) if ((img.rgba[i] as number) < 250) { alpha = true; break; }
+    if (HOUSE_COLOUR_TEXTURE(baseName(f.name))) {
+      // house-colour panels become see-through: the team colour layer under them shows
+      for (let i = 0; i < img.rgba.length; i += 4) if (HOUSE_COLOUR_PIXEL(img.rgba[i] as number, img.rgba[i + 1] as number, img.rgba[i + 2] as number)) img.rgba[i + 3] = 0;
+      alpha = true;
+    }
+    for (let i = 3; i < img.rgba.length && !alpha; i += 4) if ((img.rgba[i] as number) < 250) alpha = true;
     set.files[MODEL_PATH.texture(baseName(f.name))] = writeBlpImage(resize(img, side(img.width), side(img.height)), { alpha });
   }
   return set;
