@@ -398,7 +398,8 @@ function EmpAIOrderEnum takes nothing returns boolean
         elseif m == 8 then
             set b = EmpBaseOfSide(side)
             // units of an all-out attack wave (battle forces.j EmpEnemyWave) fight where they are
-            if not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], {{real RT.AI_HOME_RADIUS}}) and not (EmpWaveTab != null and LoadBoolean(EmpWaveTab, GetHandleId(u), 0)) then
+            // scouts, escorts and wave units (battle ai.j roles, EmpWaveTab child 1) have their own orders
+            if not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], {{real RT.AI_HOME_RADIUS}}) and not (EmpWaveTab != null and (LoadBoolean(EmpWaveTab, GetHandleId(u), 0) or LoadInteger(EmpWaveTab, GetHandleId(u), 1) != 0)) then
                 call IssuePointOrder(u, "attack", EmpBaseX[b], EmpBaseY[b])
             endif
         elseif m == 2 and EmpAITarget[side] != null then

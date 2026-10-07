@@ -117,3 +117,29 @@
     integer array EmpTplCount
     unit array EmpTplUnit
     hashtable EmpWaveTab = null
+    // enemy AI of territory battles (battle/ai.j)
+    hashtable EmpAiTab = null
+    integer array EmpAiBType
+    integer array EmpAiBCount
+    integer array EmpAiWall
+    integer array EmpAiPower
+    integer array EmpAiRatio
+    integer EmpAiPending = 0
+    real array EmpAiPendX
+    real array EmpAiPendY
+    real EmpAiX = 0.0
+    real EmpAiY = 0.0
+    boolean EmpAiKnown = false
+    real EmpAiKnownX = 0.0
+    real EmpAiKnownY = 0.0
+    real EmpAiStageX = 0.0
+    real EmpAiStageY = 0.0
+    boolean EmpAiForming = false
+    integer EmpAiFormStart = 0
+    integer EmpAiCYHit = 0
+    integer EmpAiProduced = 0
+    integer EmpAiWhy = -1
+    integer EmpAiReserve = 0
+    string array EmpAiLogLine
+    integer EmpAiLogCount = 0
+    integer array EmpPowerSum

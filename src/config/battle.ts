@@ -61,3 +61,43 @@ export const SURFACE_WORM = 'SurfaceWorm';
 
 /** Enemy base template entries per house in the runtime table (EmpTpl*). */
 export const TEMPLATE_SLOTS = 16;
+
+/** Enemy base builder (src/jass/battle/ai.j): ai.ini [BuildingConstructionRatios] category of a
+ * building by its name suffix (house prefix added; missing ones skipped). The construction yard and
+ * the refinery dock (built by Emperor on a refinery) are not built by it. Walls are Defence too. */
+export const AI_BUILDING_CATEGORY: ReadonlyArray<readonly [string, 'core' | 'defence' | 'manufacturing' | 'resource']> = [
+  ['SmWindtrap', 'core'], ['Outpost', 'core'], ['Palace', 'core'],
+  ['Barracks', 'manufacturing'], ['Factory', 'manufacturing'], ['Hanger', 'manufacturing'], ['Helipad', 'manufacturing'], ['Starport', 'manufacturing'],
+  ['Refinery', 'resource'],
+  ['Pillbox', 'defence'], ['RocketTurret', 'defence'], ['FlameTurret', 'defence'], ['GunTurret', 'defence'], ['GasTurret', 'defence'], ['PopUpTurret', 'defence'],
+];
+/** Buildings that release units (ai.ini [PositionAlgorithmRatiosExits] weights), by name suffix. */
+export const AI_EXIT_BUILDINGS: readonly string[] = ['Barracks', 'Factory', 'Hanger', 'Helipad', 'Starport', 'Refinery'];
+/** Turrets (MinimumGapBetweenTurrets, MaxTurretsAtLowTech, FirstTechLevelToBuildTurrets) and walls. */
+export const AI_TURRETS: readonly string[] = ['Pillbox', 'RocketTurret', 'FlameTurret', 'GunTurret', 'GasTurret', 'PopUpTurret'];
+export const AI_WALL = 'Wall';
+/** Wall pieces built in a row on the outer side of a turret once the AI has MinMoneyToStartBuildingWalls. */
+export const AI_WALL_PIECES = 3;
+/** "Low tech" for MaxTurretsAtLowTech (ai.ini: "Max turrets at tech < 5"). */
+export const AI_LOW_TECH_BELOW = 5;
+/** Building sites tried: rings around the base point every AI_SITE_STEP tiles out to AI_SITE_MAX,
+ * AI_SITE_ANGLES directions each; a site must be buildable and free within AI_SITE_CLEAR tiles. */
+export const AI_SITE_MIN = 3;
+export const AI_SITE_MAX = 15;
+export const AI_SITE_STEP = 2;
+export const AI_SITE_ANGLES = 16;
+export const AI_SITE_CLEAR = 2.5;
+/** A site lines up with a building of the same type when within this many tiles on one axis. */
+export const AI_ALIGN_TILES = 1;
+/** Tactics tick (seconds): scouts, base defence, harvester escort, construction yard defence, waves. */
+export const AI_TACTIC_PERIOD = 2;
+/** Attack waves gather this far from their base towards the target (share of the way) before attacking. */
+export const AI_STAGING_SHARE = 0.33;
+/** A wave is formed when all its units are within this many tiles of the staging point. */
+export const AI_FORMED_TILES = 6;
+/** Harvester escort: units that follow the AI's harvesters (DefendHarvester tactic). */
+export const AI_ESCORTS = 2;
+/** Construction yard defence: the yard counts as attacked for this long after a hit (seconds). */
+export const AI_CY_ALARM_SECONDS = 15;
+/** Debug report of the AI (DuneTest\<map>_AI.pld): lines kept. */
+export const AI_REPORT_LINES = 60;

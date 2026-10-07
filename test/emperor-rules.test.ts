@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadRules } from '../src/emperor/rules.ts';
+import { RAW_DIR } from '../src/config/paths.ts';
 
 function withRules(text: string, check: (file: string) => void): void {
   const file = path.join(os.tmpdir(), `rules-test-${crypto.randomUUID()}.txt`);
@@ -72,5 +73,22 @@ test('ai.ini: unit mix, defence share, rebuild money, retreat chance (first [Str
     '[Strategy]', 'PercentageOfUnitsForDefence=24\t// c', 'MinMoneyToConstructBuildings=600', 'ChanceOfRetreating=50, // campaign',
     '[Strategy]', 'ExtraPower=20',
   ].join('\r\n'));
-  assert.deepStrictEqual(ai, { foot: 20, tank: 80, defencePercent: 24, minMoneyToBuild: 600, retreatChance: 50 });
+  const { foot, tank, defencePercent, minMoneyToBuild, retreatChance } = ai;
+  assert.deepStrictEqual({ foot, tank, defencePercent, minMoneyToBuild, retreatChance }, { foot: 20, tank: 80, defencePercent: 24, minMoneyToBuild: 600, retreatChance: 50 });
+});
+
+// The base builder and the tactics read the rest of ai.ini (src/jass/battle/ai.j).
+test('the shipped ai.ini: building ratios, site weights, strategy values', { skip: fs.existsSync(path.join(RAW_DIR, 'ai.ini')) ? false : 'game data not extracted' }, async () => {
+  const { loadAiRules } = await import('../src/emperor/ai-rules.ts');
+  const ai = loadAiRules(path.join(RAW_DIR, 'ai.ini'));
+  assert.deepStrictEqual(ai.buildRatios, { core: 17, defence: 17, manufacturing: 40, resource: 26 });
+  assert.strictEqual(ai.positionExits.furtherFromEdge, 13);
+  assert.strictEqual(ai.positionNoExits.aligned, 25);
+  assert.strictEqual(ai.scoutTeams, 3);
+  assert.strictEqual(ai.defenceWanderTiles, 29);
+  assert.strictEqual(ai.maxRefineries, 2);
+  assert.strictEqual(ai.minTurretGapTiles, 5);
+  assert.strictEqual(ai.ticksDefendHarvester, 7500);
+  assert.strictEqual(ai.ticksAbandonForming, 1500);
+  assert.strictEqual(ai.buildsDefences, true);
 });

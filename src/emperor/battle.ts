@@ -9,20 +9,25 @@
 // costs the enemy pays for its production. From ai.ini: the Foot / Tank mix of its production, the
 // share of its units that stays at its base, the money it keeps before rebuilding destroyed template
 // buildings, the chance that an attack wave falls back.
-// Simplifications (TODO(ai)): the enemy base is a fixed template (rebuilt, not expanded) instead of
-// Emperor's position-scored AI builder (ai.ini PositionAlgorithmRatios), and its waves attack the
-// player's base point every ENEMY_WAVE_PERIOD instead of Emperor's scouting / staging tactics.
+// The base builder (BuildingConstructionRatios, PositionAlgorithmRatios*, turret / refinery / wall
+// rules) and the tactics (scouts, base defence, harvester escorts, construction yard defence, staged
+// waves every ENEMY_WAVE_PERIOD scaled by LargeAttackModifier) are in src/jass/battle/ai.j.
+// TODO(ai): simplified against Emperor: the start base is a fixed template rebuilt first; sites are
+// tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not turn); buildings
+// appear after BuildTime without a construction phase. The original AI code is not in the data, so
+// how closely its timing matches cannot be checked beyond the ai.ini values.
 
 import { real } from '../wc3/jass.ts';
 import { renderFile } from '../wc3/template.ts';
 import type { Scope } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
 import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
-import { EMPEROR_TILE, TICKS_PER_SECOND } from '../config/scale.ts';
+import { EMPEROR_TILE, TICKS_PER_SECOND, WC3_UNITS_PER_TILE } from '../config/scale.ts';
 import { TERRAIN } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules } from './rules.ts';
 import type { AiRules } from './ai-rules.ts';
+import { parseAiRules } from './ai-rules.ts';
 import { MAX_SIDE, DEFAULT_FACING } from '../config/runtime.ts';
 import * as C from '../config/battle.ts';
 import type { MapMeta } from './mapxbf.ts';
@@ -52,8 +57,10 @@ export interface BattleOptions {
   worms?: WormRules;
   /** Rules.txt: armies (UnitValue*), credits (Campaign*Money), unit costs */
   rules?: Rules;
-  /** ai.ini: unit mix, defence share, rebuild money, retreat chance (src/emperor/ai-rules.ts) */
+  /** ai.ini: unit mix, defence share, rebuild money, retreat chance, base builder, tactics (src/emperor/ai-rules.ts) */
   ai?: AiRules;
+  /** CustomMapData path of the AI report (src/jass/battle/ai.j); none: no report */
+  aiReport?: string;
 }
 
 export interface BattleSetup {
@@ -192,15 +199,50 @@ endfunction`;
     return (name && o.rules?.objects.get(name)?.cost) || 0;
   };
   const produced = [...new Set([...infBy.flat(), ...vehBy.flat()])];
+  // ---- base builder and tactics (ai.ini; src/jass/battle/ai.j) ----
+  const ai = o.ai ?? parseAiRules('');
+  const category = { core: 0, defence: 1, manufacturing: 2, resource: 3 } as const;
+  const aiLines: string[] = ['    set EmpAiTab = InitHashtable()'];
+  const buildingCost: string[] = [];
+  PREFIXES.forEach((h, hi) => {
+    const entries = C.AI_BUILDING_CATEGORY.filter(([sfx]) => rc(h + sfx));
+    if (entries.length > C.TEMPLATE_SLOTS) throw new Error(`AI buildings of ${entries.length} > TEMPLATE_SLOTS`);
+    entries.forEach(([sfx, cat], k) => {
+      const id = rc(h + sfx) as string;
+      const r = o.rules?.objects.get(h + sfx);
+      aiLines.push(`    set EmpAiBType[${hi * C.TEMPLATE_SLOTS + k}] = '${id}'`,
+        `    call SaveInteger(EmpAiTab, '${id}', 0, ${category[cat]})`,
+        `    call SaveBoolean(EmpAiTab, '${id}', 1, ${C.AI_TURRETS.includes(sfx)})`,
+        `    call SaveBoolean(EmpAiTab, '${id}', 2, ${C.AI_EXIT_BUILDINGS.includes(sfx)})`,
+        `    call SaveBoolean(EmpAiTab, '${id}', 3, ${sfx === 'Refinery'})`,
+        // Rules.txt BuildTime is in game ticks
+        `    call SaveReal(EmpAiTab, '${id}', 4, ${real((r?.buildTime ?? 0) / TICKS_PER_SECOND)})`);
+    });
+    const wall = rc(h + C.AI_WALL), windtrap = rc(`${h}SmWindtrap`);
+    aiLines.push(`    set EmpAiBCount[${hi}] = ${entries.length}`, `    set EmpAiWall[${hi}] = ${wall ? `'${wall}'` : 0}`, `    set EmpAiPower[${hi}] = ${windtrap ? `'${windtrap}'` : 0}`);
+    // the buildings the AI builds or rebuilds pay their Rules.txt Cost too
+    for (const sfx of new Set([...C.AI_BUILDING_CATEGORY.map(([x]) => x), ...C.BASE_TEMPLATE.map(([x]) => x), C.AI_WALL])) {
+      const id = rc(h + sfx);
+      if (id) buildingCost.push(`    call SaveInteger(EmpCostTab, '${id}', 0, ${o.rules?.objects.get(h + sfx)?.cost ?? 0})`);
+    }
+  });
+  (['core', 'defence', 'manufacturing', 'resource'] as const).forEach((c) => aiLines.push(`    set EmpAiRatio[${category[c]}] = ${ai.buildRatios[c]}`));
+  const aiFunctions = renderFile(jassFile('battle/ai'), {
+    C, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND,
+    aiReport: o.aiReport ?? '',
+    wavePeriod: (C.ENEMY_WAVE_PERIOD * 100) / Math.max(1, ai.largeAttackModifier),
+    dataFunction: `function EmpAiData takes nothing returns nothing\n${aiLines.join('\n')}\nendfunction\n`,
+  });
   fns.push(jass('forces', {
+    aiFunctions,
     harvester, playerBase,
     vehMax: C.ENEMY_VEHICLES.length - 1, infMax: C.ENEMY_INFANTRY.length - 1,
     supportLines: support.map((id) => `    call CreateUnit(Player(0), '${id}', GetLocationX(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), GetLocationY(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), ${FACING})`).join('\n'),
     templateLines: templateLines.join('\n'),
-    ai: o.ai ?? { foot: 50, tank: 50, defencePercent: 0, minMoneyToBuild: 0, retreatChance: 0 },
+    ai,
     isBarracks: barracksOf.map((id) => `t == '${id}'`).join(' or '),
     isFactory: factoryOf.map((id) => `t == '${id}'`).join(' or '),
-    costLines: produced.map((id) => `    call SaveInteger(EmpCostTab, '${id}', 0, ${costOf(id)})`).join('\n'),
+    costLines: [...produced.map((id) => `    call SaveInteger(EmpCostTab, '${id}', 0, ${costOf(id)})`), ...buildingCost].join('\n'),
     army: { attacker: o.rules?.reinforcements.attacker ?? C.FALLBACK_ARMY_VALUE, defender: o.rules?.reinforcements.defender ?? C.FALLBACK_ARMY_VALUE },
     money: o.rules?.campaignMoney ?? { attack: C.FALLBACK_CREDITS, defend: C.FALLBACK_CREDITS },
   }));

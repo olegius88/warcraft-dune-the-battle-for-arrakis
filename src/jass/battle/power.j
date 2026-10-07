@@ -54,6 +54,7 @@ function EmpPowerTick takes nothing returns nothing
             endif
         endif
         set EmpLowPower[i] = low
+        set EmpPowerSum[i] = sum
         set i = i + 1
     endloop
     call DestroyGroup(g)

@@ -28,7 +28,7 @@ function EmpBattleInit takes nothing returns nothing
     call EmpReinfStart(1, EmpReinfInitial, EmpReinfSubsequent)
 {{/if}}{{#if attackBattle}}    call EmpStartForces()
     call TimerStart(CreateTimer(), {{real C.ENEMY_PRODUCE_PERIOD}}, true, function EmpEnemyProduce)
-    call TimerStart(CreateTimer(), {{real C.ENEMY_WAVE_PERIOD}}, true, function EmpEnemyWave){{/if}}
+    call EmpAiInit(){{/if}}
 {{#if defendBattle}}    call EmpDefendStart()
     call TimerStart(CreateTimer(), {{real C.DEFEND_ATTACK_DELAY}}, false, function EmpDefendWave){{/if}}
     set tr = null
