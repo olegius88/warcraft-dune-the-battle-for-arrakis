@@ -45,13 +45,13 @@ test('every script decodes; line count equals header field; parentheses balance'
 test('object type ids resolve to the right categories in context', opts, () => {
   const t = loadTokenTable(path.join(GAME, 'Game.exe'));
   const ctx = loadContext(RAW);
-  const seen = { BuildObject: new Set(), Delivery: new Set(), ObjectDetonate: new Set() };
+  const seen: Record<string, Set<string>> = { BuildObject: new Set(), Delivery: new Set(), ObjectDetonate: new Set() };
   for (const f of scripts()) {
     for (const l of splitLines(fs.readFileSync(path.join(RAW, f)))) {
-      let fn = null;
+      let fn: string | null = null;
       for (const it of decodeLine(l)) {
         if (it.t === 'tok' && t[it.id].kind === 0) fn = t[it.id].name;
-        if (it.t === 'type' && seen[fn]) seen[fn].add(ctx.objectTypes[it.n].category);
+        if (it.t === 'type' && fn && seen[fn]) seen[fn].add(ctx.objectTypes[it.n].category);
       }
     }
   }

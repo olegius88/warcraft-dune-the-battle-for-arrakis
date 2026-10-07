@@ -9,7 +9,7 @@ import { loadTokenTable, decompile, splitLines, decodeLine } from './tok.ts';
 import { loadContext } from './context.ts';
 
 const args = process.argv.slice(2);
-const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
+const opt = (n: string, d: string): string => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] as string : d; };
 const game = opt('--game', process.env.EMPEROR_DIR || 'G:\\Games\\Emperor');
 const root = path.join(import.meta.dirname, '..', '..');
 const raw = path.join(root, 'data', 'emperor', 'raw');

@@ -26,7 +26,7 @@ function loadAll() {
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
-  const flag = (n) => { const i = args.indexOf(n); if (i < 0) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
+  const flag = (n: string): string | null | undefined => { const i = args.indexOf(n); if (i < 0) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
   const enemyHouse = flag('--enemy');
   const techLevel = Number(flag('--tech') || 3);
   const territory = args.includes('--territory');

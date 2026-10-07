@@ -30,7 +30,8 @@ const failures = [];
       execFileSync(path.join(ROOT, 'tools', 'bin', 'pjass.exe'), [path.join(ROOT, 'data', 'wc3', 'common.j'), path.join(ROOT, 'data', 'wc3', 'blizzard.j'), jf], { stdio: 'pipe' });
       ok++;
     } catch (e) {
-      const out = String(e.stdout || '') + String(e.stderr || '');
+      const err = e as { stdout?: Buffer; stderr?: Buffer };
+      const out = String(err.stdout || '') + String(err.stderr || '');
       failures.push({ f, out: out.split('\n').filter((l) => /war3map\.j/.test(l)).slice(0, 5).join('\n') });
       if (failures.length === 1) fs.copyFileSync(jf, path.join(ROOT, 'build', 'first-failure.j'));
     }

@@ -6,14 +6,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readBag, toFile, duration } from './bag.ts';
+import type { Bag, BagEntry } from './bag.ts';
 
-function loadSpeech(gameDir) {
+export interface SpeechLine {
+  id: string;
+  /** archive path inside the map */
+  path: string;
+  data: Buffer;
+  seconds: number;
+}
+
+export interface Speech {
+  /** message key -> the line, or null when the key has no speech / the file is missing */
+  forKey(key: string | undefined): SpeechLine | null;
+  sections(): Array<string | null>;
+}
+
+function loadSpeech(gameDir: string): Speech | null {
   const table = path.join(gameDir, 'DATA', 'Sounds', 'sounds.txt');
   const bags = [path.join(gameDir, 'DATA', 'DIALOG', 'DIALOG.BAG'), path.join(gameDir, 'DATA', 'SFX', 'AUDIO.BAG')]
     .filter((f) => fs.existsSync(f)).map(readBag);
   if (!fs.existsSync(table) || !bags.length) return null;
-  const byKey = new Map(); // message key (lower case) -> { id, section }
-  let section = null;
+  const byKey = new Map<string, { id: string; section: string | null }>(); // message key (lower case)
+  let section: string | null = null;
   for (const line of fs.readFileSync(table, 'latin1').split(/\r?\n/)) {
     const [key, id] = line.split('\t').map((s) => (s || '').trim());
     if (!key) continue;
@@ -21,18 +36,18 @@ function loadSpeech(gameDir) {
     if (!id) { section = key; continue; }
     if (!byKey.has(key.toLowerCase())) byKey.set(key.toLowerCase(), { id, section });
   }
-  const entries = new Map();
+  const entries = new Map<string, { bag: Bag; e: BagEntry }>();
   for (const bag of bags) for (const e of bag.entries) if (!entries.has(e.name.toLowerCase())) entries.set(e.name.toLowerCase(), { bag, e });
-  const cache = new Map();
+  const cache = new Map<string, SpeechLine | null>();
   return {
-    /** message key -> { path (inside the map), data, seconds, id } or null */
     forKey(key) {
       const m = key && byKey.get(String(key).toLowerCase());
       if (!m) return null;
       const id = m.id.replace(/E$/i, '');
-      if (cache.has(id)) return cache.get(id);
+      const cached = cache.get(id);
+      if (cached !== undefined) return cached;
       const hit = entries.get(id.toLowerCase()) || entries.get(m.id.toLowerCase());
-      let r = null;
+      let r: SpeechLine | null = null;
       if (hit) {
         const f = toFile(hit.bag, hit.e);
         r = { id, path: `war3mapImported\\speech\\${id}.${f.ext}`, data: f.data, seconds: duration(hit.bag, hit.e) };

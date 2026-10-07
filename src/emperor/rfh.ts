@@ -9,9 +9,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 
-function readIndex(rfhPath) {
+export interface RfhEntry {
+  name: string;
+  /** 2 = deflate */
+  flags: number;
+  csize: number;
+  size: number;
+  offset: number;
+}
+
+export interface ArchiveFile {
+  name: string;
+  data: Buffer;
+}
+
+function readIndex(rfhPath: string): RfhEntry[] {
   const h = fs.readFileSync(rfhPath);
-  const entries = [];
+  const entries: RfhEntry[] = [];
   let i = 0;
   while (i + 24 <= h.length) {
     const nameLength = h.readUInt32LE(i);
@@ -30,7 +44,7 @@ function readIndex(rfhPath) {
 }
 
 /** Yields {name, data} for every entry (optionally filtered by a name predicate). */
-function* readArchive(basePath, filter = () => true) {
+function* readArchive(basePath: string, filter: (name: string) => boolean = () => true): Generator<ArchiveFile> {
   const entries = readIndex(basePath + '.RFH');
   const fd = fs.openSync(basePath + '.RFD', 'r');
   try {
@@ -48,7 +62,7 @@ function* readArchive(basePath, filter = () => true) {
   }
 }
 
-function extractArchive(basePath, outDir, filter) {
+function extractArchive(basePath: string, outDir: string, filter?: (name: string) => boolean): number {
   let n = 0;
   for (const { name, data } of readArchive(basePath, filter)) {
     const p = path.join(outDir, name);

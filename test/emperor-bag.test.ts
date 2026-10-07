@@ -9,6 +9,11 @@ import { readBag, readData, toFile } from '../src/emperor/bag.ts';
 
 const GAME = process.env.EMPEROR_DIR || 'G:\\Games\\Emperor';
 const BAGS = ['DIALOG\\DIALOG.BAG', 'SFX\\AUDIO.BAG', 'MUSIC\\MUSIC.BAG'].map((f) => path.join(GAME, 'DATA', f));
+function must<T>(v: T | undefined): T {
+  assert.ok(v !== undefined, 'entry found');
+  return v;
+}
+
 const opts = { skip: BAGS.every((f) => fs.existsSync(f)) ? false : 'Emperor audio not available' };
 
 test('BAG tables: entry counts, every entry inside the file', opts, () => {
@@ -39,15 +44,15 @@ test('BAG flags: 32 = MP3 frames, 8 = IMA ADPCM blocks', opts, () => {
 
 test('toFile: MP3 passes through, ADPCM/PCM get a WAV header', opts, () => {
   const bag = readBag(BAGS[0]);
-  const ima = toFile(bag, bag.entries.find((e) => e.codec === 'ima'));
+  const ima = toFile(bag, must(bag.entries.find((e) => e.codec === 'ima')));
   assert.strictEqual(ima.ext, 'wav');
   assert.strictEqual(ima.data.toString('latin1', 0, 4), 'RIFF');
   assert.strictEqual(ima.data.readUInt16LE(20), 0x11);
   assert.strictEqual(ima.data.readUInt32LE(4), ima.data.length - 8);
-  const mp3 = toFile(bag, bag.entries.find((e) => e.codec === 'mp3'));
+  const mp3 = toFile(bag, must(bag.entries.find((e) => e.codec === 'mp3')));
   assert.strictEqual(mp3.ext, 'mp3');
   const sfx = readBag(BAGS[1]);
-  const pcm = toFile(sfx, sfx.entries.find((e) => e.codec === 'pcm'));
+  const pcm = toFile(sfx, must(sfx.entries.find((e) => e.codec === 'pcm')));
   assert.strictEqual(pcm.data.readUInt16LE(20), 1);
   assert.strictEqual(pcm.data.readUInt32LE(4), pcm.data.length - 8);
 });

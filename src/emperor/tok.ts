@@ -15,18 +15,47 @@
 //     0x84 d0 d1  -> tooltip string index   (resolved by ctx.tooltip)
 //     0x85 d0 d1  -> sound index            (resolved by ctx.sound)  [inferred from arg type 7]
 // The decoding was checked by the decoded text being well-formed (balanced parentheses, argument
-// counts matching the table) for every shipped script; see test/emperor-tok.test.js.
+// counts matching the table) for every shipped script; see test/emperor-tok.test.ts.
 
 import fs from 'node:fs';
 
 const RECORD = 0x5C;
 
+/** Value types of the token table: 0 int/bool, 1 pos, 2 obj, 8 void (others: 3..7 strings/sounds). */
+export type ValueType = number;
+
+export interface TokenEntry {
+  id: number;
+  name: string;
+  /** 0 function, 1 operator, 2 keyword/constant */
+  kind: number;
+  returnType: ValueType;
+  argCount: number;
+  argTypes: ValueType[];
+}
+
+export type TokenTable = TokenEntry[];
+
+export type LineItem =
+  | { t: 'text'; v: string }
+  | { t: 'tok'; id: number }
+  | { t: 'var' | 'type' | 'msg' | 'tip' | 'snd'; n: number };
+
+/** Name lookups used by the decompiler; any of them may be missing. */
+export interface DecompileContext {
+  varName?: (n: number) => string | undefined;
+  objectType?: (n: number) => string | undefined;
+  message?: (n: number) => string | undefined;
+  tooltip?: (n: number) => string | undefined;
+  sound?: (n: number) => string | undefined;
+}
+
 /** Read the token table out of Game.exe. Returns array indexed by token id. */
-function loadTokenTable(gameExe) {
+function loadTokenTable(gameExe: string | Buffer): TokenTable {
   const exe = Buffer.isBuffer(gameExe) ? gameExe : fs.readFileSync(gameExe);
   const start = exe.indexOf(Buffer.from('ModelTick\0', 'latin1'));
   if (start < 0) throw new Error('script token table not found in Game.exe');
-  const table = [];
+  const table: TokenTable = [];
   for (let p = start; p + RECORD <= exe.length; p += RECORD) {
     const nameBytes = exe.subarray(p, p + 0x24);
     const nul = nameBytes.indexOf(0);
@@ -36,17 +65,17 @@ function loadTokenTable(gameExe) {
     const kind = exe.readInt32LE(p + 0x28);
     const returnType = exe.readInt32LE(p + 0x2C);
     const argCount = exe.readInt32LE(p + 0x30);
-    const argTypes = [];
+    const argTypes: ValueType[] = [];
     for (let a = 0; a < Math.min(argCount, 10); a++) argTypes.push(exe.readInt32LE(p + 0x34 + a * 4));
     table.push({ id, name, kind, returnType, argCount, argTypes });
   }
   return table;
 }
 
-function splitLines(tok) {
+function splitLines(tok: Buffer): Buffer[] {
   const length = tok.readUInt32LE(0);
   const body = tok.subarray(8, 8 + length);
-  const lines = [];
+  const lines: Buffer[] = [];
   let s = 0;
   for (let i = 0; i < body.length; i++) {
     if (body[i] === 0) {
@@ -62,21 +91,22 @@ function splitLines(tok) {
  * Decode one line into a list of items: {t:'text',v}, {t:'tok',id}, {t:'var',n},
  * {t:'type'|'msg'|'tip'|'snd', n}.
  */
-function decodeLine(bytes) {
-  const items = [];
+function decodeLine(bytes: Buffer): LineItem[] {
+  const items: LineItem[] = [];
   let text = '';
-  const flush = () => { if (text) { items.push({ t: 'text', v: text }); text = ''; } };
-  const two = (i) => {
+  const flush = (): void => { if (text) { items.push({ t: 'text', v: text }); text = ''; } };
+  const at = (i: number): number => bytes[i] ?? 0;
+  const two = (i: number): number => {
     if (i + 2 >= bytes.length + 0 && i + 2 > bytes.length) throw new Error('truncated token');
-    return (bytes[i + 1] & 0x7F) | ((bytes[i + 2] & 0x7F) << 7);
+    return (at(i + 1) & 0x7F) | ((at(i + 2) & 0x7F) << 7);
   };
   for (let i = 0; i < bytes.length; i++) {
-    const b = bytes[i];
+    const b = at(i);
     if (b < 0x80) { text += String.fromCharCode(b); continue; }
     flush();
     switch (b) {
       case 0x80: items.push({ t: 'tok', id: two(i) }); i += 2; break;
-      case 0x81: items.push({ t: 'var', n: bytes[i + 1] & 0x7F }); i += 1; break;
+      case 0x81: items.push({ t: 'var', n: at(i + 1) & 0x7F }); i += 1; break;
       case 0x82: items.push({ t: 'type', n: two(i) }); i += 2; break;
       case 0x83: items.push({ t: 'msg', n: two(i) }); i += 2; break;
       case 0x84: items.push({ t: 'tip', n: two(i) }); i += 2; break;
@@ -89,13 +119,13 @@ function decodeLine(bytes) {
 }
 
 /** Decompile a .tok buffer to readable script text. */
-function decompile(tok, table, ctx = {}) {
-  const out = [];
+function decompile(tok: Buffer, table: TokenTable, ctx: DecompileContext = {}): string {
+  const out: string[] = [];
   let indent = 0;
   for (const line of splitLines(tok)) {
     const items = decodeLine(line);
     const first = items[0];
-    const firstName = first && first.t === 'tok' ? (table[first.id] || {}).name : null;
+    const firstName = first && first.t === 'tok' ? table[first.id]?.name : null;
     if (firstName === 'endif' || firstName === 'else') indent = Math.max(0, indent - 1);
     const s = items.map((it) => {
       switch (it.t) {

@@ -4,20 +4,26 @@
 
 import fs from 'node:fs';
 
-function decode(buf) {
+export interface StringEntry {
+  key: string;
+  text: string;
+  section: string | null;
+}
+
+function decode(buf: Buffer): string {
   if (buf[0] === 0xFF && buf[1] === 0xFE) return buf.subarray(2).toString('utf16le');
   if (buf[0] === 0xFE && buf[1] === 0xFF) return Buffer.from(buf.subarray(2)).swap16().toString('utf16le');
   return buf.toString('latin1');
 }
 
-/** @returns {{key:string, text:string, section:string|null}[]} in file order */
-function parseStrings(fileOrBuffer) {
+/** Entries in file order. */
+function parseStrings(fileOrBuffer: string | Buffer): StringEntry[] {
   const text = decode(Buffer.isBuffer(fileOrBuffer) ? fileOrBuffer : fs.readFileSync(fileOrBuffer));
-  const out = [];
-  let section = null;
+  const out: StringEntry[] = [];
+  let section: string | null = null;
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
-    let line = lines[i].replace(/\t+$/, '');
+    let line = (lines[i] as string).replace(/\t+$/, '');
     if (!line.trim() || line.trim().startsWith(';')) continue;
     // A value may span lines (E_Output_Pickup ORP1D5FRe): join until the closing brace.
     if (/^\s*[^\t{"]+?\s*\t+\s*"?\{/.test(line) && !line.includes('}')) {

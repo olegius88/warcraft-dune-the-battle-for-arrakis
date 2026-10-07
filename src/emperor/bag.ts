@@ -10,7 +10,44 @@
 //            together with ADPCM/MP3/PCM, ignored). No 8/32 bit -> raw PCM.
 import fs from 'node:fs';
 
-function readBag(file) {
+export type Codec = 'mp3' | 'ima' | 'pcm';
+
+export interface BagEntry {
+  name: string;
+  offset: number;
+  size: number;
+  rate: number;
+  flags: number;
+  /** IMA ADPCM block size (garbage for MP3) */
+  blockAlign: number;
+  channels: 1 | 2;
+  bits: 8 | 16;
+  codec: Codec;
+}
+
+export interface Bag {
+  file: string;
+  entries: BagEntry[];
+}
+
+export interface PlayableFile {
+  ext: 'mp3' | 'wav';
+  data: Buffer;
+}
+
+interface WavFormat {
+  /** 1 PCM, 0x11 IMA ADPCM */
+  format: number;
+  channels: number;
+  rate: number;
+  blockAlign: number;
+  bits: number;
+  extra?: Buffer;
+  dataSize: number;
+  factSamples?: number;
+}
+
+function readBag(file: string): Bag {
   const fd = fs.openSync(file, 'r');
   try {
     const head = Buffer.alloc(16);
@@ -20,7 +57,7 @@ function readBag(file) {
     const size = head.readUInt32LE(12);
     const table = Buffer.alloc(count * size);
     fs.readSync(fd, table, 0, table.length, 16);
-    const entries = [];
+    const entries: BagEntry[] = [];
     for (let i = 0; i < count; i++) {
       const o = i * size;
       const flags = table.readUInt32LE(o + 44);
@@ -42,7 +79,7 @@ function readBag(file) {
   }
 }
 
-function readData(bag, e) {
+function readData(bag: Bag, e: BagEntry): Buffer {
   const fd = fs.openSync(bag.file, 'r');
   try {
     const b = Buffer.alloc(e.size);
@@ -53,7 +90,7 @@ function readData(bag, e) {
   }
 }
 
-function wavHeader({ format, channels, rate, blockAlign, bits, extra, dataSize, factSamples }) {
+function wavHeader({ format, channels, rate, blockAlign, bits, extra, dataSize, factSamples }: WavFormat): Buffer {
   const ext = extra ? extra.length : 0;
   const fmtSize = 16 + (extra ? 2 + ext : 0);
   const fact = factSamples != null ? 12 : 0;
@@ -72,14 +109,14 @@ function wavHeader({ format, channels, rate, blockAlign, bits, extra, dataSize, 
   h.writeUInt16LE(blockAlign, o); o += 2;
   h.writeUInt16LE(bits, o); o += 2;
   if (extra) { h.writeUInt16LE(ext, o); o += 2; extra.copy(h, o); o += ext; }
-  if (fact) { h.write('fact', o); o += 4; h.writeUInt32LE(4, o); o += 4; h.writeUInt32LE(factSamples, o); o += 4; }
+  if (factSamples != null) { h.write('fact', o); o += 4; h.writeUInt32LE(4, o); o += 4; h.writeUInt32LE(factSamples, o); o += 4; }
   h.write('data', o); o += 4;
   h.writeUInt32LE(dataSize, o);
   return h;
 }
 
 /** Entry -> playable file: { ext: 'mp3' | 'wav', data }. IMA ADPCM stays compressed (WAV format 0x11). */
-function toFile(bag, e) {
+function toFile(bag: Bag, e: BagEntry): PlayableFile {
   const raw = readData(bag, e);
   if (e.codec === 'mp3') return { ext: 'mp3', data: raw };
   if (e.codec === 'ima') {
@@ -96,12 +133,13 @@ function toFile(bag, e) {
 }
 
 // MPEG audio frame header -> [frame bytes, samples per frame] (ISO 11172-3 / 13818-3 tables).
-const MP3_BITRATES = {
+const MP3_BITRATES: Record<1 | 2, number[]> = {
   1: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320], // MPEG-1 layer III
   2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160], // MPEG-2/2.5 layer III
 };
-const MP3_RATES = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
-function mp3Frame(b, o) {
+const MP3_RATES: Record<number, number[]> = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+/** [frame bytes, samples per frame, sample rate] or null when no frame starts at o */
+function mp3Frame(b: Buffer, o: number): [number, number, number] | null {
   if (b[o] !== 0xff || (b[o + 1] & 0xe0) !== 0xe0) return null;
   const ver = (b[o + 1] >> 3) & 3; // 3 = MPEG-1, 2 = MPEG-2, 0 = MPEG-2.5
   const layer = (b[o + 1] >> 1) & 3; // 1 = layer III
@@ -115,7 +153,7 @@ function mp3Frame(b, o) {
 }
 
 /** Playing time in seconds (MP3: summed frames; IMA ADPCM: blocks; PCM: bytes). */
-function duration(bag, e) {
+function duration(bag: Bag, e: BagEntry): number {
   if (e.codec === 'ima') {
     const samplesPerBlock = ((e.blockAlign - 4 * e.channels) * 2) / e.channels + 1;
     return (Math.ceil(e.size / e.blockAlign) * samplesPerBlock) / e.rate;

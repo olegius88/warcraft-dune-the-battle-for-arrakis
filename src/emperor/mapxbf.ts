@@ -9,12 +9,57 @@ import fs from 'node:fs';
 
 const TAG = { ZONES: 0x01, MAP_SIZE: 0x02, TILES: 0x03, SPICE: 0x04, GAME_ELEMENTS: 0x05, BUILDINGS: 0x07, SPICE_MOUND: 0x09, UNKNOWN_0A: 0x0A, TIMESTAMP: 0x0B };
 
-function readMeta(fileOrBuffer) {
+export interface TlvRecord {
+  id: number;
+  offset: number;
+  length: number;
+  payload: Buffer;
+}
+
+/** Object placed in the map (tag 0x07): position in tiles; owner 0 player, 1 defender, 2/3 mostly scenery. */
+export interface PlacedObject {
+  name: string;
+  x: number;
+  y: number;
+  owner: number;
+}
+
+/** A point of GameElements: x/y in map world units (32 per tile). */
+export interface GamePoint {
+  tag: number;
+  x: number;
+  y: number;
+}
+
+/** { [group]: { [sub]: points } }, e.g. Base/Primary, Mission/Script3, Entrance/Connected_Entrance. */
+export type GameElements = Record<string, Record<string, GamePoint[]>>;
+
+export interface ZoneNode {
+  name: string;
+  children: ZoneNode[];
+}
+
+export interface MapMeta {
+  version: number;
+  metaEnd: number;
+  records: TlvRecord[];
+  /** tiles [x, y] */
+  mapSize?: [number, number];
+  /** one byte per tile: terrain type */
+  tiles?: Buffer;
+  /** one byte per tile: spice amount */
+  spice?: Buffer;
+  spiceMounds?: Array<[number, number]>;
+  buildings?: PlacedObject[];
+  gameElements?: GameElements;
+}
+
+function readMeta(fileOrBuffer: string | Buffer): MapMeta {
   const b = Buffer.isBuffer(fileOrBuffer) ? fileOrBuffer : fs.readFileSync(fileOrBuffer);
   const version = b.readInt32LE(0);
   if (version !== 1) throw new Error(`unsupported map xbf version ${version}`);
   const metaEnd = b.readInt32LE(4);
-  const records = [];
+  const records: TlvRecord[] = [];
   for (let o = 8; o < metaEnd;) {
     const tag = b.readUInt32LE(o);
     const length = b.readUInt32LE(o + 4);
@@ -22,8 +67,8 @@ function readMeta(fileOrBuffer) {
     records.push({ id: tag & 0xFF, offset: o + 8, length, payload: b.subarray(o + 8, o + 8 + length) });
     o += 8 + length;
   }
-  const get = (id) => records.find((r) => r.id === id);
-  const out = { version, metaEnd, records };
+  const get = (id: number): TlvRecord | undefined => records.find((r) => r.id === id);
+  const out: MapMeta = { version, metaEnd, records };
   const size = get(TAG.MAP_SIZE);
   if (size) out.mapSize = [size.payload.readInt32LE(0), size.payload.readInt32LE(4)];
   const tiles = get(TAG.TILES);
@@ -32,8 +77,8 @@ function readMeta(fileOrBuffer) {
   if (spice) out.spice = spice.payload;
   const mounds = get(TAG.SPICE_MOUND);
   if (mounds) {
-    out.spiceMounds = [];
-    for (let i = 0; i + 8 <= mounds.length; i += 8) out.spiceMounds.push([mounds.payload.readInt32LE(i), mounds.payload.readInt32LE(i + 4)]);
+    const list: Array<[number, number]> = out.spiceMounds = [];
+    for (let i = 0; i + 8 <= mounds.length; i += 8) list.push([mounds.payload.readInt32LE(i), mounds.payload.readInt32LE(i + 4)]);
   }
   const bld = get(TAG.BUILDINGS);
   if (bld) out.buildings = parseBuildings(bld.payload);
@@ -50,20 +95,20 @@ function readMeta(fileOrBuffer) {
  * Name fields are NUL-terminated with uninitialised bytes after the NUL.
  * Returns { [group]: { [sub]: [{tag, x, y}] } } (x/y in map world units).
  */
-function parseGameElements(p) {
+function parseGameElements(p: Buffer): GameElements {
   let c = 0;
-  const name = () => { const raw = p.subarray(c, c + 20); c += 20; const z = raw.indexOf(0); return raw.subarray(0, z < 0 ? 20 : z).toString('latin1'); };
-  const i32 = () => { const v = p.readInt32LE(c); c += 4; return v; };
-  const f64 = () => { const v = p.readDoubleLE(c); c += 8; return v; };
-  const groups = {};
+  const name = (): string => { const raw = p.subarray(c, c + 20); c += 20; const z = raw.indexOf(0); return raw.subarray(0, z < 0 ? 20 : z).toString('latin1'); };
+  const i32 = (): number => { const v = p.readInt32LE(c); c += 4; return v; };
+  const f64 = (): number => { const v = p.readDoubleLE(c); c += 8; return v; };
+  const groups: GameElements = {};
   const groupCount = i32();
   for (let g = 0; g < groupCount; g++) {
     const gname = name();
-    const subs = {};
+    const subs: Record<string, GamePoint[]> = {};
     const subCount = i32();
     for (let s = 0; s < subCount; s++) {
       const sname = name();
-      const pts = [];
+      const pts: GamePoint[] = [];
       const n = i32();
       for (let k = 0; k < n; k++) pts.push({ tag: i32(), x: f64(), y: f64() });
       subs[sname] = pts;
@@ -74,17 +119,17 @@ function parseGameElements(p) {
   // Parsed as nested "name[20], int32 childCount, children"; kept raw if that does not fit.
   // TODO(map-zones): meaning of this tree not established; scripts may reference these zones.
   const zonesStart = c;
-  const node = () => ({ name: name(), children: list() });
-  const list = () => { const n = i32(); if (n < 0 || n > 64) throw new Error('bad zone count'); const a = []; for (let k = 0; k < n; k++) a.push(node()); return a; };
-  let zones = null;
-  try { zones = []; while (c < p.length) zones.push(...list()); } catch (e) { zones = { raw: p.subarray(zonesStart) }; }
+  const node = (): ZoneNode => ({ name: name(), children: list() });
+  const list = (): ZoneNode[] => { const n = i32(); if (n < 0 || n > 64) throw new Error('bad zone count'); const a: ZoneNode[] = []; for (let k = 0; k < n; k++) a.push(node()); return a; };
+  let zones: ZoneNode[] | { raw: Buffer } | null = null;
+  try { const all: ZoneNode[] = zones = []; while (c < p.length) all.push(...list()); } catch { zones = { raw: p.subarray(zonesStart) }; }
   Object.defineProperty(groups, '$zones', { value: zones, enumerable: false });
   return groups;
 }
 
-function parseBuildings(p) {
+function parseBuildings(p: Buffer): PlacedObject[] {
   const count = p.readUInt32LE(0);
-  const list = [];
+  const list: PlacedObject[] = [];
   let c = 4;
   for (let i = 0; i < count; i++) {
     const end = p.indexOf(0, c);
