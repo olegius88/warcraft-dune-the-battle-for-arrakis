@@ -32,7 +32,8 @@
 |---|---|---|
 | `hub/globals.j` | `src/emperor/hub.ts` | глобальные переменные стратегической карты (хаба) |
 | `hub/functions.j` | `src/emperor/hub.ts` | хаб: территории, выбор атаки, результат битвы из game cache, фазы и тех-уровни, контратаки, сюжетные миссии, музыка |
-| `hub/movie.j` | `src/emperor/hub.ts` | ролики Emperor слайд-шоу: очередь, кадры JPEG BLP на UI-фрейме поверх экрана, звук MP3, Esc пропускает ролик |
+| `movie/globals.j`, `movie/player.j` | `src/emperor/movie-player.ts` | проигрыватель роликов: очередь, кадры (файлы в папке игры) на UI-фрейме поверх экрана с частотой ролика, звук WAV, субтитры и титры мест, Esc пропускает ролик, построчный отчёт `DuneTest<карта>_Movies.pld` |
+| `intro/functions.j` | `src/emperor/intro.ts` | карты вступления: ролики, затем следующая карта кампании или экран кампании |
 | `hub/autotest.j` | `src/emperor/hub.ts` | автотест хаба (`--autotest`): отчёт о каждом визите, одна атака |
 | `mission/globals.j` | `src/emperor/mission.ts` | глобальные переменные связки миссии с кампанией (game cache, фаза, ящики, ветеранство) |
 | `mission/crates.j` | `src/emperor/mission.ts` | ящики Emperor: появление и подбор по близости |

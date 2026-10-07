@@ -102,13 +102,13 @@ export const MOVIE_CLOCK_SPAN = 100000;
 export const MOVIE_SUBTITLE = {
   area: { left: 0.04, top: 0.105, right: 0.76, bottom: 0.015 },
   font: 'Fonts\\FRIZQT__.TTF',
-  fontHeight: 0.017,
+  fontHeight: 0.024,
   /** alpha of the black strip (0..255) */
   stripAlpha: 150,
 } as const;
 /** Place captions of SubTitle.ini: Position=<row> counts rows of the 600-pixel screen in this many
  * rows (assumed; the shipped captions use rows 13 and 14, the lowest lines). */
-export const MOVIE_CAPTION = { rows: 16, height: 0.035, left: 0.04, right: 0.76, fontHeight: 0.016 } as const;
+export const MOVIE_CAPTION = { rows: 16, height: 0.035, left: 0.04, right: 0.76, fontHeight: 0.022 } as const;
 /** Lines kept in the movie report (Preload truncates a long line, so one line per entry). */
 export const MOVIE_REPORT_LINES = 60;
 

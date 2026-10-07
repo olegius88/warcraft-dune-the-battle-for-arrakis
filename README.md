@@ -33,6 +33,18 @@
 | `test/` | `node --test`: наши файлы — независимым читателем (mdx-m3-viewer), данные Emperor, регрессии. |
 | `build/` | Результаты сборки (в `.gitignore`). |
 
+## Ролики, субтитры, экран кампании
+
+- Ролики Emperor (75 BIK) идут слайд-шоу в полном качестве: каждый кадр 640×480 с родной частотой,
+  звук WAV. Это ~13 ГБ, больше, чем вмещает кампания, поэтому сборка пишет их в папку Warcraft III
+  (`G:\Games\Warcraft III\Emperor\Movies\`, путь — `WC3_DIR` в `src/config/paths.ts`). Клиент читает
+  их, когда в реестре `HKCU\Software\Blizzard Entertainment\Warcraft III\Allow Local Files` = 1. Нужен
+  ffmpeg в `PATH`; `--no-movies` собирает без роликов.
+- Субтитры: речь роликов распознана whisper.cpp (`node src/emperor/transcribe.ts`, модель
+  `data/whisper/ggml-large-v3.bin`) и переведена на русский (`data/emperor/subtitles/ru`); титры мест —
+  из `SubTitle.ini` игры.
+- Экран кампании: сцена главного меню Emperor и музыка меню `IN_Menu`.
+
 ## Команды
 
 ```powershell
