@@ -2,18 +2,18 @@
 
 | Файл | Ответственность |
 |---|---|
-| `binary.js` | Little-endian писатель байтов (int/float/cstring/FourCC). |
-| `mpq.js` | Писатель MPQ v0: hash/block-таблицы с шифрованием, zlib-сектора, `(listfile)`. |
-| `formats.js` | `war3map.w3i` (v31), `.w3e` (v11), `.wpm`, `.shd`, пустые `.doo`/`Units.doo`/`.mmp`, `.wts`, `war3campaign.w3f` (v1), заголовок HM3W. |
-| `blp.js` | BLP1 с палитрой — миникарта `war3mapMap.blp`. |
-| `jass.js` | Обвязка `war3map.j` (config/main, игроки, команды, границы камеры). |
-| `map.js` | `buildMap()` — сборка `.w3x`; `buildCampaign()` — сборка `.w3n`. |
+| `binary.ts` | Little-endian писатель байтов (int/float/cstring/FourCC). |
+| `mpq.ts` | Писатель MPQ v0: hash/block-таблицы с шифрованием, zlib-сектора, `(listfile)`. |
+| `formats.ts` | `war3map.w3i` (v31), `.w3e` (v11), `.wpm`, `.shd`, пустые `.doo`/`Units.doo`/`.mmp`, `.wts`, `war3campaign.w3f` (v1), заголовок HM3W. |
+| `blp.ts` | BLP1 с палитрой — миникарта `war3mapMap.blp`. |
+| `jass.ts` | Обвязка `war3map.j` (config/main, игроки, команды, границы камеры). |
+| `map.ts` | `buildMap()` — сборка `.w3x`; `buildCampaign()` — сборка `.w3n`. |
 
 ## Нюансы (проверено в клиенте 3.0.0.24268)
 
 - **`war3mapMap.blp` обязателен.** Без миникарты клиент падает с `0xC0000005` и при загрузке карты,
   и при её превью в списке карт. Найдено делением пополам в реальном клиенте; регрессия —
-  `test/wc3-map.test.js`.
+  `test/wc3-map.test.ts`.
 - Встроенные в `.w3n` карты хранятся без сжатия (флаги блока `0x80000000`), как в настоящих кампаниях.
 - Версии форматов выбраны старые (w3i 31, w3e 11), их читают и 3.0, и большинство инструментов;
   WC3MapTranslator пишет только новейшие (w3e 12, w3i 33), поэтому не используется.

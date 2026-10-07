@@ -13,7 +13,10 @@
 - Кампания — хаб-карта Арракиса (33 территории, фазы, контратаки ИИ), состояние между картами в game cache.
 - Модели — сначала стандартные модели WC3/Reforged, конвертация XBF→MDX отдельным этапом.
 - Тексты — русский перевод.
-- Целевой клиент — Reforged 3.0.0.24268 (форматы w3i 31 / w3e 11 / doo 8.11, скрипт JASS).
+- Целевой клиент — Reforged 3.0.0.24268 (форматы w3i 31 / w3e 11 / doo 8.11, скрипт JASS); для
+  разработки и тестов — классический 1.31.1 (w3i 28), он запускается без входа в Battle.net.
+- Код — TypeScript 7 (strict, ESM); Node 24 запускает `.ts` напрямую, `tsc` только проверяет типы.
+  Линтер — Oxlint (ESLint с TypeScript 7 не работает). Правила — [CLAUDE.md](CLAUDE.md).
 
 ## Структура
 
@@ -21,18 +24,20 @@
 |---|---|
 | `src/wc3/` | Генераторы форматов WC3: MPQ, w3i, w3e, wpm, shd, doo, wts, w3f, BLP-миникарта, JASS-обвязка. См. `src/wc3/README.md`. |
 | `src/smoke/` | Дымовой тест: две сгенерированные карты + кампания. |
-| `src/emperor/` | Данные Emperor: архивы RFH/RFD, строки, декомпилятор скриптов `.tok`, точки карт. См. `src/emperor/README.md`. |
+| `src/emperor/` | Emperor → WC3: данные игры, декомпилятор и транслятор скриптов, миссии, хаб, кампания, речь. См. `src/emperor/README.md`. |
+| `types/` | Объявления типов для пакетов без своих (`gifenc`). |
 | `tools/` | Запуск игры для тестов без ввода пароля и без захвата мыши. См. `tools/README.md`. |
-| `test/` | `node --test`: проверка наших файлов независимым читателем (mdx-m3-viewer). |
+| `test/` | `node --test`: наши файлы — независимым читателем (mdx-m3-viewer), данные Emperor, регрессии. |
 | `build/` | Результаты сборки (в `.gitignore`). |
 
 ## Команды
 
 ```powershell
-npm install
-npm test
-node src/smoke/build-smoke.js --bik 'G:\Games\Emperor\DATA\MOVIES\A01_F00E.BIK'
-pwsh tools/run-wc3.ps1 -Map build\smoke\Smoke1.w3x -Seconds 45
+npm install            # зависимости + хук pre-commit (oxlint --fix)
+npm test               # tsc + oxlint + тесты
+node src/emperor/extract.ts
+node src/emperor/build-campaign.ts --check
+& ./tools/test-maps.ps1 -Maps 'HK_A05.w3x' -Seconds 40 -Gif
 ```
 
 ## Источники форматов
