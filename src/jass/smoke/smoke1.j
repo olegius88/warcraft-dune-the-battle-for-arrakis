@@ -8,8 +8,9 @@ function Smoke1Actions takes nothing returns nothing
     call SaveGameCacheBJ( gc )
     call SmokeLog( "smoke1.pld", "smoke1 ok" )
     call TriggerSleepAction( 8.0 )
-    // TODO(changelevel): CustomVictoryBJ -> ChangeLevel from our maps crashes 3.0 and 1.31 outside a
-    // campaign (any target map). Inside a real .w3n still unverified — the hub-map design depends on it.
+    // CustomVictoryBJ -> ChangeLevel from our maps crashes 3.0 and 1.31 outside a campaign (any target
+    // map). Inside the .w3n it works: 1.31.1, 2026-10-07, unattended (tools/campaign-session.ps1):
+    // HK start mission -> hub -> territory battle -> hub, campaign imports readable in every map.
     call SetNextLevelBJ( {{str nextLevel}} )
     call CustomVictoryBJ( Player(0), false, false )
 endfunction
