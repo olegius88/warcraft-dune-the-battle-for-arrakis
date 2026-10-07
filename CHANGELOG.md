@@ -5,6 +5,26 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-08 Апгрейды зданий по Rules.txt ([src/emperor/units.ts](src/emperor/units.ts)): здание с
+  `UpgradeCost` исследует своё улучшение (`war3map.w3q`), 35 типов с `UpgradedPrimaryRequired` (Kindjal,
+  Kobra, турели домов…) его требуют; запрет до `UpgradeTechLevel`. ИИ покупает улучшения и не производит
+  юнитов без них. Проба [src/smoke/build-tech-probe.ts](src/smoke/build-tech-probe.ts) в 1.31.1; в игре
+  ИИ купил улучшение казарм (HK_A02).
+- 2026-10-08 Супероружие дворцов ([src/emperor/superweapons.ts](src/emperor/superweapons.ts),
+  [src/jass/mission/superweapon.j](src/jass/mission/superweapon.j)): дворец тренирует заряд (Death Hand,
+  Hawk, Chaos Lightning) за его `BuildTime`, удар — приказ «атаковать землю» в любую точку. Урон, радиус
+  и радиоактивные осадки из Rules.txt; Hawk обращает врагов в бегство, Chaos Lightning приводит в
+  бешенство (по описаниям cncnz.com). `SideNuke` бьёт Death Hand вместо выдуманных констант. ИИ заряжает
+  свой дворец и бьёт по известной базе игрока. Проверено в игре
+  ([src/smoke/build-superweapon-mission.ts](src/smoke/build-superweapon-mission.ts)).
+- 2026-10-08 Starport продаёт `Starportable` юниты своего дома и общие (Harvester, MCV, Carryall).
+  Колебания цен и доставка фрегатом не сделаны (`TODO(starport)`).
+- 2026-10-08 Союзы с субдомами ([src/config/campaign.ts](src/config/campaign.ts) `SUBHOUSE_TAGS`):
+  победа в атаке с тегом субдома даёт союз, Икс и Тлейлаксу исключают друг друга; здания союзников строит
+  третий строитель. Вывод из скриптов, не из кода игры; у гильдии атак с тегом нет (`TODO(subhouse)`).
+- 2026-10-08 Варианты обороны `*Fail`/`*Win` (64 скрипта): играются по итогу атаки на ту же территорию в
+  той же фазе ([src/emperor/campaign-data.ts](src/emperor/campaign-data.ts) `defendVariant`; вывод из
+  содержимого скриптов).
 - 2026-10-08 ИИ врага в битвах за территории по `ai.ini` ([src/jass/battle/ai.j](src/jass/battle/ai.j),
   [src/emperor/ai-rules.ts](src/emperor/ai-rules.ts)):
   - строитель базы: по одному зданию той категории `BuildingConstructionRatios`, которой больше всего
@@ -89,8 +109,8 @@
     WC3, кости с анимацией узлов, последовательности Stand/Walk/Attack/Death/Birth;
   - [src/emperor/models.ts](src/emperor/models.ts) конвертирует модели всех объектов по `ArtIni.txt`
     вместе с текстурами: 235 моделей, 226 текстур, около 12 МБ.
-  Карта-проба [src/smoke/build-model-probe.ts](src/smoke/build-model-probe.ts) ждёт запуска в
-  игре; в данные юнитов модели войдут после неё.
+  Карта-проба [src/smoke/build-model-probe.ts](src/smoke/build-model-probe.ts); после неё модели вошли
+  в данные юнитов (`build-campaign.ts` загружает их с `models: true`).
 - 2026-10-07 Иконки Emperor на командной карте ([src/emperor/icons.ts](src/emperor/icons.ts)):
   `ArtIni.txt` `Icon`/`IconGrey` → `Textures/*.tga` из 3DDATA0001 → BLP1 64×64. Цветные идут в
   `BTN…`, серые в `DISBTN…`; 105 объектов, 210 файлов. В кампании они лежат один раз в архиве
@@ -253,6 +273,12 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-08 Кнопки найма, исследования и стройки брали ячейку у стандартной базы и перекрывали друг
+  друга; теперь у каждой своя ячейка, точка сбора (3,1) свободна (проба
+  [src/smoke/build-button-probe.ts](src/smoke/build-button-probe.ts)). 12 зданий дома не помещались в одно
+  меню стройки: стены и турели строит «Строитель укреплений».
+- 2026-10-08 ИИ: резерв денег не застревает при раннем выходе; в категории строится тип, которого
+  меньше всего (было 5 казарм и ни одной фабрики).
 - 2026-10-08 Перенос строки в сообщениях игры записывался как `|n` и выводился как есть
   («Атака: Shield Wall|nВерховный…»); теперь это `\n` ([src/wc3/jass.ts](src/wc3/jass.ts), регрессия в
   [test/jass.test.ts](test/jass.test.ts)). Проверено в игре.

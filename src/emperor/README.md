@@ -48,7 +48,7 @@
 ```powershell
 npm install
 node src/emperor/extract.ts
-node src/emperor/build-campaign.ts --check     # ~25 с, 211 карт, проверка pjass каждой
+node src/emperor/build-campaign.ts --check     # ~25 с, 216 карт, проверка pjass каждой
 ```
 
 ## Устройство кампании
