@@ -7,7 +7,7 @@ function Smoke2Actions takes nothing returns nothing
     call DisplayTimedTextToForce( GetPlayersAll(), 60.0, "SMOKE 2: PlayCinematic test" )
     // TODO(fmv): PlayCinematic shows nothing from a map: 3.0.0.24268 with an imported Bink-1 .bik,
     // and 1.31.1 with an imported VP9 AVI + MP3 like its own movies and even with its own
-    // MoviesHumanEd.avi (src/smoke/build-cinematic-probe.ts, 2026-10-07). Emperor's movies need
+    // Movies\HumanEd.avi (src/smoke/build-cinematic-probe.ts, 2026-10-07). Emperor's movies need
     // another way: frames on a UI backdrop (BlzCreateFrame) with the movie's sound.
     call SmokeLog( "smoke2-cine.pld", "before PlayCinematic" )
     call PlayCinematic( {{str bikName}} )
