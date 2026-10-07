@@ -13,7 +13,7 @@ param(
   [Parameter(Mandatory = $true)][string]$Campaign,
   [string]$InstallAs = 'AAA_EmperorAutoTest.w3n',
   [double]$ListFx = 0.259, [double]$ListFy = 0.208,       # entry of the campaign in the custom campaign list
-  [double]$MissionFx = 0.827, [double]$MissionFy = 0.629, # mission button on the campaign screen
+  [double]$MissionFx = 0.827, [double]$MissionFy = 0.592, # the (single) mission button of the autotest campaign screen
   # -KeysOnly: no clicks; the campaign must be first in the list (Enter opens it) and the mission
   # keys are tried in turn until -StartReport (CustomMapData path) is written by the first mission
   [switch]$KeysOnly,
@@ -75,13 +75,17 @@ try {
     # keys only: try each key on the campaign screen until the first mission writes its report
     $report = Join-Path $env:USERPROFILE "Documents\Warcraft III\CustomMapData\$StartReport"
     $since = Get-Date
-    foreach ($vk in $MissionKeys) {
-      Ui @{ Action = 'Key'; Vk = $vk }
-      "mission key 0x{0:X2}" -f $vk
+    # then a click posted to the game window (cannot reach another window), then a real one
+    $tries = @($MissionKeys | ForEach-Object { @{ Action = 'Key'; Vk = $_ } }) + @(
+      @{ Action = 'PostClick'; Fx = $MissionFx; Fy = $MissionFy },
+      @{ Action = 'Click'; Fx = $MissionFx; Fy = $MissionFy })
+    foreach ($try in $tries) {
+      & ./tools/wc3-ui.ps1 @try -IdleSeconds 20
+      $script:lastOwn = Get-Date
       $wait = (Get-Date).AddSeconds(45)
       while ((Get-Date) -lt $wait -and -not ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since)) { YieldIfUserBack; Start-Sleep 1 }
-      Shot ('key{0:X2}' -f $vk)
-      if ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since) { "mission started by key 0x{0:X2}" -f $vk; break }
+      Shot $try.Action
+      if ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since) { "mission started by $($try.Action) $($try.Vk)"; break }
     }
   }
   $end = (Get-Date).AddMinutes($Minutes)

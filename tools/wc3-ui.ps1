@@ -7,11 +7,12 @@
 #   -Action Launch                 start the classic client in its main menu (windowed)
 #   -Action Key -Vk 0x53           key press (virtual key code)
 #   -Action Click -Fx 0.5 -Fy 0.5  real left click at a fractional client position
+#   -Action PostClick -Fx -Fy      cursor on the point + mouse messages posted to the game window only
 #   -Action Capture -Out x.png     window picture (PrintWindow, no focus needed)
 #   -Action Idle                   print the user's idle time
 #   -Action WaitIdle               just wait until the user is idle for -IdleSeconds
 param(
-  [ValidateSet('Launch', 'Key', 'Click', 'Capture', 'Idle', 'WaitIdle')][string]$Action = 'Idle',
+  [ValidateSet('Launch', 'Key', 'Click', 'PostClick', 'Capture', 'Idle', 'WaitIdle')][string]$Action = 'Idle',
   [int]$Vk = 0x0D,
   [double]$Fx = 0.5,
   [double]$Fy = 0.5,
@@ -120,7 +121,21 @@ try {
     [void][W.Ui]::GetClientRect($h, [ref]$r)
     $pt = New-Object W.Ui+POINT
     $pt.X = [int](($r.R - $r.L) * $Fx); $pt.Y = [int](($r.B - $r.T) * $Fy)
+    $client = [IntPtr](($pt.Y -shl 16) -bor ($pt.X -band 0xFFFF))
     [void][W.Ui]::ClientToScreen($h, [ref]$pt)
+    if ($Action -eq 'PostClick') {
+      # mouse messages posted to the game window itself: they cannot reach another window. The
+      # real cursor is put on the point too (the menus read its position) and put back afterwards.
+      [void][W.Ui]::SetCursorPos($pt.X, $pt.Y)
+      [void][W.Ui]::PostMessage($h, 0x0200, [IntPtr]0, $client)   # WM_MOUSEMOVE
+      Start-Sleep -Milliseconds 150
+      [void][W.Ui]::PostMessage($h, 0x0201, [IntPtr]1, $client)   # WM_LBUTTONDOWN, MK_LBUTTON
+      Start-Sleep -Milliseconds 60
+      [void][W.Ui]::PostMessage($h, 0x0202, [IntPtr]0, $client)   # WM_LBUTTONUP
+      Start-Sleep -Milliseconds 250
+      "posted click at client ($([int](($r.R - $r.L) * $Fx)),$([int](($r.B - $r.T) * $Fy)))"
+      return
+    }
     # A real click lands on whatever window is under the point: click only when the game is restored,
     # in front and its own window is under the point (2026-10-07 two clicks were computed against a
     # minimised game window and went to the screen outside it).
