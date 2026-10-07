@@ -20,6 +20,8 @@ function EmpBattleInit takes nothing returns nothing
     endloop
     call TriggerAddAction(tr, function EmpOnConstructStart)
     call TimerStart(CreateTimer(), {{real C.HARVEST_CHECK_PERIOD}}, true, function EmpHarvestTick)
+    set EmpYardsServed = CreateGroup()
+    call TimerStart(CreateTimer(), {{real C.YARD_CHECK_PERIOD}}, true, function EmpYardTick)
     call EmpPowerData()
     call EmpCostData()
     call TimerStart(CreateTimer(), {{real C.POWER_CHECK_PERIOD}}, true, function EmpPowerTick)

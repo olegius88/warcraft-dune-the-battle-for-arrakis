@@ -121,6 +121,15 @@ export const SHROUD_SLOTS = 64;
 export const SW_FLEE_STEP = 600;
 export const SW_FLEE_PERIOD = 0.5;
 
+/** Special abilities (src/jass/mission/specials.j): scan period (s); how far around a unit to look,
+ * how close (edge to edge) an engineer / saboteur must be to a building, a crusher to infantry. */
+export const SP_TICK = 0.5;
+export const SP_REACH = 400;
+export const SP_TOUCH = 48;
+export const SP_CRUSH = 32;
+/** Crushers are checked this often (s): at 0.5 s they passed infantry between two checks. */
+export const SP_CRUSH_TICK = 0.1;
+
 /** Special crates: bomb damage and radius, stealth duration and radius around the taker. */
 export const CRATE_BOMB_DAMAGE = 300;
 export const CRATE_BOMB_RADIUS = 384;

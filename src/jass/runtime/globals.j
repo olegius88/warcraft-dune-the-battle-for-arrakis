@@ -48,8 +48,17 @@
     hashtable EmpSwTab = null
     group EmpSwFleeGroup = null
     integer EmpSwDeathHand = 0
-    // units of each side that are berserk (owned by Neutral Hostile for a while)
+    // units of each side that fight for another one for a while (berserk, deviated)
     integer array EmpSwBerserk
+    // allygain messages (mission.ts): message id -> sub-house k; alliances the mission played
+    integer array EmpMsgAlly
+    boolean array EmpAllyGain
+    // special abilities (mission specials.j)
+    hashtable EmpSpTab = null
+    group EmpSpLeeched = null
+    group EmpSpCrushers = null
+    // construction yards that gave their builders (battle economy.j)
+    group EmpYardsServed = null
     real EmpTmpX = 0.0
     real EmpTmpY = 0.0
     real EmpTmpR = 0.0

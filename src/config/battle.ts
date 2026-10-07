@@ -36,6 +36,8 @@ export const MCV_CONSUME_RADIUS = 900;
 
 /** Timers. */
 export const HARVEST_CHECK_PERIOD = 3;
+/** Construction yards of the player without their builders are looked for this often (s). */
+export const YARD_CHECK_PERIOD = 2;
 /** Defence: the attacker's army arrives this long after the start, spread around its entrance;
  * later only its reinforcement sets come. */
 export const DEFEND_ATTACK_DELAY = 45;

@@ -11,6 +11,7 @@ import { ensureMap } from '../src/emperor/preview-map.ts';
 import { buildMission } from '../src/emperor/mission.ts';
 import { loadCampaign, defendVariant } from '../src/emperor/campaign-data.ts';
 import { superweapons } from '../src/emperor/superweapons.ts';
+import { specialAbilities } from '../src/emperor/specials.ts';
 
 import { RAW_DIR, GAME_EXE } from '../src/config/paths.ts';
 const RAW = RAW_DIR;
@@ -216,6 +217,10 @@ test('defence scripts pick their Fail / Win variant by the won attack on the sam
   assert.deepStrictEqual(defendVariant(camp, 'AT', 1, 19), { name: 'ATP1D19GNWin', attack: 'ATP1M19GN', won: true });
   assert.deepStrictEqual(defendVariant(camp, 'AT', 1, 16), { name: 'ATP1D16GNFail', attack: 'ATP1M16AT', won: false }, 'paired by phase and territory');
   assert.strictEqual(defendVariant(camp, 'OR', 2, 8), null, 'no attack to pair with');
+  // Regression (second audit): HKP1D1FRFail was paired with HKP1M1FR, an attack on the house's own
+  // capital that is never played (build-campaign skips it), so HK_D01 always played the Fail variant
+  assert.strictEqual(camp.jumpPoint.HK, 1);
+  assert.strictEqual(defendVariant(camp, 'HK', 1, 1), null, 'an attack never played does not pick variants');
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const tokOf = (n: string): Buffer => fs.readFileSync(path.join(RAW, `${n}.tok`));
   const d = buildMission({ scripts: [{ tok: tokOf('ATP1D1FR'), phase: 1, name: 'ATP1D1FR' }, { tok: tokOf('ATP1D1FRFail'), phase: 1, name: 'ATP1D1FRFail', whenWon: { attack: 'ATP1M1FR', won: false } }],
@@ -317,12 +322,19 @@ test('command card: the train and research buttons of a building never share a c
 // from the scripts (not from game code): an attack tagged with a sub-house (ATP1M1FR: protect the
 // Fremen camp) earns that sub-house's alliance when won; Ix and Tleilaxu exclude each other
 // (Wikipedia). An allied sub-house's building is in the third builder's menu; the others stay locked.
-test('sub-house alliances: a won tagged attack allies the sub-house and unlocks its building', opts, () => {
+// Corrected after a second audit: the tag of the script name is not the alliance (ATP3M5TL is fought
+// *against* the Tleilaxu); 38 scripts play "<H>allygain<n>" once their goal is met (ATallygain1 "the
+// Fremen want to discuss an alliance with us": 1 Fremen, 2 Sardaukar, 3 Ix, 4 Tleilaxu). That
+// message marks the alliance; a won mission stores it.
+test('sub-house alliances: the allygain message of a won mission allies the sub-house and unlocks its building', opts, () => {
   const all = loadAll();
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const tokOf = (n: string): Buffer => fs.readFileSync(path.join(RAW, `${n}.tok`));
   const attack = (s: string) => buildMission({ scripts: [{ tok: tokOf(s), phase: 1, name: s }], meta, ...all, name: s, playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
-  assert.ok(attack('ATP1M1FR').script.includes('call StoreInteger(EmpCache, "emp", "allyFR", 1)'), 'Fremen ally after ATP1M1FR');
+  const fr = attack('ATP1M4FR').script;
+  assert.match(fr, /set EmpMsgAlly\[\d+\] = 1\n/, 'ATallygain1 marks the Fremen');
+  assert.ok(fr.includes('if EmpAllyGain[1] then') && fr.includes('call StoreInteger(EmpCache, "emp", "allyFR", 1)'), 'stored when won');
+  assert.ok(!attack('ATP3M5TL').script.includes('set EmpMsgAlly['), 'a mission against the Tleilaxu allies nobody');
   const ix = attack('ATP2M13IX').script;
   assert.ok(ix.includes('call StoreInteger(EmpCache, "emp", "allyIX", 1)') && ix.includes('call StoreInteger(EmpCache, "emp", "allyTL", 0)'), 'Ix ally ends the Tleilaxu one');
   const camp = all.units.rawcode.get('FRCamp');
@@ -330,6 +342,48 @@ test('sub-house alliances: a won tagged attack allies the sub-house and unlocks 
   assert.match(ix, /GetStoredInteger\(EmpCache, "emp", "allyFR"\) == 1/);
   const menu = all.units.objects.find((o) => o.id === all.units.ids.allyBuilders.AT)?.mods.filter((m) => m.field === 'ubui').map((m) => String(m.value)).at(-1)?.split(',') ?? [];
   assert.deepStrictEqual(menu.sort(), ['FRCamp', 'IMBarracks', 'IXResCentre', 'TLFleshVat', 'GUPalace'].map((n) => all.units.rawcode.get(n)).sort(), 'third builder');
+});
+
+// Special abilities were missing (independent audit 2026-10-08): Deviator (Deviate_B, DeviateDuration,
+// CanBeDeviated), Leech / Contaminator (Leech_B / Contaminator_B: Infantry, ShieldHealth per tick),
+// Engineer (CanBeEngineered), Saboteur (SaboteurBomb), crushing (Crushes / Crushable).
+test('special abilities: data from Rules.txt and their runtime', opts, () => {
+  const all = loadAll();
+  const sp = specialAbilities(all.rules);
+  assert.strictEqual(sp.deviateTicks, 400, 'first DeviateDuration of [General] wins');
+  assert.ok(sp.deviators.includes('ORDeviator'));
+  assert.deepStrictEqual(sp.leeches.find((l) => l.name === 'TLLeech'), { name: 'TLLeech', infantry: false, damagePerTick: 2, damage: 100 });
+  assert.deepStrictEqual(sp.leeches.find((l) => l.name === 'TLContaminator'), { name: 'TLContaminator', infantry: true, damagePerTick: 10000, damage: 10 });
+  assert.deepStrictEqual([...sp.engineers].sort(), ['ATEngineer', 'HKEngineer', 'OREngineer']);
+  assert.deepStrictEqual(sp.saboteurs, [{ name: 'ORSaboteur', damage: 3000, radiusTiles: 3 }]);
+  assert.ok(sp.notDeviatable.length === 43 && sp.engineerable.length >= 39 && sp.crushers.length === 17 && sp.crushable.length === 36);
+  // repair vehicle (Repair = true): [General] RepairTileRange, RepairRate per 10 ticks
+  assert.deepStrictEqual(sp.repair, { units: ['ATRepairUnit'], rangeTiles: 10, perTenTicks: 12 });
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'specials', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const id = (n: string) => all.units.rawcode.get(n);
+  assert.ok(m.script.includes(`call SaveInteger(EmpSpTab, '${id('ORDeviator')}', 0, 1)`), 'deviator kind');
+  assert.ok(m.script.includes(`call SaveInteger(EmpSpTab, '${id('TLContaminator')}', 0, 3)`), 'contaminator kind');
+  const immune = sp.notDeviatable.find((n) => id(n)) as string;
+  assert.ok(m.script.includes(`call SaveBoolean(EmpSpTab, '${id(immune)}', 7, true)`), `${immune} cannot be deviated`);
+  assert.ok(m.script.includes(`call SaveBoolean(EmpSpTab, '${id('ATBarracks')}', 8, true)`), 'barracks can be engineered');
+  assert.ok(m.script.includes('EVENT_PLAYER_UNIT_DAMAGED') && m.script.includes('function EmpSpDamaged'), 'damage hook');
+  assert.ok(m.script.includes('function EmpSpTick'), 'engineer / saboteur / crush scan');
+  assert.ok(m.script.includes(`call SaveInteger(EmpSpTab, '${id('ATRepairUnit')}', 0, 6)`), 'repair vehicle');
+});
+
+// Regression (second audit): builders came only with a construction yard the player built
+// (CONSTRUCT_FINISH); the bases of defence battles (EmpDefendStart), placed story bases and yards made
+// by scripts (BuildObject) are made with CreateUnit, so there the player could build nothing.
+// Every yard of the player now gets its builders once, whenever it appears.
+test('every construction yard of the player gets its builders, also those made with CreateUnit', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'yards', playerHouse: 'Atreides', kind: 'defend', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes('function EmpGiveBuilders takes unit b returns nothing'));
+  assert.ok(m.script.includes('function EmpYardTick') && /TimerStart\(CreateTimer\(\), [\d.]+, true, function EmpYardTick\)/.test(m.script), 'periodic yard check');
+  const done = m.script.slice(m.script.indexOf('function EmpOnBuildingDone'), m.script.indexOf('endfunction', m.script.indexOf('function EmpOnBuildingDone')));
+  assert.ok(done.includes('call EmpGiveBuilders(b)'), 'built yards too, once');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

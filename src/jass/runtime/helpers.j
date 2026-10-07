@@ -275,7 +275,8 @@ endfunction
 function EmpSwCalm takes nothing returns nothing
     local timer tm = GetExpiredTimer()
     local unit u = LoadUnitHandle(EmpSwTab, GetHandleId(tm), 0)
-    local integer p = LoadInteger(EmpSwTab, GetHandleId(u), 23)
+    // the side is kept with the timer: a unit removed meanwhile still gives its count back
+    local integer p = LoadInteger(EmpSwTab, GetHandleId(tm), 1)
     if u != null and p > 0 and EmpAlive(u) then
         call SetUnitOwner(u, Player(p - 1), true)
     endif
@@ -315,6 +316,7 @@ function EmpSwAffect takes player who, real x, real y, real r, integer kind, rea
                 call SetUnitOwner(u, Player(PLAYER_NEUTRAL_AGGRESSIVE), false)
                 set tm = CreateTimer()
                 call SaveUnitHandle(EmpSwTab, GetHandleId(tm), 0, u)
+                call SaveInteger(EmpSwTab, GetHandleId(tm), 1, LoadInteger(EmpSwTab, GetHandleId(u), 23))
                 call TimerStart(tm, seconds, false, function EmpSwCalm)
             endif
         endif

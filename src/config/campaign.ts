@@ -21,17 +21,22 @@ export const JUMP_SCRIPT: Readonly<Record<HouseCode, Readonly<Partial<Record<Hou
 export type MissionKind = 'attack' | 'defend' | 'story' | 'start' | 'tutorial';
 export const KIND_ID: Readonly<Record<MissionKind, number>> = { attack: 0, defend: 1, story: 2, start: 3, tutorial: 4 };
 
-/** Sub-house alliances, inferred from the scripts (not from game code): an attack tagged with the
- * sub-house (<H>P<p>M<t><tag>, e.g. ATP1M1FR "protect the Fremen camp") allies it when won, which
- * unlocks its building; Ix and Tleilaxu exclude each other (Wikipedia, Emperor: Battle for Dune).
- * TODO(subhouse): no attack is tagged with the Guild, so GUPalace stays locked; the scripts' other
- * ways of winning or losing a sub-house (story choices) are not modelled. */
+/** Sub-house alliances: 38 scripts play "<H>allygain<n>" once their goal is met (ATallygain1 "the
+ * Fremen want to discuss an alliance with us"); a won mission that played it allies the sub-house
+ * ALLYGAIN_TAGS[n - 1], which unlocks its building; Ix and Tleilaxu exclude each other (Wikipedia,
+ * Emperor: Battle for Dune). (The tag in a script's name is not the alliance: ATP3M5TL is fought
+ * against the Tleilaxu.)
+ * TODO(subhouse): no allygain names the Guild, so GUPalace stays locked; losing a sub-house's favour
+ * otherwise than through its rival is not modelled. */
 export const SUBHOUSE_TAGS: Readonly<Record<string, { building: string; rival?: string }>> = {
   FR: { building: 'FRCamp' },
   SA: { building: 'IMBarracks' },
   IX: { building: 'IXResCentre', rival: 'TL' },
   TL: { building: 'TLFleshVat', rival: 'IX' },
 };
+/** allygain<n> -> sub-house tag (index n - 1), from the message texts (1 Fremen ... 4 Tleilaxu). */
+export const ALLYGAIN_TAGS: readonly string[] = ['FR', 'SA', 'IX', 'TL'];
+export const ALLYGAIN_KEY = /^(?:AT|HK|OR)allygain(\d)$/i;
 /** Every sub-house building (the third builder's menu); those without a tag stay locked. */
 export const SUBHOUSE_BUILDINGS: readonly string[] = ['FRCamp', 'IMBarracks', 'IXResCentre', 'TLFleshVat', 'GUPalace'];
 

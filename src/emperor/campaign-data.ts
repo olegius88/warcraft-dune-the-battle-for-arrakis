@@ -121,7 +121,9 @@ function defendVariant(camp: Campaign, h: HouseCode, phase: number, territory: n
   const slot = camp.missions[h].defend[`${phase}:${territory}`];
   const attack = camp.missions[h].attack[`${phase}:${territory}`]?.script;
   const name = slot?.fail ?? slot?.win;
-  if (!slot || !name || !attack) return null;
+  // an attack on the house's own capital is never played (build-campaign.ts), so it picks nothing
+  // (HKP1D1FRFail / HKP1M1FR made HK_D01 always play Fail; test/emperor-mission.test.ts)
+  if (!slot || !name || !attack || camp.jumpPoint[h] === territory) return null;
   return { name, attack, won: !slot.fail };
 }
 
