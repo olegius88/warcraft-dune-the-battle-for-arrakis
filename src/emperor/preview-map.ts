@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readArchive } from './rfh.ts';
 import { readMeta } from './mapxbf.ts';
+import type { GamePoint } from './mapxbf.ts';
 import { buildTerrain } from './terrain.ts';
 import { buildMap } from '../wc3/map.ts';
 import { real } from '../wc3/jass.ts';
@@ -14,7 +15,7 @@ const GAME = process.env.EMPEROR_DIR || 'G:\\Games\\Emperor';
 const MAPS_DIR = path.join(import.meta.dirname, '..', '..', 'data', 'emperor', 'maps');
 
 /** Extract (once) the files of map folders whose name contains `needle`; returns folder paths. */
-function ensureMap(needle) {
+function ensureMap(needle: string): string[] {
   const found = fs.existsSync(MAPS_DIR) ? fs.readdirSync(MAPS_DIR).filter((d) => d.includes(needle)) : [];
   if (found.length) return found.map((d) => path.join(MAPS_DIR, d));
   for (const arch of ['MAPS0001', 'MAPS0002']) {
@@ -27,13 +28,22 @@ function ensureMap(needle) {
   return fs.readdirSync(MAPS_DIR).filter((d) => d.includes(needle)).map((d) => path.join(MAPS_DIR, d));
 }
 
-function previewMap(folder) {
+export interface MapPreview {
+  buffer: Buffer;
+  title: string;
+  /** WC3 cells */
+  size: [number, number];
+  points: number;
+}
+
+function previewMap(folder: string): MapPreview {
   const meta = readMeta(path.join(folder, 'test.xbf'));
   const t = buildTerrain(meta);
+  const [mapW, mapH] = meta.mapSize as [number, number]; // buildTerrain has checked it
   const ge = meta.gameElements || {};
-  const pts = [];
+  const pts: Array<{ name: string; p: GamePoint }> = [];
   for (const [g, subs] of Object.entries(ge)) for (const [s, list] of Object.entries(subs)) for (const p of list) pts.push({ name: `${g}/${s}`, p });
-  const base = (ge.Base && (ge.Base.Primary || [])[0]) || pts[0]?.p || { x: meta.mapSize[0] * 16, y: meta.mapSize[1] * 16 };
+  const base = (ge.Base && (ge.Base.Primary || [])[0]) || pts[0]?.p || { x: mapW * 16, y: mapH * 16 };
   const [bx, by] = t.toWorld(base.x, base.y);
   const lines = pts.map(({ name, p }) => {
     const [x, y] = t.toWorld(p.x, p.y);
@@ -64,7 +74,7 @@ if (import.meta.main) {
   const out = process.argv[3] || path.join(import.meta.dirname, '..', '..', 'build', 'preview', 'Preview.w3x');
   const folders = ensureMap(needle);
   if (!folders.length) throw new Error(`no map folder matching ${needle}`);
-  const r = previewMap(folders[0]);
+  const r = previewMap(folders[0] as string);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, r.buffer);
   console.log('preview', r.title, r.size.join('x'), 'points', r.points, '->', out);

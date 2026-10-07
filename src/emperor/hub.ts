@@ -14,38 +14,65 @@
 import { buildMap } from '../wc3/map.ts';
 import { str, real } from '../wc3/jass.ts';
 import { CACHE_FILE } from './mission.ts';
+import type { ScriptPlayer } from '../wc3/jass.ts';
+import type { Campaign, HouseCode, Territory } from './campaign-data.ts';
+import type { UnitData } from './units.ts';
 
-const HOUSES = ['AT', 'HK', 'OR'];
+/** Map file names of the story missions of one house. */
+export interface StoryMaps {
+  heighliner?: string;
+  homeDefence?: string;
+  /** enemy house code -> assault on its homeworld */
+  homeAttack?: Partial<Record<string, string>>;
+  end?: string;
+  civilWar?: string;
+}
+
+export interface HubOptions {
+  house: HouseCode;
+  campaign: Campaign;
+  /** battle map file for (attack|defend, territory), null when there is none */
+  battleMap: (kind: 'attack' | 'defend', n: number) => string | null;
+  storyMap: StoryMaps;
+  /** for the object data (marker unit) */
+  units: UnitData;
+}
+
+type Vec2 = [number, number];
+
+const HOUSES: HouseCode[] = ['AT', 'HK', 'OR'];
 const HOUSE_NAME = ['Атрейдесы', 'Харконнены', 'Ордосы'];
 const COLOR = [1, 0, 6];
 
 /** Deterministic spring layout of the territory graph in [-1, 1]^2. */
-function layout(territories, jumpPoint) {
-  const pos = new Map();
-  const anchor = { AT: [0.85, 0.75], HK: [-0.85, 0.75], OR: [0, -0.9] };
+function layout(territories: Territory[], jumpPoint: Record<HouseCode, number>): Map<number, Vec2> {
+  const pos = new Map<number, Vec2>();
+  const anchor: Record<HouseCode, Vec2> = { AT: [0.85, 0.75], HK: [-0.85, 0.75], OR: [0, -0.9] };
+  // every territory has an owner: the BFS from the jump points reaches the whole graph
   for (const t of territories) {
-    const a = anchor[t.owner];
+    const a = anchor[t.owner as HouseCode];
     const k = t.n * 2.399; // golden angle spread
     pos.set(t.n, [a[0] * (1 - t.ring * 0.22) + Math.cos(k) * 0.08 * t.ring, a[1] * (1 - t.ring * 0.22) + Math.sin(k) * 0.08 * t.ring]);
   }
   for (let it = 0; it < 400; it++) {
-    const f = new Map(territories.map((t) => [t.n, [0, 0]]));
+    const f = new Map(territories.map((t): [number, Vec2] => [t.n, [0, 0]]));
+    const at = <V,>(m: Map<number, V>, n: number): V => m.get(n) as V;
     for (const a of territories) for (const b of territories) {
       if (a.n >= b.n) continue;
-      const [ax, ay] = pos.get(a.n), [bx, by] = pos.get(b.n);
+      const [ax, ay] = at(pos, a.n), [bx, by] = at(pos, b.n);
       let dx = ax - bx, dy = ay - by;
       const d = Math.max(0.02, Math.hypot(dx, dy));
       dx /= d; dy /= d;
       const linked = a.neighbours.includes(b.n);
       const rep = 0.012 / (d * d);
       const att = linked ? (d - 0.3) * 0.08 : 0;
-      const fa = f.get(a.n), fb = f.get(b.n);
+      const fa = at(f, a.n), fb = at(f, b.n);
       fa[0] += (rep - att) * dx; fa[1] += (rep - att) * dy;
       fb[0] -= (rep - att) * dx; fb[1] -= (rep - att) * dy;
     }
     for (const t of territories) {
       if (Object.values(jumpPoint).includes(t.n)) continue; // capitals stay at the corners
-      const p = pos.get(t.n), fv = f.get(t.n);
+      const p = at(pos, t.n), fv = at(f, t.n);
       p[0] = Math.max(-1, Math.min(1, p[0] + Math.max(-0.05, Math.min(0.05, fv[0]))));
       p[1] = Math.max(-1, Math.min(1, p[1] + Math.max(-0.05, Math.min(0.05, fv[1]))));
     }
@@ -53,28 +80,20 @@ function layout(territories, jumpPoint) {
   return pos;
 }
 
-/**
- * @param {object} o
- * @param {string} o.house           'AT' | 'HK' | 'OR'
- * @param {object} o.campaign        campaign-data.loadCampaign()
- * @param {(kind:string, n:number)=>string|null} o.battleMap  battle map file for (attack|defend, territory)
- * @param {object} o.storyMap        { heighliner, homeDefence, homeAttack: {AT,HK,OR}, end, civilWar? } -> map file names
- * @param {object} o.units           buildUnitData (for marker unit ids)
- */
-function buildHub(o) {
+function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   const me = HOUSES.indexOf(o.house);
   const terr = o.campaign.territories;
   const pos = layout(terr, o.campaign.jumpPoint);
   const W = 96, H = 96, SPAN = 40 * 128; // markers inside +-SPAN
-  const xy = (n) => { const [x, y] = pos.get(n); return [x * SPAN, y * SPAN]; };
+  const xy = (n: number): Vec2 => { const [x, y] = pos.get(n) as Vec2; return [x * SPAN, y * SPAN]; };
   const jp = HOUSES.map((h) => o.campaign.jumpPoint[h]);
   const foes = [0, 1, 2].filter((h) => h !== me);
   const markerId = 'xM00';
-  const lines = [];
+  const lines: string[] = [];
   for (const t of terr) {
     const [x, y] = xy(t.n);
     lines.push(`    set EmpTX[${t.n}] = ${real(x)}`, `    set EmpTY[${t.n}] = ${real(y)}`, `    set EmpTName[${t.n}] = ${str(t.name)}`);
-    lines.push(`    set EmpInitOwner[${t.n}] = ${HOUSES.indexOf(t.owner)}`);
+    lines.push(`    set EmpInitOwner[${t.n}] = ${t.owner ? HOUSES.indexOf(t.owner) : -1}`);
     t.neighbours.forEach((m, i) => lines.push(`    set EmpAdj[${t.n * 8 + i}] = ${m}`));
     lines.push(`    set EmpAdjCount[${t.n}] = ${t.neighbours.length}`);
     lines.push(`    set EmpMapA[${t.n}] = ${str(o.battleMap('attack', t.n) || '')}`, `    set EmpMapD[${t.n}] = ${str(o.battleMap('defend', t.n) || '')}`);
@@ -498,11 +517,11 @@ endfunction`;
   // players: 0 = me, 1 and 2 = the other houses (passive). Player ids are house-relative here,
   // so remap owners: house h -> player (h - me + 3) % 3.
   const fixed = functions.replace(/Player\(EmpOwner\[n\]\)/g, `Player(ModuloInteger(EmpOwner[n] - ${me} + 3, 3))`);
-  const players = [0, 1, 2].map((i) => ({ id: i, control: i === 0 ? 'user' : 'computer', race: 'human', team: i, x: 0, y: 0, name: HOUSE_NAME[(me + i) % 3] }));
+  const players: ScriptPlayer[] = [0, 1, 2].map((i): ScriptPlayer => ({ id: i, control: i === 0 ? 'user' : 'computer', race: 'human', team: i, x: 0, y: 0, name: HOUSE_NAME[(me + i) % 3] }));
   const m = buildMap({
     name: `Арракис — ${HOUSE_NAME[me]}`, description: 'Стратегическая карта кампании', width: W, height: H,
     tileset: 'B', ground: ['Bdsr', 'Bdsd', 'Bdrh'], cliffs: ['CBde'],
-    corner: (x, y) => ({ texture: (x * 7 + y * 3) % 13 === 0 ? 1 : 0, boundary: x < 6 || x > W - 6 || y < 4 || y > H - 8 }),
+    corner: (x: number, y: number) => ({ texture: (x * 7 + y * 3) % 13 === 0 ? 1 : 0, boundary: x < 6 || x > W - 6 || y < 4 || y > H - 8 }),
     players, globals, functions: fixed,
     init: '    call TimerStart( CreateTimer(), 0.1, false, function EmpHubStart )',
     imports: { 'war3map.w3u': o.units.w3u, 'war3map.w3a': o.units.w3a },

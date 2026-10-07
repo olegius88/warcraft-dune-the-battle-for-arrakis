@@ -10,11 +10,26 @@ import { readMeta } from './mapxbf.ts';
 import { buildMission } from './mission.ts';
 import { ensureMap } from './preview-map.ts';
 import { loadSpeech } from './speech.ts';
+import type { House } from './battle.ts';
+import type { MissionContext } from './context.ts';
+import type { Rules } from './rules.ts';
+import type { UnitData } from './units.ts';
+import type { TokenTable } from './tok.ts';
+import type { Speech } from './speech.ts';
 
 const ROOT = path.join(import.meta.dirname, '..', '..');
 const RAW = path.join(ROOT, 'data', 'emperor', 'raw');
 
-function loadAll() {
+/** Everything a mission build needs from the extracted game data. */
+export interface EmperorData {
+  ctx: MissionContext;
+  rules: Rules;
+  units: UnitData;
+  table: TokenTable;
+  speech: Speech | null;
+}
+
+function loadAll(): EmperorData {
   const ctx = loadContext(RAW, path.join(RAW, 'loose', 'strings'));
   const rules = loadRules(path.join(RAW, 'Rules.txt'));
   const tooltipName = new Map(ctx.tooltips.map((t) => [t.key.toLowerCase(), ctx.tooltipText(ctx.tooltips.indexOf(t))]));
@@ -23,6 +38,10 @@ function loadAll() {
   const speech = loadSpeech(process.env.EMPEROR_DIR || 'G:\\Games\\Emperor');
   return { ctx, rules, units, table, speech };
 }
+
+const HOUSES: House[] = ['Atreides', 'Harkonnen', 'Ordos'];
+const HOUSE_BY_CODE: Partial<Record<string, House>> = { AT: 'Atreides', HK: 'Harkonnen', OR: 'Ordos' };
+const asHouse = (s: string | null | undefined): House | undefined => HOUSES.find((h) => h === s);
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
@@ -36,7 +55,7 @@ if (import.meta.main) {
   const folder = ensureMap(mapNeedle)[0];
   const meta = readMeta(path.join(folder, 'test.xbf'));
   const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW, script)), phase: 1, name: script }], meta, ...all, name: path.basename(script, '.tok'),
-    territoryBattle: territory, defaultEnemyHouse: enemyHouse || 'Harkonnen', playerHouse: { AT: 'Atreides', HK: 'Harkonnen', OR: 'Ordos' }[script.slice(0, 2).toUpperCase()] || 'Atreides', defaultTech: techLevel,
+    territoryBattle: territory, defaultEnemyHouse: asHouse(enemyHouse) || 'Harkonnen', playerHouse: HOUSE_BY_CODE[script.slice(0, 2).toUpperCase()] || 'Atreides', defaultTech: techLevel,
     debugName: path.basename(script, '.tok'), hubMap: 'Arrakis.w3x' });
   const out = outArg || path.join(ROOT, 'build', 'missions', path.basename(script, '.tok') + '.w3x');
   fs.mkdirSync(path.dirname(out), { recursive: true });
