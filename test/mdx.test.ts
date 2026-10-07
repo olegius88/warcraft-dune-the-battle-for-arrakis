@@ -175,3 +175,44 @@ test('XBF -> MDX: house-colour textures ("=") get a team colour layer and see-th
   for (let i = 3; i < blp.rgba.length; i += 4) if (blp.rgba[i] === 0) clear++;
   assert.ok(clear > blp.rgba.length / 4 * 0.03, `${clear} transparent pixels`);
 });
+
+// Texture names differ by flag characters (@nebulas_256 / %nebulas_256) that the archive path does
+// not keep for units; two names on one path must be the same file (only ix-grille-128 /
+// ix_grille_128 are, byte for byte). The menu scene keeps every flag in its paths.
+test('texture paths: unit names on one path are the same file; menu scene paths are all distinct', { skip: fs.existsSync(archive + '.RFH') ? false : 'game data not found' }, async () => {
+  const { readArchive } = await import('../src/emperor/rfh.ts');
+  const { readXbf } = await import('../src/emperor/xbf.ts');
+  const { MODEL_PATH, EFFECT_TEXTURE } = await import('../src/config/models.ts');
+  const { MENU_MODEL } = await import('../src/config/menu.ts');
+  const used = new Set<string>();
+  for (const f of readArchive(archive, (n) => /^(units|buildings)\/.*_h0\.xbf$/i.test(n))) {
+    try { for (const t of readXbf(f.data).textures) if (!EFFECT_TEXTURE(t)) used.add(t.toLowerCase()); } catch { /* not a model this build converts */ }
+  }
+  const byPath = new Map<string, string[]>();
+  for (const t of used) { const p = MODEL_PATH.texture(t).toLowerCase(); byPath.set(p, [...(byPath.get(p) ?? []), t]); }
+  const shared = [...byPath.values()].filter((v) => v.length > 1);
+  const data = new Map<string, Buffer>();
+  for (const f of readArchive(archive, (n) => shared.flat().includes(n.split('/').pop()?.toLowerCase() ?? ''))) data.set((f.name.split('/').pop() as string).toLowerCase(), f.data);
+  for (const names of shared) assert.ok(names.every((n) => (data.get(n) as Buffer).equals(data.get(names[0] as string) as Buffer)), names.join(' / '));
+  assert.notStrictEqual(MENU_MODEL.texture('@nebulas_256.tga'), MENU_MODEL.texture('%nebulas_256.tga'));
+});
+
+// The campaign screen background (src/emperor/menu-scene.ts): Emperor's menu scene with a camera, the
+// planet turning and the stars moving on their own loops (sparse key frames of MAIN.XBF).
+test('menu scene: camera, global sequences, the planet turns, no texture path shared', { skip: fs.existsSync(archive + '.RFH') ? false : 'game data not found' }, async () => {
+  const { buildMenuScene } = await import('../src/emperor/menu-scene.ts');
+  const { MENU_MODEL } = await import('../src/config/menu.ts');
+  const files = buildMenuScene();
+  const m = new MdlxModel();
+  m.load(new Uint8Array(files[MENU_MODEL.model] as Buffer));
+  assert.strictEqual(m.cameras.length, 1);
+  assert.deepStrictEqual([...m.globalSequences], [80000, 80320, 273360]);
+  const planet = m.bones.find((b: { name: string }) => b.name === '^planet');
+  const rot = planet?.animations.find((a: { name: string }) => a.name === 'KGRT');
+  assert.ok(rot && rot.globalSequenceId >= 0 && rot.frames.length > 2, 'the planet has a looping rotation');
+  const star = m.bones.find((b: { name: string }) => b.name === '#star1');
+  assert.ok(star?.animations.some((a: { name: string }) => a.name === 'KGTR'), 'the star moves');
+  const paths = m.textures.map((t: { path: string }) => t.path.toLowerCase());
+  for (const p of paths) assert.ok(files[Object.keys(files).find((k) => k.toLowerCase() === p) as string], `${p} is converted`);
+  assert.strictEqual(new Set(Object.keys(files)).size, Object.keys(files).length);
+});

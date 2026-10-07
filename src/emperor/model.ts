@@ -84,9 +84,44 @@ function quat(m: Mat): number[] {
   return q.map((v) => v / l);
 }
 
+/** Spherical interpolation of unit quaternions (the shorter way). */
+function slerp(a: number[], b: number[], t: number): number[] {
+  let d = a.reduce((s, v, i) => s + v * (b[i] as number), 0);
+  const bb = d < 0 ? b.map((v) => -v) : b;
+  d = Math.abs(d);
+  if (d > 0.9995) { const q = a.map((v, i) => v + ((bb[i] as number) - v) * t); const l = Math.hypot(...q); return q.map((v) => v / l); }
+  const th = Math.acos(d), s = Math.sin(th);
+  return a.map((v, i) => (v * Math.sin((1 - t) * th) + (bb[i] as number) * Math.sin(t * th)) / s);
+}
+
+/** Column-major T * R * S of a key frame (quaternion x, y, z, w). */
+function trs(t: V3, q: number[], s: V3): Mat {
+  const [x, y, z, w] = q as [number, number, number, number];
+  const r = [1 - 2 * (y * y + z * z), 2 * (x * y + z * w), 2 * (x * z - y * w), 2 * (x * y - z * w), 1 - 2 * (x * x + z * z), 2 * (y * z + x * w), 2 * (x * z + y * w), 2 * (y * z - x * w), 1 - 2 * (x * x + y * y)];
+  return [r[0] as number * s[0], r[1] as number * s[0], r[2] as number * s[0], 0, r[3] as number * s[1], r[4] as number * s[1], r[5] as number * s[1], 0, r[6] as number * s[2], r[7] as number * s[2], r[8] as number * s[2], 0, t[0], t[1], t[2], 1];
+}
+
+/** Local matrix of sparse key frames (the menu scene's planet, stars: rotation / scale / translation
+ * keys at some frames, interpolated between them; a missing part is the node's own). */
+function sparseAt(n: XbfNode, frame: number): Mat {
+  const keys = (n.keyAnimation as NonNullable<XbfNode['keyAnimation']>).frames;
+  let i = 0;
+  while (i + 1 < keys.length && (keys[i + 1] as { frame: number }).frame <= frame) i++;
+  const a = keys[i] as NonNullable<typeof keys[number]>, b = keys[Math.min(i + 1, keys.length - 1)] as NonNullable<typeof keys[number]>;
+  const t = b.frame > a.frame ? Math.max(0, Math.min(1, (frame - a.frame) / (b.frame - a.frame))) : 0;
+  const lerp = (p: V3 | null, q: V3 | null, own: V3): V3 => { const x = p ?? own, y = q ?? x; return [x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t]; };
+  const m = n.transform;
+  const ownT: V3 = [m[12] as number, m[13] as number, m[14] as number];
+  const ownS: V3 = [Math.hypot(m[0] as number, m[1] as number, m[2] as number), Math.hypot(m[4] as number, m[5] as number, m[6] as number), Math.hypot(m[8] as number, m[9] as number, m[10] as number)];
+  const ownR = quat(m);
+  const ra = a.rotation ?? ownR, rb = b.rotation ?? ra;
+  return trs(lerp(a.translation, b.translation, ownT), slerp(ra, rb, t), lerp(a.scale, b.scale, ownS));
+}
+
 /** Local matrix of a node at an Emperor frame (bind transform when the node is not key-animated). */
 function localAt(n: XbfNode, frame: number): Mat {
   const k = n.keyAnimation;
+  if (k && k.flags > 0 && k.frames.length) return sparseAt(n, Math.max(0, Math.min(k.frameCount, frame)));
   if (!k || (k.flags !== -3 && k.flags !== -2)) return n.transform;
   const f = Math.max(0, Math.min(k.frameCount, frame));
   const m = k.flags === -3 ? k.matrices[k.extra[f] as number] : k.matrices[f];
@@ -198,6 +233,8 @@ export interface SceneOptions {
   /** each animated node loops on its own (global sequences over its key frames) and one looping
    * Stand sequence of this many ms holds the model; the SEQUENCE_MAP ranges are not used */
   ownLoops?: number;
+  /** every layer unshaded and unfogged (a backdrop with no light of its own) */
+  unshaded?: boolean;
 }
 
 function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRange[]>, texture: (file: string) => TextureRef | null, opts: SceneOptions = {}): ConvertedModel {
@@ -224,7 +261,10 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     const sceneBlend = opts.blend ? opts.blend(raw) : null;
     if (sceneBlend !== null && sceneBlend !== undefined) {
       // scene layers: glows and sky are self-lit
-      materials.push({ layers: [{ filterMode: sceneBlend, flags: sceneBlend === FILTER.none ? flags : flags | LAYER_FLAG.unshaded, textureId: texId }] });
+      // a backdrop scene: unshaded (no light of its own) and unfogged (the campaign screen fogs the
+      // far planet black otherwise, capture 2026-10-08)
+      const lit = sceneBlend === FILTER.none && !opts.unshaded ? flags : flags | LAYER_FLAG.unshaded;
+      materials.push({ layers: [{ filterMode: sceneBlend, flags: opts.unshaded ? lit | LAYER_FLAG.unfogged : lit, textureId: texId }] });
     } else if (t?.teamColour) {
       // WC3 team colour under the texture (replaceable id 1), the texture blended over it
       let team = textures.findIndex((x) => x.replaceableId === 1);

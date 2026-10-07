@@ -5,6 +5,7 @@
 
 import { readArchive } from './rfh.ts';
 import { readXbf } from './xbf.ts';
+import type { XbfNode } from './xbf.ts';
 import { xbfToMdx, AXES } from './model.ts';
 import type { TextureRef } from './model.ts';
 import { baseName } from './artini.ts';
@@ -14,7 +15,7 @@ import type { RgbaImage } from '../wc3/blp.ts';
 import { writeMdx, FILTER } from '../wc3/mdx.ts';
 import type { V3 } from '../wc3/mdx.ts';
 import { gameData } from '../config/paths.ts';
-import { MENU_SCENE, MENU_SKIP_ROOT, MENU_MODEL, MENU_CAMERA, MENU_STAND_MS, MENU_TEXTURE_FLAG_FILTER } from '../config/menu.ts';
+import { MENU_SCENE, MENU_SKIP_ROOT, MENU_MODEL, MENU_CAMERA, MENU_STAND_MS, MENU_GLOW_FACE_FLAG, MENU_UNSHADED } from '../config/menu.ts';
 
 /** Column-major 4x4 times a point. */
 const apply = (m: number[], p: V3): V3 => [0, 1, 2].map((r) => (m[r] as number) * p[0] + (m[4 + r] as number) * p[1] + (m[8 + r] as number) * p[2] + (m[12 + r] as number)) as V3;
@@ -29,15 +30,18 @@ function buildMenuScene(): Record<string, Buffer> {
   const images = new Map<string, RgbaImage>();
   for (const f of readArchive(gameData('3DDATA0001'), (n) => /^textures\//i.test(n) && wanted.has(baseName(n).toLowerCase()))) images.set(baseName(f.name).toLowerCase(), readTga(f.data));
   const hasAlpha = (img: RgbaImage): boolean => { for (let i = 3; i < img.rgba.length; i += 4) if ((img.rgba[i] as number) < 250) return true; return false; };
+  // glowing textures: those of faces with the glow flag (one texture is used with one kind of face)
+  const glow = new Set<string>();
+  const walk = (n: XbfNode): void => { for (const fc of n.faces) if (fc.flags & MENU_GLOW_FACE_FLAG) glow.add((scene.textures[fc.texture] ?? '').toLowerCase()); n.children.forEach(walk); };
+  scene.nodes.forEach(walk);
   const blend = (raw: string): number | null => {
     const img = images.get(raw.toLowerCase());
     if (!img) return null; // missing texture: leave the faces out
-    const flag = MENU_TEXTURE_FLAG_FILTER[raw[0] as keyof typeof MENU_TEXTURE_FLAG_FILTER];
-    if (flag) return FILTER[flag];
+    if (glow.has(raw.toLowerCase())) return hasAlpha(img) ? FILTER.addAlpha : FILTER.additive;
     return hasAlpha(img) ? FILTER.blend : FILTER.none;
   };
   const ref = (tex: string): TextureRef | null => images.has(tex.toLowerCase()) ? { path: MENU_MODEL.texture(tex), alpha: false, teamColour: false } : null;
-  const { model, textures } = xbfToMdx('MainMenu', scene, new Map(), ref, { keepRoot: (n) => !MENU_SKIP_ROOT(n), blend, ownLoops: MENU_STAND_MS });
+  const { model, textures } = xbfToMdx('MainMenu', scene, new Map(), ref, { keepRoot: (n) => !MENU_SKIP_ROOT(n), blend, ownLoops: MENU_STAND_MS, unshaded: MENU_UNSHADED });
   // Emperor's camera: at the origin looking along +Z, Y up; in model space through the same axes
   const eye = apply(AXES, [0, 0, 0]);
   const target = apply(AXES, [0, 0, MENU_CAMERA.lookAt]);
