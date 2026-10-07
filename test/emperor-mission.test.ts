@@ -118,6 +118,10 @@ test('stealthed-when-still units and the AIThreat target priority come from Rule
   assert.match(m.script, new RegExp(`call EmpVetLevel\\('${all.units.rawcode.get('ATSniper')}', 3, [^)]*, true\\)`), 'sniper level 3 stealth');
   assert.match(m.script, /TimerStart\(CreateTimer\(\), 0\.2, true, function EmpStillTick\)/);
   assert.ok(m.script.includes('EmpTick - LoadInteger(EmpVetUnit, h, 10) >= 30'), 'StealthDelay');
+  // UnstealthRange is a detection radius of turrets and scouts (HKGunTurret 6 tiles = 768)
+  assert.strictEqual(all.rules.objects.get('HKGunTurret')?.unstealthRange, 6);
+  assert.ok(m.script.includes(`call SaveReal(EmpVet, '${all.units.rawcode.get('HKGunTurret')}', 3, 768.0)`), 'detector range');
+  assert.ok(m.script.includes('call GroupEnumUnitsInRange(g, GetUnitX(u), GetUnitY(u), 768.0, null)'), 'detectors searched within the largest range');
   const kindjal = all.rules.objects.get('ATKindjal');
   assert.strictEqual(kindjal?.aiThreat, 50);
   assert.ok(m.script.includes(`call SaveInteger(EmpThreat, '${all.units.rawcode.get('ATKindjal')}', 0, 50)`), 'AIThreat default');

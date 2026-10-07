@@ -204,6 +204,8 @@ function buildMission(p: MissionParams): BuiltMission {
     if (!id) continue;
     if (o.score !== 1) vetLines.push(`    call SaveInteger(EmpVet, '${id}', 0, ${o.score})`);
     if (o.stealthedWhenStill) vetLines.push(`    call SaveBoolean(EmpVet, '${id}', 2, true)`);
+    // UnstealthRange: this type reveals stealthed enemies within it (WC3 units)
+    if (o.unstealthRange > 0) vetLines.push(`    call SaveReal(EmpVet, '${id}', 3, ${real(o.unstealthRange * WC3_UNITS_PER_TILE)})`);
     if (o.aiThreat > 0) vetLines.push(`    call SaveInteger(EmpThreat, '${id}', 0, ${o.aiThreat})`);
     // CanSelfRepair n = n health per repair period -> WC3 health per second
     const regen = (n: number): string => real((n * TICKS_PER_SECOND) / REPAIR_PERIOD_TICKS / HP_DIVISOR);
@@ -258,6 +260,8 @@ function buildMission(p: MissionParams): BuiltMission {
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
     playerHouse: playerHouseId, reinf, reinfLines: reinfLines.join('\n'), ABILITY,
     stealth: p.rules?.stealth ?? { delay: 0, afterFiring: 0 },
+    // the largest UnstealthRange: how far to look for a detector
+    detectRadius: real(Math.max(0, ...[...(p.rules ? p.rules.objects.values() : [])].map((o) => o.unstealthRange)) * WC3_UNITS_PER_TILE),
     colorPlayer: HOUSE_COLOR[playerHouseId], colorAtreides: HOUSE_COLOR[HOUSE_ID.Atreides], colorHarkonnen: HOUSE_COLOR[HOUSE_ID.Harkonnen],
   };
   const jass = (name: string): string => renderFile(jassFile(`mission/${name}`), scope);
