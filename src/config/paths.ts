@@ -44,3 +44,7 @@ export const FIRST_FAILURE_J = path.join(BUILD_DIR, 'first-failure.j');
 
 /** JASS syntax checker (BSD-2). */
 export const PJASS_EXE = path.join(PROJECT_ROOT, 'tools', 'bin', 'pjass.exe');
+
+/** JASS templates of the generated maps (src/jass, filled by src/wc3/template.ts). */
+export const JASS_DIR = path.join(PROJECT_ROOT, 'src', 'jass');
+export const jassFile = (name: string): string => path.join(JASS_DIR, `${name}.j`);
