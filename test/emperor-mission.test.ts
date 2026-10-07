@@ -192,3 +192,17 @@ test('territory battles have surface and vertical worms with the Rules.txt chanc
   const story = buildMission({ scripts: [], meta, ...all, name: 'no-worms', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x' });
   assert.ok(!story.script.includes('EmpWormTick'), 'no worms outside territory battles');
 });
+
+// Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines
+// (ATP1D19GN -> KK-M024, KK-M026). They were not played: only the text was shown.
+test('mission start plays the spoken briefing of the chosen script', opts, () => {
+  const all = loadAll();
+  assert.ok(all.speech);
+  assert.deepStrictEqual(all.speech.briefing('ATP1D19GN').map((l) => l.id), ['KK-M024', 'KK-M026']);
+  const meta = readMeta(path.join(ensureMap('#T19 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW, 'ATP1D19GN.tok')), phase: 1, name: 'ATP1D19GN' }],
+    meta, ...all, name: 'brief', playerHouse: 'Atreides', kind: 'defend', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const fn = (m.script.split('function EmpBriefingSpeech takes nothing returns nothing')[1] ?? '').split('endfunction')[0] ?? '';
+  assert.ok(fn.includes('KK-M024.') && fn.includes('KK-M026.'), 'both briefing lines queued');
+  assert.ok(Object.keys(m.imports).some((k) => k.includes('KK-M026')), 'briefing speech imported');
+});

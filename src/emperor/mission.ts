@@ -136,6 +136,15 @@ function buildMission(p: MissionParams): BuiltMission {
     init.push(`    set EmpMsgSound[${n}] = ${str(sp.path)}`, `    set EmpMsgSoundLen[${n}] = ${real(sp.seconds)}`);
   }
   for (const n of tooltips) { const text = p.ctx.tooltipText(n); if (text) init.push(`    set EmpTipText[${n}] = ${str(text)}`); }
+  // spoken briefing of each script (sounds.txt section Briefing), queued at start for the script
+  // chosen by the campaign phase (regression/feature test: test/emperor-mission.test.ts)
+  const briefingBlocks = scripts.map((s, i) => {
+    const lines = p.speech ? p.speech.briefing(s.name.replace(/\.tok$/i, '')) : [];
+    for (const l of lines) speechImports[l.path] = l.data;
+    return lines.length
+      ? `    if EmpScriptIndex == ${i} then\n${lines.map((l) => `        call EmpSpeak(${str(l.path)}, ${real(l.seconds)})`).join('\n')}\n    endif`
+      : '';
+  }).filter(Boolean);
   // ---- objects placed in the map itself (test.xbf tag 0x07) ----
   // owner 1 = the side defending the map (-> Player(1), e.g. the whole Atreides base of the
   // Caladan capital map), owner 0 = the player's side (-> Player(0)), owners 2/3 = scenery
@@ -509,6 +518,7 @@ endfunction`,
         call SetCameraPositionForPlayer(Player(0), x / n, y / n)
     endif
 endfunction`,
+    ...(briefingBlocks.length ? [`function EmpBriefingSpeech takes nothing returns nothing\n${briefingBlocks.join('\n')}\nendfunction`] : []),
     ...(p.autoWinSeconds ? [`// automatic flow test: win after a delay; the start mission also begins a fresh campaign
 function EmpAutoWin takes nothing returns nothing
 ${p.kind === 'start' ? `    call StoreInteger(EmpCache, ${CAT}, ${K.init}, 0)
@@ -524,7 +534,7 @@ endfunction`] : []),
     call EmpData()
     call EmpPlaced()
     call EmpVetData()
-${pickScript}
+${pickScript}${briefingBlocks.length ? '\n    call EmpBriefingSpeech()' : ''}
 ${p.briefing ? `    call CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, ${str(p.name)}, ${str(p.briefing)}, ${str(ICON.briefingQuest)})
     call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, ${real(RT.BRIEFING_SECONDS)}, "|cffffcc00" + ${str(p.name)} + "|r|n" + ${str(p.briefing)})` : ''}
     call SetPlayerColorBJ(Player(0), ConvertPlayerColor(${HOUSE_COLOR[playerHouseId]}), true)

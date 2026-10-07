@@ -8,6 +8,7 @@ import path from 'node:path';
 import { readBag, toFile, duration } from './bag.ts';
 import type { Bag, BagEntry } from './bag.ts';
 import { IMPORT_DIR } from '../config/wc3.ts';
+import { SPEECH_BRIEFING_SECTION } from '../config/runtime.ts';
 
 export interface SpeechLine {
   id: string;
@@ -20,6 +21,8 @@ export interface SpeechLine {
 export interface Speech {
   /** message key -> the line, or null when the key has no speech / the file is missing */
   forKey(key: string | undefined): SpeechLine | null;
+  /** spoken briefing of a mission script (sounds.txt section Briefing), lines in order */
+  briefing(script: string): SpeechLine[];
   sections(): Array<string | null>;
 }
 
@@ -29,6 +32,7 @@ function loadSpeech(gameDir: string): Speech | null {
     .filter((f) => fs.existsSync(f)).map(readBag);
   if (!fs.existsSync(table) || !bags.length) return null;
   const byKey = new Map<string, { id: string; section: string | null }>(); // message key (lower case)
+  const all: Array<{ key: string; id: string; section: string | null }> = []; // every entry, in order
   let section: string | null = null;
   for (const line of fs.readFileSync(table, 'latin1').split(/\r?\n/)) {
     const [key, id] = line.split('\t').map((s) => (s || '').trim());
@@ -36,6 +40,7 @@ function loadSpeech(gameDir: string): Speech | null {
     if (key === '[END]') { section = null; continue; }
     if (!id) { section = key; continue; }
     if (!byKey.has(key.toLowerCase())) byKey.set(key.toLowerCase(), { id, section });
+    all.push({ key: key.toLowerCase(), id, section });
   }
   const entries = new Map<string, { bag: Bag; e: BagEntry }>();
   for (const bag of bags) for (const e of bag.entries) if (!entries.has(e.name.toLowerCase())) entries.set(e.name.toLowerCase(), { bag, e });
@@ -43,21 +48,27 @@ function loadSpeech(gameDir: string): Speech | null {
   return {
     forKey(key) {
       const m = key && byKey.get(String(key).toLowerCase());
-      if (!m) return null;
-      const id = m.id.replace(/E$/i, '');
-      const cached = cache.get(id);
-      if (cached !== undefined) return cached;
-      const hit = entries.get(id.toLowerCase()) || entries.get(m.id.toLowerCase());
-      let r: SpeechLine | null = null;
-      if (hit) {
-        const f = toFile(hit.bag, hit.e);
-        r = { id, path: `${IMPORT_DIR.speech}${id}.${f.ext}`, data: f.data, seconds: duration(hit.bag, hit.e) };
-      }
-      cache.set(id, r);
-      return r;
+      return m ? lineFor(m.id) : null;
     },
+    briefing: (script) => all.filter((e) => e.section === SPEECH_BRIEFING_SECTION && e.key === script.toLowerCase())
+      .map((e) => lineFor(e.id)).filter((l): l is SpeechLine => l !== null),
     sections: () => [...new Set([...byKey.values()].map((v) => v.section))],
   };
+
+  /** sounds.txt id (with language suffix) -> the line, cached; null when the file is missing */
+  function lineFor(rawId: string): SpeechLine | null {
+    const id = rawId.replace(/E$/i, '');
+    const cached = cache.get(id);
+    if (cached !== undefined) return cached;
+    const hit = entries.get(id.toLowerCase()) || entries.get(rawId.toLowerCase());
+    let r: SpeechLine | null = null;
+    if (hit) {
+      const f = toFile(hit.bag, hit.e);
+      r = { id, path: `${IMPORT_DIR.speech}${id}.${f.ext}`, data: f.data, seconds: duration(hit.bag, hit.e) };
+    }
+    cache.set(id, r);
+    return r;
+  }
 }
 
 export { loadSpeech };

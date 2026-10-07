@@ -89,3 +89,6 @@ export const ORIENTATION_STEP = 90;
  * scripts map to AIRSTRIKE_SLOTS slots. */
 export const AIRSTRIKE_SECONDS = 60;
 export const AIRSTRIKE_SLOTS = 64;
+
+/** sounds.txt section that holds the spoken mission briefings (key = mission script name). */
+export const SPEECH_BRIEFING_SECTION = 'Briefing';
