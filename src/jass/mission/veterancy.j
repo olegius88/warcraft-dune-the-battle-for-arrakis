@@ -62,9 +62,11 @@ function EmpVetApply takes unit u, integer lv returns nothing
         call BlzSetUnitArmor(u, LoadReal(EmpVetUnit, h, 3) + r / ({{real ARMOR_REDUCTION}} * (1.0 - r)))
     endif
     // TODO(veterancy): ExtraRange (8 levels in Rules.txt, +25..50 %) is not applied. In 1.31.1
-    // BlzGet/SetUnitWeaponRealField(ATTACK_RANGE) read 0 and do not change the range at index 0 or 1
-    // (in-game probe src/smoke/build-probe.ts, 2026-10-07); swapping in a veteran unit type would break
-    // the scripts' references to the unit. Needs a per-unit range bonus ability (none verified yet).
+    // BlzGet/SetUnitWeaponRealField(ATTACK_RANGE) read 0 (src/smoke/build-probe.ts, 2026-10-07) and do
+    // not change how far the unit shoots either: a rifleman set to 900 at index 0, 1 or both still
+    // walked the same 243 units up to a target 700 away before firing, like the unchanged one
+    // (src/smoke/build-range-probe.ts, 2026-10-08). Swapping in a veteran unit type would break the
+    // scripts' references to the unit. Needs a per-unit range bonus ability (none verified yet).
     set v = LoadInteger(EmpVet, t, b + 6)
     if v > 0 then
         call SetUnitMoveSpeed(u, v)
