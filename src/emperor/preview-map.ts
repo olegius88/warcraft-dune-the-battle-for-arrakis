@@ -10,11 +10,12 @@ import type { GamePoint } from './mapxbf.ts';
 import { buildTerrain } from './terrain.ts';
 import { buildMap } from '../wc3/map.ts';
 import { real } from '../wc3/jass.ts';
+import { renderFile } from '../wc3/template.ts';
 import { UNIT } from '../config/wc3.ts';
 import { DEFAULT_FACING, TIME_OF_DAY } from '../config/runtime.ts';
 import { PREVIEW_FOOTMEN, PREVIEW_CAMERA_DISTANCE, PREVIEW_START_DELAY } from '../config/hub.ts';
 
-import { MAPS_DIR, PREVIEW_OUT, gameData } from '../config/paths.ts';
+import { MAPS_DIR, PREVIEW_OUT, gameData, jassFile } from '../config/paths.ts';
 
 /** Extract (once) the files of map folders whose name contains `needle`; returns folder paths. */
 function ensureMap(needle: string): string[] {
@@ -56,16 +57,7 @@ function previewMap(folder: string): MapPreview {
     name: title, description: 'Emperor terrain preview', width: t.width, height: t.height, boundary: t.boundary,
     tileset: t.tileset, ground: t.ground, cliffs: t.cliffs, corner: t.corner, pathing: t.pathing, minimapColor: t.minimapColor,
     players: [{ id: 0, control: 'user', race: 'human', team: 0, x: bx, y: by, name: 'Atreides' }],
-    functions: `function PreviewInit takes nothing returns nothing
-    call CreateNUnitsAtLoc( ${PREVIEW_FOOTMEN}, '${UNIT.fallback}', Player(0), Location(${real(bx)}, ${real(by)}), ${real(DEFAULT_FACING)} )
-${lines.join('\n')}
-    call FogEnableOff()
-    call FogMaskEnableOff()
-    call SetTimeOfDay( ${real(TIME_OF_DAY)} )
-    call SuspendTimeOfDay( true )
-    call SetCameraField( CAMERA_FIELD_TARGET_DISTANCE, ${real(PREVIEW_CAMERA_DISTANCE)}, 0.0 )
-    call SetCameraPosition( ${real(bx)}, ${real(by)} )
-endfunction`,
+    functions: renderFile(jassFile('preview/init'), { PREVIEW_FOOTMEN, UNIT, DEFAULT_FACING, TIME_OF_DAY, PREVIEW_CAMERA_DISTANCE, bx, by, markerLines: lines.join('\n') }),
     init: `    call TimerStart( CreateTimer(), ${real(PREVIEW_START_DELAY)}, false, function PreviewInit )`,
   });
   return { buffer: m.buffer, title, size: [t.width, t.height], points: pts.length };

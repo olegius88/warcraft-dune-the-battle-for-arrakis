@@ -19,6 +19,10 @@
 который объявлен со значением `undefined`, в условии считается ложью. Одна завершающая пустая
 строка файла в шаблон не входит; CRLF приводится к LF.
 
+В `.ts` остаются только строки, которые генерируются из данных (таблицы, списки юнитов, сигнатуры
+`EF_`), однострочные вызовы `init` и генератор `main`/`config` карты в `src/wc3/jass.ts`
+(слой формата `war3map.j`).
+
 Выражения не вычисляются. Всё, что нужно посчитать (сумма, склейка списка, выбор по условию),
 считается в `.ts` и передаётся в scope под понятным именем.
 
@@ -44,6 +48,8 @@
 | `battle/worms.j` | `src/emperor/battle.ts` | песчаные черви: всплытие, охота, удар снизу |
 | `battle/forces.j` | `src/emperor/battle.ts` | стартовые силы, база врага, производство и волны, оборонительные битвы |
 | `battle/init.j` | `src/emperor/battle.ts` | `EmpBattleInit`: триггеры и таймеры битвы за территорию |
+| `preview/init.j` | `src/emperor/preview-map.ts` | превью рельефа: отряд на базе, маркеры точек GameElements, камера |
+| `smoke/*.j` | `src/smoke/build-smoke.ts`, `build-hop.ts`, `build-bg-probe.ts` | дымовые тестовые карты: game cache, `SmokeLog`, смена уровня, `PlayCinematic` |
 | `runtime/globals.j` | `src/emperor/runtime.ts` | глобальные переменные рантайма API Emperor |
 | `runtime/helpers.j` | `src/emperor/runtime.ts` | вспомогательные функции рантайма (стороны, подсчёт, ИИ, речь, конец миссии) |
 | `runtime/api/<Name>.j` | `src/emperor/runtime.ts` | тело функции `EF_<Name>` API миссий Emperor |

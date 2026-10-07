@@ -11,8 +11,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildMap, buildCampaign } from '../wc3/map.ts';
 import { PATH } from '../wc3/formats.ts';
-import { str } from '../wc3/jass.ts';
-import { SMOKE_OUT_DIR } from '../config/paths.ts';
+import { renderFile } from '../wc3/template.ts';
+import type { Scope } from '../wc3/template.ts';
+import { SMOKE_OUT_DIR, jassFile } from '../config/paths.ts';
 import type { ScriptPlayer } from '../wc3/jass.ts';
 import type { Boundary, Corner } from '../wc3/formats.ts';
 
@@ -47,45 +48,22 @@ function pathing(px: number, py: number): number {
   return PATH.NO_WATER;
 }
 
+const jass = (name: string, scope: Scope = {}): string => renderFile(jassFile(`smoke/${name}`), scope);
+
 // Run a function 0.5 s after the game starts (sleeps are not allowed during map init).
-const startAfter = (fn: string): string => `    set udg_t = CreateTrigger()
-    call TriggerRegisterTimerEventSingle( udg_t, 0.50 )
-    call TriggerAddAction( udg_t, function ${fn} )`;
+const startAfter = (fn: string): string => jass('start-after', { fn });
 
 const players: ScriptPlayer[] = [{ id: 0, control: 'user', race: 'human', team: 0, x: -1024, y: -1024, name: 'Atreides' }];
 
 // Preload-based file output: PreloadGenEnd writes CustomMapData\<file>.
-const logFn = `
-function SmokeLog takes string file, string line returns nothing
-    call PreloadGenClear()
-    call PreloadGenStart()
-    call Preload( line )
-    call PreloadGenEnd( "DuneSmoke\\\\" + file )
-endfunction
-`;
+const logFn = `\n${jass('log')}\n`;
 
 // nextLevel: inside the campaign the embedded name; standalone a path under Documents\Warcraft III.
 const makeMap1 = (nextLevel: string) => buildMap({
   name: 'Dune Smoke 1', description: 'Generated smoke test map 1', width: W, height: H, boundary: BOUNDARY,
   globals: '    trigger udg_t = null',
   tileset: 'B', ground: GROUND, cliffs: ['CBde'], corner, pathing, players, tilesetDnc: 'Lordaeron',
-  functions: logFn + `
-function Smoke1Actions takes nothing returns nothing
-    local gamecache gc
-    call CreateNUnitsAtLoc( 3, 'hfoo', Player(0), Location(-1024.0, -1024.0), 270.0 )
-    call PanCameraToTimed( -1024.0, -1024.0, 0.0 )
-    call DisplayTimedTextToForce( GetPlayersAll(), 30.0, "SMOKE 1: map loaded, storing 42 in game cache, victory in 8s" )
-    set gc = InitGameCacheBJ( "DuneSmoke.w3v" )
-    call StoreIntegerBJ( 42, "value", "smoke", gc )
-    call SaveGameCacheBJ( gc )
-    call SmokeLog( "smoke1.pld", "smoke1 ok" )
-    call TriggerSleepAction( 8.0 )
-    // TODO(changelevel): CustomVictoryBJ -> ChangeLevel from our maps crashes 3.0 and 1.31 outside a
-    // campaign (any target map). Inside a real .w3n still unverified — the hub-map design depends on it.
-    call SetNextLevelBJ( ${str(nextLevel)} )
-    call CustomVictoryBJ( Player(0), false, false )
-endfunction
-`,
+  functions: `${logFn}\n${jass('smoke1', { nextLevel })}\n`,
   init: startAfter('Smoke1Actions'),
 });
 const map1 = makeMap1('Smoke2.w3x');
@@ -97,22 +75,7 @@ const map2 = buildMap({
   globals: '    trigger udg_t = null',
   tileset: 'B', ground: GROUND, cliffs: ['CBde'], corner, pathing, players,
   imports: bikPath ? { [bikName]: fs.readFileSync(bikPath) } : {},
-  functions: logFn + `
-function Smoke2Actions takes nothing returns nothing
-    local gamecache gc = InitGameCacheBJ( "DuneSmoke.w3v" )
-    local integer v = GetStoredIntegerBJ( "value", "smoke", gc )
-    call DisplayTimedTextToForce( GetPlayersAll(), 60.0, "SMOKE 2: cache value = " + I2S(v) + " (expected 42)" )
-    call SmokeLog( "smoke2.pld", "smoke2 cache=" + I2S(v) )
-    call TriggerSleepAction( 5.0 )
-    call DisplayTimedTextToForce( GetPlayersAll(), 60.0, "SMOKE 2: PlayCinematic test" )
-    // TODO(fmv): in 3.0.0.24268 PlayCinematic on an imported Bink-1 .bik returns immediately and
-    // nothing is shown (standalone run 2026-10-07). Untested: inside a .w3n, other paths/formats.
-    // Risk: Emperor FMVs may have to become in-engine cutscenes.
-    call SmokeLog( "smoke2-cine.pld", "before PlayCinematic" )
-    call PlayCinematic( ${str(bikName)} )
-    call SmokeLog( "smoke2-cine.pld", "after PlayCinematic" )
-endfunction
-`,
+  functions: `${logFn}\n${jass('smoke2', { bikName })}\n`,
   init: startAfter('Smoke2Actions'),
 });
 
