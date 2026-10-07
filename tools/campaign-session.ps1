@@ -56,11 +56,16 @@ function Shot([string]$name) {
 # running game itself counts as input: 44 minimisations while the user was away.
 $script:lastOwn = Get-Date
 $script:userWindow = [CS.Win]::GetForegroundWindow()
+$script:lastBehind = [DateTime]::MinValue
 function KeepGameBehind {
   $g = Game
   $fg = [CS.Win]::GetForegroundWindow()
   if (-not $g -or $fg -ne $g.MainWindowHandle) { if ($fg -ne [IntPtr]::Zero) { $script:userWindow = $fg }; return }
   if (((Get-Date) - $script:lastOwn).TotalSeconds -lt 5) { return }
+  # at most once a minute: the game took the focus back 27 times in one session, and every time the
+  # thread input of its busy thread was attached (a movie chain stopped there, 2026-10-08)
+  if (((Get-Date) - $script:lastBehind).TotalSeconds -lt 60) { return }
+  $script:lastBehind = Get-Date
   [void][CS.Win]::SetWindowPos($g.MainWindowHandle, [IntPtr]1, 0, 0, 0, 0, 0x13) # HWND_BOTTOM, no activation
   $id = [uint32]0
   $t = [CS.Win]::GetWindowThreadProcessId($fg, [ref]$id)
@@ -68,7 +73,7 @@ function KeepGameBehind {
   $a = [CS.Win]::AttachThreadInput($me, $t, $true)
   [void][CS.Win]::SetForegroundWindow($script:userWindow)
   if ($a) { [void][CS.Win]::AttachThreadInput($me, $t, $false) }
-  'game sent behind'
+  '{0:HH:mm:ss} game sent behind' -f (Get-Date)
 }
 function Ui([hashtable]$a) {
   & ./tools/wc3-ui.ps1 @a -IdleSeconds 20
