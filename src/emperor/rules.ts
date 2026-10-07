@@ -96,6 +96,21 @@ export interface RulesObject {
   raw: Record<string, string>;
 }
 
+/** Sandworms ([General] worm keys of Rules.txt; chances are "1 in N per tick", times in ticks). */
+export interface WormRules {
+  maxSurface: number;
+  surfaceChance: number;
+  verticalChance: number;
+  minLife: number;
+  maxLife: number;
+  /** % health at which a surface worm goes away */
+  disappearHealth: number;
+  /** no worm before this tick */
+  minTick: number;
+  /** tiles */
+  attractionRadius: number;
+}
+
 export interface Rules {
   sections: Map<string, RulesSection>;
   objects: Map<string, RulesObject>;
@@ -104,6 +119,7 @@ export interface Rules {
   category: Map<string, ObjectCategory>;
   /** crate type -> CrateGiftObject (unit type or CASH<n>) */
   crates: Map<string, string>;
+  worms: WormRules;
 }
 
 function parseSections(text: string): { sections: Map<string, RulesSection>; order: string[] } {
@@ -246,7 +262,13 @@ function loadRules(rulesPath: string): Rules {
     // (regression test: test/emperor-rules.test.ts)
     if (s && gift) crates.set(s.name, gift[1].split(/\s+/)[0] as string);
   }
-  return { sections, objects, armourTypes, general, category, crates };
+  const worms: WormRules = {
+    maxSurface: num(general.MaximumSurfaceWorms), surfaceChance: num(general.ChanceOfSurfaceWorm),
+    verticalChance: num(general.ChanceOfVerticalWorm), minLife: num(general.SurfaceWormMinLife),
+    maxLife: num(general.SurfaceWormMaxLife), disappearHealth: num(general.SurfaceWormDisappearHealth),
+    minTick: num(general.MinimumTicksWormCanAppear), attractionRadius: num(general.WormAttractionRadius),
+  };
+  return { sections, objects, armourTypes, general, category, crates, worms };
 }
 
 export { loadRules, parseSections };

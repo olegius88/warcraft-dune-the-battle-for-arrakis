@@ -54,3 +54,9 @@ export const ENEMY_PICK_TRIES = 20;
  * player's balance shown in the (unused) lumber field, warning when the player runs short. */
 export const POWER_CHECK_PERIOD = 2;
 export const LOW_POWER_MESSAGE = 'Ментат: Недостаточно энергии! Турели отключены — постройте ветряные ловушки.';
+
+/** Sandworms (chances, lifetimes and radius come from Rules.txt): check period, how far from its
+ * victim a surface worm surfaces, worm unit name in Rules.txt. Worms belong to neutral hostile. */
+export const WORM_CHECK_PERIOD = 1;
+export const WORM_SURFACE_OFFSET_TILES = 8;
+export const SURFACE_WORM = 'SurfaceWorm';

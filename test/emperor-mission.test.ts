@@ -177,3 +177,18 @@ test('AirStrike brings aircraft that attack the enemy base; AirStrikeDone report
   const ef = (m.script.split('function EF_AirStrike takes')[1] ?? '').split('endfunction')[0] ?? '';
   assert.ok(ef.includes('call EmpStrikeAdd('), 'strike units are created');
 });
+
+// Sandworms on territory battles (Rules.txt [General] worm keys). Emperor does this in code, not
+// in scripts; the territory battles had no worms.
+test('territory battles have surface and vertical worms with the Rules.txt chances', opts, () => {
+  const all = loadAll();
+  const w = all.rules.worms;
+  assert.deepStrictEqual([w.surfaceChance, w.verticalChance, w.minLife, w.maxLife, w.disappearHealth, w.minTick, w.attractionRadius], [6000, 5000, 600, 1000, 25, 1000, 32]);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const battle = buildMission({ scripts: [], meta, ...all, name: 'worms', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.match(battle.script, /function EmpWormTick takes nothing returns nothing/);
+  assert.ok(battle.script.includes('GetRandomInt(1, 6000) <= 25'), 'surface worm chance per second from ChanceOfSurfaceWorm');
+  assert.ok(battle.script.includes('GetRandomInt(1, 5000) <= 25'), 'vertical worm chance per second from ChanceOfVerticalWorm');
+  const story = buildMission({ scripts: [], meta, ...all, name: 'no-worms', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x' });
+  assert.ok(!story.script.includes('EmpWormTick'), 'no worms outside territory battles');
+});

@@ -92,6 +92,8 @@ const HEADER_GLOBALS = `
     integer EmpWavesLeft = 0
     boolean EmpEndWin = false
     hashtable EmpPowerTab = null
+    unit EmpWorm = null
+    integer EmpWormEnd = 0
     group array EmpStrike
     integer array EmpStrikeEnd
     unit EmpVetArgUnit = null
