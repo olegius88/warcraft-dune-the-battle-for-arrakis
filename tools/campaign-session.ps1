@@ -14,6 +14,11 @@ param(
   [string]$InstallAs = 'AAA_EmperorAutoTest.w3n',
   [double]$ListFx = 0.259, [double]$ListFy = 0.208,       # entry of the campaign in the custom campaign list
   [double]$MissionFx = 0.827, [double]$MissionFy = 0.629, # mission button on the campaign screen
+  # -KeysOnly: no clicks; the campaign must be first in the list (Enter opens it) and the mission
+  # keys are tried in turn until -StartReport (CustomMapData path) is written by the first mission
+  [switch]$KeysOnly,
+  [int[]]$MissionKeys = @(0x0D, 0x20),
+  [string]$StartReport = 'DuneTest\HK_Start.pld',
   [int]$Minutes = 20,
   [int]$StartIdle = 120,
   [string]$ShotsPrefix = 'build\test\shots\cs-'
@@ -62,9 +67,23 @@ try {
   Shot 'menu'
   Ui @{ Action = 'Key'; Vk = 0x53 }; Start-Sleep 3; Shot 'single'      # S: single player
   Ui @{ Action = 'Key'; Vk = 0x55 }; Start-Sleep 3; Shot 'custom'      # U: custom campaigns
-  Ui @{ Action = 'Click'; Fx = $ListFx; Fy = $ListFy }; Start-Sleep 2; Shot 'list'
+  if (-not $KeysOnly) { Ui @{ Action = 'Click'; Fx = $ListFx; Fy = $ListFy }; Start-Sleep 2; Shot 'list' }
   Ui @{ Action = 'Key'; Vk = 0x0D }; Start-Sleep 5; Shot 'campaign'    # Enter: open it
-  Ui @{ Action = 'Click'; Fx = $MissionFx; Fy = $MissionFy }; Shot 'mission'
+  if (-not $KeysOnly) {
+    Ui @{ Action = 'Click'; Fx = $MissionFx; Fy = $MissionFy }; Shot 'mission'
+  } else {
+    # keys only: try each key on the campaign screen until the first mission writes its report
+    $report = Join-Path $env:USERPROFILE "Documents\Warcraft III\CustomMapData\$StartReport"
+    $since = Get-Date
+    foreach ($vk in $MissionKeys) {
+      Ui @{ Action = 'Key'; Vk = $vk }
+      "mission key 0x{0:X2}" -f $vk
+      $wait = (Get-Date).AddSeconds(45)
+      while ((Get-Date) -lt $wait -and -not ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since)) { YieldIfUserBack; Start-Sleep 1 }
+      Shot ('key{0:X2}' -f $vk)
+      if ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since) { "mission started by key 0x{0:X2}" -f $vk; break }
+    }
+  }
   $end = (Get-Date).AddMinutes($Minutes)
   $next = Get-Date
   while ((Get-Date) -lt $end -and (Game)) {

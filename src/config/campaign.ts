@@ -113,4 +113,4 @@ export const CHECK_ALL_MAP = '#U1 AT Start S LOD2';
  * campaign name gets AUTOTEST_NAME_PREFIX so it sorts first in the custom campaign list. */
 export const AUTOTEST_WIN_SECONDS = 15;
 export const AUTOTEST_HUB_DELAY = 6;
-export const AUTOTEST_NAME_PREFIX = 'AAA ';
+export const AUTOTEST_NAME_PREFIX = 'AAA AutoTest ';

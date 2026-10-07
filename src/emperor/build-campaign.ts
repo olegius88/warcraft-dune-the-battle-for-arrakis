@@ -183,7 +183,8 @@ for (const h of houses) {
 }
 
 // campaign screen: four visible buttons, the rest hidden
-const visible: Array<[string, string]> = [[CP.MAP_FILE.tutorial, CP.TUTORIAL_TITLE], ...houses.map((h): [string, string] => [CP.MAP_FILE.start(h), HOUSE_RU[h]])];
+// (autotest: the house start missions only, so the first button starts the chain)
+const visible: Array<[string, string]> = [...(autoTest ? [] : [[CP.MAP_FILE.tutorial, CP.TUTORIAL_TITLE] as [string, string]]), ...houses.map((h): [string, string] => [CP.MAP_FILE.start(h), HOUSE_RU[h]])];
 const order: BuiltEntry[] = [...visible.map(([file, title]) => ({ ...(maps.find((m) => m.file === file) as BuiltEntry), title, chapter: CP.CAMPAIGN_CHAPTER, visible: true })),
   ...maps.filter((m) => !visible.some(([f]) => f === m.file))];
 const w3n = buildCampaign({
