@@ -145,6 +145,18 @@ function buildMission(p: MissionParams): BuiltMission {
       ? `    if EmpScriptIndex == ${i} then\n${lines.map((l) => `        call EmpSpeak(${str(l.path)}, ${real(l.seconds)})`).join('\n')}\n    endif`
       : '';
   }).filter(Boolean);
+  // spoken debriefing (section Debriefing) of the chosen script, by result; returns its length so
+  // the return to the hub waits for it
+  const debriefBlocks = scripts.map((s, i) => {
+    const name = s.name.replace(/\.tok$/i, '');
+    const speak = (win: boolean): string => {
+      const lines = p.speech ? p.speech.debrief(name, win) : [];
+      for (const l of lines) speechImports[l.path] = l.data;
+      return lines.map((l) => `            call EmpSpeak(${str(l.path)}, ${real(l.seconds)})\n            set t = t + ${real(l.seconds + RT.SPEECH_GAP)}`).join('\n');
+    };
+    const win = speak(true), lose = speak(false);
+    return win || lose ? `    if EmpScriptIndex == ${i} then\n        if win then\n${win}\n        else\n${lose}\n        endif\n    endif` : '';
+  }).filter(Boolean);
   // ---- objects placed in the map itself (test.xbf tag 0x07) ----
   // owner 1 = the side defending the map (-> Player(1), e.g. the whole Atreides base of the
   // Caladan capital map), owner 0 = the player's side (-> Player(0)), owners 2/3 = scenery
@@ -408,6 +420,7 @@ function EmpOnKill takes nothing returns nothing
 endfunction`,
     `function EmpPlaced takes nothing returns nothing\n${placed.join('\n')}\nendfunction`,
     `function EmpMissionTick takes nothing returns nothing\n${dispatch}\nendfunction`,
+    ...(debriefBlocks.length ? [`function EmpDebriefSpeech takes boolean win returns real\n    local real t = 0.0\n${debriefBlocks.join('\n')}\n    return t\nendfunction`] : []),
     // ---- campaign glue ----
     `function EmpCampaignLoad takes nothing returns nothing
     set EmpCache = InitGameCache(${str(CACHE_FILE)})
@@ -439,7 +452,7 @@ endfunction`,
 endfunction`,
     `// Called by EmpEnd (runtime) when the mission is decided.
 function EmpCampaignResult takes boolean win returns nothing
-    if not EmpInCampaign then
+    if not EmpInCampaign then${debriefBlocks.length ? '\n        call EmpDebriefSpeech(win)' : ''}
         if win then
             call CustomVictoryBJ(Player(0), true, true)
         else
@@ -458,7 +471,7 @@ function EmpCampaignResult takes boolean win returns nothing
     else
         call EmpShow("Поражение. Возвращение на карту Арракиса...")
     endif
-    call TimerStart(CreateTimer(), ${real(RT.RETURN_TO_HUB_DELAY)}, false, function EmpReturnToHub)
+    call TimerStart(CreateTimer(), ${real(RT.RETURN_TO_HUB_DELAY)}${debriefBlocks.length ? ' + EmpDebriefSpeech(win)' : ''}, false, function EmpReturnToHub)
 endfunction`,
     p.extraFunctions || '',
     `function EmpTickRun takes nothing returns nothing

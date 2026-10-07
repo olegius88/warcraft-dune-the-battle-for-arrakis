@@ -8,7 +8,7 @@ import path from 'node:path';
 import { readBag, toFile, duration } from './bag.ts';
 import type { Bag, BagEntry } from './bag.ts';
 import { IMPORT_DIR } from '../config/wc3.ts';
-import { SPEECH_BRIEFING_SECTION } from '../config/runtime.ts';
+import { SPEECH_BRIEFING_SECTION, SPEECH_DEBRIEFING_SECTION, DEBRIEF_WIN_SUFFIXES, DEBRIEF_LOSE_SUFFIXES } from '../config/runtime.ts';
 
 export interface SpeechLine {
   id: string;
@@ -23,6 +23,8 @@ export interface Speech {
   forKey(key: string | undefined): SpeechLine | null;
   /** spoken briefing of a mission script (sounds.txt section Briefing), lines in order */
   briefing(script: string): SpeechLine[];
+  /** spoken debriefing (section Debriefing): <script>win, else <script>debrief; <script>lose */
+  debrief(script: string, win: boolean): SpeechLine[];
   sections(): Array<string | null>;
 }
 
@@ -52,6 +54,16 @@ function loadSpeech(gameDir: string): Speech | null {
     },
     briefing: (script) => all.filter((e) => e.section === SPEECH_BRIEFING_SECTION && e.key === script.toLowerCase())
       .map((e) => lineFor(e.id)).filter((l): l is SpeechLine => l !== null),
+    debrief: (script, win) => {
+      const s = script.toLowerCase();
+      const keys = win ? DEBRIEF_WIN_SUFFIXES.map((x) => s + x) : DEBRIEF_LOSE_SUFFIXES.map((x) => s + x);
+      for (const k of keys) {
+        const lines = all.filter((e) => e.section === SPEECH_DEBRIEFING_SECTION && e.key === k)
+          .map((e) => lineFor(e.id)).filter((l): l is SpeechLine => l !== null);
+        if (lines.length) return lines;
+      }
+      return [];
+    },
     sections: () => [...new Set([...byKey.values()].map((v) => v.section))],
   };
 

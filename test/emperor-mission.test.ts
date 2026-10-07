@@ -206,3 +206,18 @@ test('mission start plays the spoken briefing of the chosen script', opts, () =>
   assert.ok(fn.includes('KK-M024.') && fn.includes('KK-M026.'), 'both briefing lines queued');
   assert.ok(Object.keys(m.imports).some((k) => k.includes('KK-M026')), 'briefing speech imported');
 });
+
+// Debriefings: sounds.txt section Debriefing, keys <script>win / <script>lose / <script>debrief
+// (206 of them match a script). They were not played.
+test('mission result plays the win/lose debriefing of the chosen script', opts, () => {
+  const all = loadAll();
+  assert.ok(all.speech);
+  assert.deepStrictEqual(all.speech.debrief('ATP1D4FR', true).map((l) => l.id), ['KK-D346']);
+  assert.deepStrictEqual(all.speech.debrief('ATP1D4FR', false).map((l) => l.id), ['KK-D344']);
+  const meta = readMeta(path.join(ensureMap('#T4 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW, 'ATP1D4FR.tok')), phase: 1, name: 'ATP1D4FR' }],
+    meta, ...all, name: 'debrief', playerHouse: 'Atreides', kind: 'defend', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const fn = (m.script.split('function EmpDebriefSpeech takes boolean win returns real')[1] ?? '').split('endfunction')[0] ?? '';
+  assert.ok(fn.includes('KK-D346.') && fn.includes('KK-D344.'), 'win and lose lines');
+  assert.match(m.script, /EmpDebriefSpeech\(win\)/);
+});

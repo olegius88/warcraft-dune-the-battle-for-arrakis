@@ -92,3 +92,7 @@ export const AIRSTRIKE_SLOTS = 64;
 
 /** sounds.txt section that holds the spoken mission briefings (key = mission script name). */
 export const SPEECH_BRIEFING_SECTION = 'Briefing';
+/** sounds.txt section of the spoken debriefings; key = script name + suffix (first found wins). */
+export const SPEECH_DEBRIEFING_SECTION = 'Debriefing';
+export const DEBRIEF_WIN_SUFFIXES: readonly string[] = ['win', 'debrief'];
+export const DEBRIEF_LOSE_SUFFIXES: readonly string[] = ['lose'];
