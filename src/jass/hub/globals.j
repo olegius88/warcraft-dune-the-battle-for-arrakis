@@ -14,6 +14,8 @@
     integer EmpPhase = {{PHASE.first}}
     integer EmpTech = {{START_TECH}}
     integer EmpCaptured = 0
+    integer EmpBattles = 0
+    integer EmpNoGain = 0
     integer EmpPendTerr = 0
     integer EmpPendKind = 0
     integer EmpPendEnemy = 0

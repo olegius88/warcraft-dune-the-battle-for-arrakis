@@ -4,12 +4,13 @@
 // and the AI counter-attacks, and offering the story missions. Moves between maps with
 // ChangeLevel (only valid inside a campaign .w3n).
 //
-// Phase model (simplified from PhaseRules.txt — TODO(phases): Emperor's exact battle counters):
-//   1 -> after 2 captures the Heighliner story mission  -> 2
-//   2 -> after 2 captures the home-world defence story  -> 3
-//   3 -> capturing an enemy jump point (forced Jump mission) -> home-world attack story -> final
-// Tech level: phase 1 starts at 1 (+1 on first capture), phase 2 at 3 (+1), phase 3 at 5 (+1, +1),
-// home-world attack 8.
+// Phase model (PhaseRules.txt, read by src/emperor/phase-rules.ts; the shipped values):
+//   1 -> after Battles 2 (Captured 1, MaxBattles 2) the Heighliner story mission  -> 2
+//   2 -> after Battles 2 (Captured 1, MaxBattles 2) the home-world defence story  -> 3
+//   3 -> capturing an enemy jump point (forced Jump mission) -> home-world attack story -> final;
+//        Warning 3 / Lose 5 battles in a row without a captured territory end the campaign
+// Tech level ([Tech Level N]): phase 1 starts at 1 (2 after the first capture), phase 2 at 3 (4),
+// phase 3 at 5 (6 after one capture, 7 after two), home-world attack (phase 12) 8.
 
 import { buildMap } from '../wc3/map.ts';
 import { str, real } from '../wc3/jass.ts';
@@ -19,7 +20,8 @@ import type { ScriptPlayer } from '../wc3/jass.ts';
 import type { Campaign, Territory } from './campaign-data.ts';
 import { HOUSE_CODES, HOUSE_RU_BY_ID, HOUSE_COLOR } from '../config/houses.ts';
 import type { HouseCode } from '../config/houses.ts';
-import { CACHE_FILE, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, CAPTURES_FOR_STORY, START_TECH, HOME_ATTACK_TECH, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
+import { CACHE_FILE, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
+import type { PhaseRules } from './phase-rules.ts';
 import { DEFAULT_FACING, TIME_OF_DAY, DEBUG_REPORT_DIR } from '../config/runtime.ts';
 import { CUSTOM_ID, TERRAIN } from '../config/wc3.ts';
 import * as V from '../config/hub.ts';
@@ -47,6 +49,35 @@ export interface HubOptions {
   autoTest?: boolean;
   /** music playlist: archive paths of tracks stored in the campaign (src/emperor/music.ts) */
   music?: string[];
+  /** PhaseRules.txt: phase lengths, tech levels, warning / lose (src/emperor/phase-rules.ts) */
+  phaseRules?: PhaseRules;
+}
+
+/** JASS of the PhaseRules.txt parts the hub uses (the EmpPhaseTech / EmpCaptureTech /
+ * EmpPhaseDone bodies and the Warning / Lose counts of the last war phase). */
+function phaseJass(rules: PhaseRules | undefined): { phaseTechLines: string; captureTechLines: string; phaseDoneLines: string; noGain: { warning: number; lose: number } } {
+  const hubPhase = new Map(Object.entries(EMPEROR_PHASE).map(([k, ep]) => [ep, PHASE[k as keyof typeof PHASE]]));
+  const raise = (level: number): string => `set EmpTech = IMaxBJ(EmpTech, ${level})`;
+  const phaseTech: string[] = [];
+  const captureTech: string[] = [];
+  for (const t of rules?.tech ?? []) {
+    const p = hubPhase.get(t.inPhase);
+    if (p === undefined) continue; // the tutorial
+    if (t.phase !== undefined) phaseTech.push(`    if EmpPhase == ${p} then\n        ${raise(t.level)}\n    endif`);
+    else if (t.captured !== undefined) captureTech.push(`    if EmpPhase == ${p} and EmpCaptured == ${t.captured} then\n        ${raise(t.level)}\n    endif`);
+  }
+  const done: string[] = [];
+  for (const key of ['first', 'second'] as const) {
+    const r = rules?.phases.get(EMPEROR_PHASE[key]);
+    if (!r) continue;
+    const max = r.maxBattles > 0 ? ` or EmpBattles >= ${r.maxBattles}` : '';
+    done.push(`    if EmpPhase == ${PHASE[key]} then\n        return (EmpBattles >= ${r.battles} and EmpCaptured >= ${r.captured})${max}\n    endif`);
+  }
+  const last = rules?.phases.get(EMPEROR_PHASE.lastWar);
+  return {
+    phaseTechLines: phaseTech.join('\n'), captureTechLines: captureTech.join('\n'), phaseDoneLines: done.join('\n'),
+    noGain: { warning: last?.warning ?? 0, lose: last?.lose ?? 0 },
+  };
 }
 
 type Vec2 = [number, number];
@@ -123,7 +154,7 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   const globals = renderFile(jassFile('hub/globals'), { PHASE, START_TECH });
 
   const functions = renderFile(jassFile('hub/functions'), {
-    ADJ_STRIDE, CACHE_FILE, CAPTURES_FOR_STORY, CAT, DEFAULT_FACING, HOME_ATTACK_TECH, K, KIND_ID, PHASE, START_TECH,
+    ADJ_STRIDE, CACHE_FILE, CAT, DEFAULT_FACING, K, KIND_ID, PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, ...phaseJass(o.phaseRules),
     TERRITORY_COUNT, TIME_OF_DAY, V, foes, markerId, me, musicList, o, story,
     autoTestFunctions: o.autoTest ? autoTestFunctions : '',
     dataLines: lines.join('\n'),
@@ -163,4 +194,4 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   return { buffer: m.buffer, script: m.script };
 }
 
-export { buildHub, layout };
+export { buildHub, layout, phaseJass };

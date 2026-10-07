@@ -13,12 +13,48 @@ function EmpSave takes nothing returns nothing
     call StoreInteger(EmpCache, {{CAT}}, {{K.phase}}, EmpPhase)
     call StoreInteger(EmpCache, {{CAT}}, {{K.tech}}, EmpTech)
     call StoreInteger(EmpCache, {{CAT}}, {{K.captured}}, EmpCaptured)
+    call StoreInteger(EmpCache, {{CAT}}, {{K.battles}}, EmpBattles)
+    call StoreInteger(EmpCache, {{CAT}}, {{K.noGain}}, EmpNoGain)
     loop
         exitwhen n > {{TERRITORY_COUNT}}
         call StoreInteger(EmpCache, {{CAT}}, {{K.ownerPrefix}} + I2S(n), EmpOwner[n])
         set n = n + 1
     endloop
     call SaveGameCache(EmpCache)
+endfunction
+
+// ---- PhaseRules.txt (src/emperor/phase-rules.ts) ----
+// tech level when a phase begins
+function EmpPhaseTech takes nothing returns nothing
+{{phaseTechLines}}
+endfunction
+
+// tech level after the n-th capture of the phase
+function EmpCaptureTech takes nothing returns nothing
+{{captureTechLines}}
+endfunction
+
+// phases 1 and 2 are over (their story mission is offered) after Battles battles with Captured
+// captures, or after MaxBattles battles
+function EmpPhaseDone takes nothing returns boolean
+{{phaseDoneLines}}
+    return false
+endfunction
+
+// last war phase: Warning / Lose battles in a row without a captured territory
+function EmpNoGainCheck takes nothing returns boolean
+{{#if noGain.lose}}    if EmpPhase != {{PHASE.lastWar}} then
+        return false
+    endif
+    if EmpNoGain >= {{noGain.lose}} then
+        call StoreInteger(EmpCache, {{CAT}}, {{K.init}}, 0)
+        call SaveGameCache(EmpCache)
+        call CustomDefeatBJ(Player(0), {{str NO_GAIN_LOST}})
+        return true
+    elseif EmpNoGain == {{noGain.warning}} then
+        call EmpSay({{str NO_GAIN_WARNING}})
+    endif
+{{/if}}    return false
 endfunction
 
 function EmpLoad takes nothing returns nothing
@@ -34,6 +70,9 @@ function EmpLoad takes nothing returns nothing
         set EmpPhase = {{PHASE.first}}
         set EmpTech = {{START_TECH}}
         set EmpCaptured = 0
+        set EmpBattles = 0
+        set EmpNoGain = 0
+        call EmpPhaseTech()
         call StoreInteger(EmpCache, {{CAT}}, {{K.house}}, {{me}})
         call StoreInteger(EmpCache, {{CAT}}, {{K.result}}, -1){{#if story.civilWar}}
         call StoreInteger(EmpCache, {{CAT}}, {{K.storyStep}}, 0){{/if}}
@@ -48,6 +87,8 @@ function EmpLoad takes nothing returns nothing
     set EmpPhase = GetStoredInteger(EmpCache, {{CAT}}, {{K.phase}})
     set EmpTech = GetStoredInteger(EmpCache, {{CAT}}, {{K.tech}})
     set EmpCaptured = GetStoredInteger(EmpCache, {{CAT}}, {{K.captured}})
+    set EmpBattles = GetStoredInteger(EmpCache, {{CAT}}, {{K.battles}})
+    set EmpNoGain = GetStoredInteger(EmpCache, {{CAT}}, {{K.noGain}})
 endfunction
 
 function EmpAdjacentToMe takes integer n returns boolean
@@ -172,7 +213,7 @@ function EmpOfferStory takes nothing returns boolean
     if m == "" then
         return false
     endif
-    if (EmpPhase == {{PHASE.first}} or EmpPhase == {{PHASE.second}}) and EmpCaptured < {{CAPTURES_FOR_STORY}}{{#if story.civilWar}} and GetStoredInteger(EmpCache, {{CAT}}, {{K.storyStep}}) == 0{{/if}} then
+    if (EmpPhase == {{PHASE.first}} or EmpPhase == {{PHASE.second}}) and not EmpPhaseDone(){{#if story.civilWar}} and GetStoredInteger(EmpCache, {{CAT}}, {{K.storyStep}}) == 0{{/if}} then
         return false
     endif
     set EmpNextMap = m
@@ -232,18 +273,21 @@ function EmpApplyResult takes nothing returns boolean
         return false
     endif
     call StoreInteger(EmpCache, {{CAT}}, {{K.result}}, -1)
+    if kind == {{KIND_ID.attack}} or kind == {{KIND_ID.defend}} then
+        set EmpBattles = EmpBattles + 1
+        set EmpNoGain = EmpNoGain + 1
+    endif
     if kind == {{KIND_ID.attack}} then
         if r == 1 then
             set EmpOwner[t] = {{me}}
             set EmpCaptured = EmpCaptured + 1
+            set EmpNoGain = 0
             call EmpSay("Территория «" + EmpTName[t] + "» захвачена!")
-            if EmpCaptured == 1 then
-                set EmpTech = EmpTech + 1
-            endif
+            call EmpCaptureTech()
             if EmpPhase == {{PHASE.lastWar}} and ({{enemyCapitalIsT}}) then
                 // an enemy capital fell: home-world attack on that house (offered by EmpOfferStory)
                 set EmpPhase = {{PHASE.homeAttack}}
-                set EmpTech = {{HOME_ATTACK_TECH}}
+                call EmpPhaseTech()
                 if t == {{jpFoe0}} then
                     call StoreInteger(EmpCache, {{CAT}}, {{K.homeAttackEnemy}}, {{foes.0}})
                 else
@@ -281,7 +325,9 @@ function EmpApplyResult takes nothing returns boolean
 {{/if}}            if EmpPhase < {{PHASE.lastWar}} then
                 set EmpPhase = EmpPhase + 1
                 set EmpCaptured = 0
-                set EmpTech = IMaxBJ(EmpTech, 2 * EmpPhase - 1)
+                set EmpBattles = 0
+                set EmpNoGain = 0
+                call EmpPhaseTech()
                 call EmpSay("|cffffcc00Начинается фаза " + I2S(EmpPhase) + ".|r")
             elseif EmpPhase == {{PHASE.homeAttack}} then
                 set EmpPhase = {{PHASE.final}}
@@ -293,7 +339,7 @@ function EmpApplyResult takes nothing returns boolean
     endif
     // kind {{KIND_ID.start}} = the house start mission: nothing to apply
     call EmpSave()
-    return false
+    return EmpNoGainCheck()
 endfunction
 
 function EmpOnDialog takes nothing returns nothing

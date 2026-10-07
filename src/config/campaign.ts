@@ -21,14 +21,16 @@ export const JUMP_SCRIPT: Readonly<Record<HouseCode, Readonly<Partial<Record<Hou
 export type MissionKind = 'attack' | 'defend' | 'story' | 'start' | 'tutorial';
 export const KIND_ID: Readonly<Record<MissionKind, number>> = { attack: 0, defend: 1, story: 2, start: 3, tutorial: 4 };
 
-/** Phases (simplified from PhaseRules.txt, TODO(phases)): 1..3 territory war, then the home-world
- * attack, then the final battle. */
+/** Phases of the hub: 1..3 territory war, then the home-world attack, then the final battle. How
+ * long a phase lasts and the tech levels come from PhaseRules.txt (src/emperor/phase-rules.ts). */
 export const PHASE = { first: 1, second: 2, lastWar: 3, homeAttack: 4, final: 5 } as const;
-/** Captures in phases 1 and 2 before the phase's story mission is offered. */
-export const CAPTURES_FOR_STORY = 2;
-/** Tech level: start, +1 on the first capture of a phase, at least 2 * phase - 1, home-world attack. */
+/** PhaseRules.txt number of each hub phase (10 / 11 there are the story missions between phases). */
+export const EMPEROR_PHASE: Readonly<Record<keyof typeof PHASE, number>> = { first: 1, second: 2, lastWar: 3, homeAttack: 12, final: 13 };
+/** Tech level before PhaseRules.txt says anything (and of a hub built without it). */
 export const START_TECH = 1;
-export const HOME_ATTACK_TECH = 8;
+/** PhaseRules.txt Warning / Lose of the last war phase: what the Mentat says. */
+export const NO_GAIN_WARNING = 'Ментат: Император недоволен — мы давно не захватывали новых земель!';
+export const NO_GAIN_LOST = 'Император отказал Дому в поддержке: слишком долго без новых земель. Кампания проиграна.';
 /** Chance (1 in N) that an enemy counter-attacks after a battle. */
 export const COUNTER_ATTACK_ONE_IN = 2;
 
@@ -50,6 +52,10 @@ export const CACHE_KEY = {
   phase: 'phase',
   tech: 'tech',
   captured: 'captured',
+  /** battles fought in the current phase (PhaseRules.txt Battles / MaxBattles) */
+  battles: 'battles',
+  /** battles in a row without a captured territory (PhaseRules.txt Warning / Lose) */
+  noGain: 'nogain',
   /** ownerPrefix + n = owner of territory n */
   ownerPrefix: 'own',
   /** battle handed from the hub to a mission map */

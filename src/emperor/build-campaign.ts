@@ -30,6 +30,7 @@ import { loadAll } from './build-mission.ts';
 import { buildCampaign } from '../wc3/map.ts';
 import { loadMusic } from './music.ts';
 
+import { loadPhaseRules } from './phase-rules.ts';
 import { RAW_DIR, CAMPAIGN_OUT, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
 
 const args = process.argv.slice(2);
@@ -54,6 +55,7 @@ const useMusic = (paths: string[]): string[] => {
 };
 const folders = [...new Set(['MAPS0001', 'MAPS0002'].flatMap((a) => readIndex(gameData(`${a}.RFH`)).map((e) => e.name.split('/')[0] as string)))];
 const camp = loadCampaign(RAW_DIR, folders);
+const phaseRules = loadPhaseRules(path.join(RAW_DIR, 'PhaseRules.txt'));
 const tok = (name: string): Buffer => fs.readFileSync(path.join(RAW_DIR, `${name}.tok`));
 const metaCache = new Map<string, MapMeta>();
 const metaOf = (needle: string): MapMeta => {
@@ -163,7 +165,7 @@ for (const h of houses) {
   storyMission('end', 'End', story.end, `${HOUSE_RU[h]}: Последняя битва`);
 
   const hubMap = buildHub({
-    house: h, campaign: camp, units: all.units, autoTest, music: useMusic(music ? music.hub(h) : []),
+    house: h, campaign: camp, units: all.units, autoTest, music: useMusic(music ? music.hub(h) : []), phaseRules,
     battleMap: (kind, n) => battleFile[`${kind}:${n}`] || null,
     storyMap: { heighliner: storyFile.heighliner, homeDefence: storyFile.homeDefence, civilWar: storyFile.civilWar, homeAttack: storyFile.homeAttack, end: storyFile.end },
   });
