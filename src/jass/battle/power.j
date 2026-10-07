@@ -1,6 +1,7 @@
 // ---- power (Rules.txt): balance per side, DisableWithLowPower turrets pause while short ----
-// TODO(power): buildings under construction count as finished; sides with no generator at all
-// (scripted story bases) are exempt — how Emperor treats them is not established.
+// Buildings under construction neither use nor make power (EmpOnConstructStart marks them).
+// TODO(power): sides with no generator at all (scripted story bases) are exempt so their turrets
+// keep working; how Emperor treats them cannot be read from its data, only seen in its game.
 function EmpPowerType takes integer t, integer power, boolean lowOff returns nothing
     call SaveInteger(EmpPowerTab, t, 0, power)
     call SaveBoolean(EmpPowerTab, t, 1, lowOff)
@@ -28,7 +29,7 @@ function EmpPowerTick takes nothing returns nothing
             set u = FirstOfGroup(g)
             exitwhen u == null
             call GroupRemoveUnit(g, u)
-            if EmpAlive(u) then
+            if EmpAlive(u) and not LoadBoolean(EmpPowerTab, GetHandleId(u), 2) then
                 set p = LoadInteger(EmpPowerTab, GetUnitTypeId(u), 0)
                 set sum = sum + p
                 if p > 0 then

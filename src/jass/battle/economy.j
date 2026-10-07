@@ -49,6 +49,7 @@ endfunction
 function EmpOnBuildingDone takes nothing returns nothing
     local unit b = GetConstructedStructure()
     local integer t = GetUnitTypeId(b)
+    call RemoveSavedBoolean(EmpPowerTab, GetHandleId(b), 2)
 {{builderLines}}
     if {{isRefinery}} then
         call CreateUnit(GetOwningPlayer(b), '{{harvester}}', GetUnitX(b) + {{real C.NEW_HARVESTER_OFFSET}}, GetUnitY(b) - {{real C.NEW_HARVESTER_OFFSET}}, {{FACING}})
@@ -61,6 +62,8 @@ function EmpOnConstructStart takes nothing returns nothing
     local unit b = GetConstructingStructure()
     local group g
     local unit u
+    // under construction: no power until it is finished (EmpPowerTick)
+    call SaveBoolean(EmpPowerTab, GetHandleId(b), 2, true)
     if {{isConYard}} then
         set g = CreateGroup()
         call GroupEnumUnitsInRange(g, GetUnitX(b), GetUnitY(b), {{real C.MCV_CONSUME_RADIUS}}, null)
