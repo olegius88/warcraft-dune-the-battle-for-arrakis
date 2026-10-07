@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { readIndex } from './rfh.ts';
 import { readMeta } from './mapxbf.ts';
 import type { MapMeta } from './mapxbf.ts';
-import { loadCampaign } from './campaign-data.ts';
+import { loadCampaign, defendVariant } from './campaign-data.ts';
 import type { MissionKindKey } from './campaign-data.ts';
 import type { StoryRef } from '../config/story.ts';
 import { TUTORIAL_SCRIPT, TUTORIAL_MAP, territoryMapPrefix } from '../config/story.ts';
@@ -146,6 +146,7 @@ const add = (file: string, buffer: Buffer, title: string, chapter = '', visible 
 interface ScriptRef {
   name: string;
   phase: number;
+  whenWon?: { attack: string; won: boolean };
 }
 
 for (const h of houses) {
@@ -155,7 +156,7 @@ for (const h of houses) {
   console.log(`== ${player}`);
   const mission = (fileName: string, title: string, scripts: ScriptRef[], mapNeedle: string, kind: MissionKind, extra: Partial<MissionParams> = {}): string => {
     const m = buildMission({
-      scripts: scripts.map((s) => ({ tok: tok(s.name), phase: s.phase, name: s.name })),
+      scripts: scripts.map((s) => ({ tok: tok(s.name), phase: s.phase, name: s.name, ...(s.whenWon ? { whenWon: s.whenWon } : {}) })),
       meta: metaOf(mapNeedle), ...all, name: title, playerHouse: player, kind, hubMap: hub,
       territoryBattle: kind === 'attack' || kind === 'defend', briefing: scripts[0] ? briefing(scripts[0].name) : '',
       debugName: fileName.replace(/\.w3x$/, ''), ...(autoTest ? { autoWinSeconds: CP.AUTOTEST_WIN_SECONDS } : {}),
@@ -179,6 +180,13 @@ for (const h of houses) {
       if (kind === 'defend' && owner !== h && owner !== null && n === camp.jumpPoint[owner]) continue; // enemy capitals are never defended
       const scripts: ScriptRef[] = Object.values(camp.missions[h][kind])
         .filter((s) => s.territory === n && s.script).map((s) => ({ name: s.script as string, phase: s.phase }));
+      if (kind === 'defend') {
+        // Fail / Win variants after their base script: picked by the attack of that phase (campaign-data.ts)
+        for (const ph of new Set(scripts.map((s) => s.phase))) {
+          const v = defendVariant(camp, h, ph, n);
+          if (v) scripts.push({ name: v.name, phase: ph, whenWon: { attack: v.attack, won: v.won } });
+        }
+      }
       if (kind === 'attack') {
         // forced jump-point missions (Forced Missions.txt) replace everything on enemy capitals
         for (const [defender, script] of Object.entries(camp.jumpScript[h] || {})) {

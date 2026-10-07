@@ -78,6 +78,7 @@ function EmpLoad takes nothing returns nothing
         call EmpPhaseTech()
         call StoreInteger(EmpCache, {{CAT}}, {{K.house}}, {{me}})
         call StoreInteger(EmpCache, {{CAT}}, {{K.result}}, -1)
+{{wonClearLines}}
         call EmpMovieAdd({{mv.start}}){{#if story.civilWar}}
         call StoreInteger(EmpCache, {{CAT}}, {{K.storyStep}}, 0){{/if}}
         call EmpSave()

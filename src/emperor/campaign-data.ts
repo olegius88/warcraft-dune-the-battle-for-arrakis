@@ -102,4 +102,27 @@ function loadCampaign(rawDir: string, mapFolders: string[]): Campaign {
   return { territories, missions, story: STORY, jumpPoint: JUMP_POINT, jumpScript: JUMP_SCRIPT, houses: HOUSES, scripts };
 }
 
-export { loadCampaign };
+/** A defence script's Fail / Win variant and the attack it depends on. */
+export interface DefendVariant {
+  name: string;
+  /** attack script of the same phase and territory */
+  attack: string;
+  /** true: plays when that attack was won (Win); false: unless it was won (Fail) */
+  won: boolean;
+}
+
+/**
+ * Variant of the defence slot (phase, territory) of house h. Inferred from the scripts, not from the
+ * game code: Fail variants only give the enemy cash where the base script brings the sub-house's help
+ * earned by the attack on that territory, Win variants follow a won attack. Paired with the attack
+ * slot of the same phase and territory (its sub-house tag may differ: ATP1D16GNFail / ATP1M16AT).
+ */
+function defendVariant(camp: Campaign, h: HouseCode, phase: number, territory: number): DefendVariant | null {
+  const slot = camp.missions[h].defend[`${phase}:${territory}`];
+  const attack = camp.missions[h].attack[`${phase}:${territory}`]?.script;
+  const name = slot?.fail ?? slot?.win;
+  if (!slot || !name || !attack) return null;
+  return { name, attack, won: !slot.fail };
+}
+
+export { loadCampaign, defendVariant };

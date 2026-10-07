@@ -18,9 +18,10 @@ import { renderFile } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
 import type { ScriptPlayer } from '../wc3/jass.ts';
 import type { Campaign, Territory } from './campaign-data.ts';
+import { defendVariant } from './campaign-data.ts';
 import { HOUSE_CODES, HOUSE_RU_BY_ID, HOUSE_COLOR } from '../config/houses.ts';
 import type { HouseCode } from '../config/houses.ts';
-import { CACHE_FILE, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
+import { CACHE_FILE, CACHE_KEY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
 import type { PhaseRules } from './phase-rules.ts';
 import { DEFAULT_FACING, TIME_OF_DAY, DEBUG_REPORT_DIR } from '../config/runtime.ts';
 import { CUSTOM_ID, TERRAIN } from '../config/wc3.ts';
@@ -181,12 +182,17 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   const movie = movieJass(o.movies, foes.map((f) => HOUSES[f] as HouseCode), o.house);
   const globals = renderFile(jassFile('hub/globals'), { PHASE, START_TECH }) + movie.movieGlobals;
 
+  // a new campaign forgets the won attacks that pick Fail / Win defence variants (mission.ts)
+  const wonAttacks = new Set(Object.values(o.campaign.missions[o.house].defend)
+    .map((d) => defendVariant(o.campaign, o.house, d.phase, d.territory)?.attack).filter((x): x is string => Boolean(x)));
+  const wonClearLines = [...wonAttacks].map((a) => `        call StoreInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.wonPrefix + a)}, 0)`).join('\n');
   const functions = renderFile(jassFile('hub/functions'), {
     ADJ_STRIDE, CACHE_FILE, CAT, DEFAULT_FACING, K, KIND_ID, PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, ...phaseJass(o.phaseRules),
     TERRITORY_COUNT, TIME_OF_DAY, V, foes, markerId, me, musicList, o, story,
     movieFunctions: movie.movieFunctions, mv: movie.mv,
     autoTestFunctions: o.autoTest ? autoTestFunctions : '',
     dataLines: lines.join('\n'),
+    wonClearLines,
     linkColor: V.LINK_COLOR.map((c) => real(c)).join(', '),
     labelDx: real(-V.LABEL_OFFSET_X),
     labelDy: real(-V.LABEL_OFFSET_Y),
@@ -217,7 +223,7 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
     corner: (x: number, y: number) => ({ texture: (x * 7 + y * 3) % V.HUB_DIRT_EVERY === 0 ? 1 : 0, boundary: x < V.HUB_BOUNDARY_SIDE || x > W - V.HUB_BOUNDARY_SIDE || y < V.HUB_BOUNDARY_BOTTOM || y > H - V.HUB_BOUNDARY_TOP }),
     players, globals, functions: fixed,
     init: `    call TimerStart( CreateTimer(), ${real(V.HUB_START_DELAY)}, false, function EmpHubStart )`,
-    imports: { 'war3map.w3u': o.units.w3u, 'war3map.w3a': o.units.w3a },
+    imports: { 'war3map.w3u': o.units.w3u, 'war3map.w3a': o.units.w3a, 'war3map.w3q': o.units.w3q },
     minimapColor: () => [...V.HUB_MINIMAP_COLOR],
   });
   return { buffer: m.buffer, script: m.script };

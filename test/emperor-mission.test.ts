@@ -9,6 +9,7 @@ import { loadAll } from '../src/emperor/build-mission.ts';
 import { readMeta } from '../src/emperor/mapxbf.ts';
 import { ensureMap } from '../src/emperor/preview-map.ts';
 import { buildMission } from '../src/emperor/mission.ts';
+import { loadCampaign, defendVariant } from '../src/emperor/campaign-data.ts';
 
 import { RAW_DIR, GAME_EXE } from '../src/config/paths.ts';
 const RAW = RAW_DIR;
@@ -142,6 +143,64 @@ test('objects with ExcludeFromCampaignLose do not keep a side alive in the norma
   assert.ok(!m.script.includes(`call SaveBoolean(EmpVet, '${all.units.rawcode.get('ATBarracks')}', 4, true)`), 'barracks counted');
   const check = m.script.slice(m.script.indexOf('function EmpNormalCheck'), m.script.indexOf('endfunction', m.script.indexOf('function EmpNormalCheck')));
   assert.ok(check.length > 0 && !/EmpCount\(/.test(check) && /EmpLoseCount\(/.test(check), 'normal rule counts through EmpLoseCount');
+});
+
+// Building upgrades (Rules.txt UpgradeCost / UpgradeTechLevel / UpgradeBuildTime) were missing, so
+// the 35 types with UpgradedPrimaryRequired (Kindjal, Kobra, the house turrets...) were buildable
+// without them. Each upgradable building now researches a custom upgrade (war3map.w3q) that those
+// types require; in-game probe src/smoke/build-tech-probe.ts (2026-10-08) showed ureq and
+// SetPlayerTechMaxAllowed work with custom upgrades in 1.31.1. Found by an independent audit.
+test('building upgrades: researched by the building, required by UpgradedPrimaryRequired types, tech-gated', opts, () => {
+  const all = loadAll();
+  const at = all.rules.objects.get('ATBarracks');
+  assert.strictEqual(at?.upgradeCost, 800);
+  assert.strictEqual(at?.upgradeTechLevel, 3);
+  assert.strictEqual(all.rules.objects.get('HKRefineryDock')?.upgradeBuildTime, 720);
+  assert.strictEqual(all.rules.objects.get('ATKindjal')?.upgradedPrimaryRequired, true);
+  assert.strictEqual(all.rules.objects.get('ATInfantry')?.upgradedPrimaryRequired, false);
+  const up = all.units.upgrades;
+  assert.strictEqual(up.length, 20, 'every building with an UpgradeCost');
+  const atUp = up.find((u) => u.building === 'ATBarracks');
+  assert.ok(atUp && atUp.cost === 800 && atUp.techLevel === 3);
+  const objOf = (name: string) => all.units.objects.find((o) => o.id === all.units.rawcode.get(name));
+  const fieldOf = (name: string, field: string) => objOf(name)?.mods.filter((m) => m.field === field).map((m) => String(m.value)).at(-1) ?? '';
+  assert.strictEqual(fieldOf('ATBarracks', 'ures'), atUp.id, 'the barracks researches its upgrade');
+  assert.ok(fieldOf('ATKindjal', 'ureq').split(',').includes(atUp.id), 'Kindjal needs the upgraded barracks');
+  assert.ok(!fieldOf('ATInfantry', 'ureq').split(',').includes(atUp.id), 'plain infantry does not');
+  const yardUp = up.find((u) => u.building === 'HKConYard');
+  assert.ok(yardUp && fieldOf('HKGunTurret', 'ureq').split(',').includes(yardUp.id), 'turret needs the upgraded construction yard');
+  // upgrade time: UpgradeBuildTime, else the building's own BuildTime
+  assert.strictEqual(up.find((u) => u.building === 'HKRefineryDock')?.seconds, 720 / 25);
+  assert.strictEqual(atUp.seconds, (all.rules.objects.get('ATBarracks')?.buildTime ?? 0) / 25);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'upgrades', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.imports['war3map.w3q'] && m.imports['war3map.w3q'].length > 100, 'mission imports the upgrade objects');
+  assert.match(m.script, new RegExp(`if EmpTechLevel < 3 then[\\s\\S]*?call SetPlayerTechMaxAllowed\\(Player\\(i\\), '${atUp.id}', 0\\)`), 'tech gate');
+  // the enemy AI buys the upgrades of its house and produces gated types only after them
+  assert.ok(m.script.includes(`'${atUp.id}'`) && /set EmpAiUpg\[\d+\] = '/.test(m.script), 'AI upgrade table');
+  assert.ok(m.script.includes(`call SaveInteger(EmpAiTab, '${all.units.rawcode.get('ATKindjal')}', 5, '${atUp.id}')`), 'Kindjal waits for the upgrade');
+  assert.ok(m.script.includes('elseif EmpAiUpgrade() then'), 'builder turn tries upgrades');
+});
+
+// The 64 *Fail / *Win variants of defence scripts were parsed and never played. Inferred from their
+// content (not from game code): 59 Fail variants only give the enemy cash (the help of the base
+// script, e.g. ATP1D1FR "the Fremen repay their debt", did not come), so a defence plays its Fail
+// variant unless the attack on the same territory in the same phase was won; a Win variant plays
+// when it was won. The attack map records the win in the game cache (won<attack script>).
+test('defence scripts pick their Fail / Win variant by the won attack on the same territory', opts, () => {
+  const all = loadAll();
+  const camp = loadCampaign(RAW, []);
+  assert.deepStrictEqual(defendVariant(camp, 'AT', 1, 1), { name: 'ATP1D1FRFail', attack: 'ATP1M1FR', won: false });
+  assert.deepStrictEqual(defendVariant(camp, 'AT', 1, 19), { name: 'ATP1D19GNWin', attack: 'ATP1M19GN', won: true });
+  assert.deepStrictEqual(defendVariant(camp, 'AT', 1, 16), { name: 'ATP1D16GNFail', attack: 'ATP1M16AT', won: false }, 'paired by phase and territory');
+  assert.strictEqual(defendVariant(camp, 'OR', 2, 8), null, 'no attack to pair with');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const tokOf = (n: string): Buffer => fs.readFileSync(path.join(RAW, `${n}.tok`));
+  const d = buildMission({ scripts: [{ tok: tokOf('ATP1D1FR'), phase: 1, name: 'ATP1D1FR' }, { tok: tokOf('ATP1D1FRFail'), phase: 1, name: 'ATP1D1FRFail', whenWon: { attack: 'ATP1M1FR', won: false } }],
+    meta, ...all, name: 'variant', playerHouse: 'Atreides', kind: 'defend', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(d.script.includes('if EmpInCampaign and EmpPhase == 1 and GetStoredInteger(EmpCache, "emp", "wonATP1M1FR") != 1 then\n        set EmpScriptIndex = 1'), 'variant picked when the attack was not won');
+  const a = buildMission({ scripts: [{ tok: tokOf('ATP1M1FR'), phase: 1, name: 'ATP1M1FR' }], meta, ...all, name: 'attack', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(a.script.includes('call StoreInteger(EmpCache, "emp", "wonATP1M1FR", 1)'), 'attack win recorded');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

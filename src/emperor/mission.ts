@@ -20,7 +20,7 @@ import type { Rules } from './rules.ts';
 import type { Speech } from './speech.ts';
 import type { AiRules } from './ai-rules.ts';
 import { HOUSE_ID, HOUSES, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_BY_CODE } from '../config/houses.ts';
-import { CACHE_FILE, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
+import { CACHE_FILE, CACHE_KEY, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
 import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
@@ -36,6 +36,9 @@ export interface MissionScript {
   /** campaign phase the script belongs to (chosen at run time) */
   phase: number;
   name: string;
+  /** Fail / Win variant: chosen inside the campaign when the attack script was won (won) or not
+   * (campaign-data.ts defendVariant) */
+  whenWon?: { attack: string; won: boolean };
 }
 
 export interface MissionParams {
@@ -228,8 +231,13 @@ function buildMission(p: MissionParams): BuiltMission {
   const dispatch = scripts.length
     ? scripts.map((s, i) => `    ${i === 0 ? 'if' : 'elseif'} EmpScriptIndex == ${i} then\n        call EmpScript${i}()`).join('\n') + '\n    endif'
     : '';
+  // a Fail / Win variant (listed after its base script) replaces it by the attack's result
+  const wonKey = (attack: string): string => str(CACHE_KEY.wonPrefix + attack);
+  const wonCheck = (s: MissionScript): string => (s.whenWon ? ` and GetStoredInteger(EmpCache, ${CAT}, ${wonKey(s.whenWon.attack)}) ${s.whenWon.won ? '==' : '!='} 1` : '');
+  // an attack records its win for the defence variants of its territory
+  const wonLines = p.kind === 'attack' ? scripts.map((s, i) => `        if EmpScriptIndex == ${i} then\n            call StoreInteger(EmpCache, ${CAT}, ${wonKey(s.name)}, 1)\n        endif`).join('\n') : '';
   const pickScript = scripts.length
-    ? `    // pick the script of the current campaign phase (fallback: the first one)\n    set EmpScriptIndex = 0\n${scripts.map((s, i) => `    if EmpPhase == ${s.phase} then\n        set EmpScriptIndex = ${i}\n    endif`).join('\n')}`
+    ? `    // pick the script of the current campaign phase (fallback: the first one)\n    set EmpScriptIndex = 0\n${scripts.map((s, i) => `    if ${s.whenWon ? 'EmpInCampaign and ' : ''}EmpPhase == ${s.phase}${wonCheck(s)} then\n        set EmpScriptIndex = ${i}\n    endif`).join('\n')}`
     : '';
 
   // reinforcement pick table: units with a ReinforcementValue, by house (index = house id)
@@ -259,7 +267,7 @@ function buildMission(p: MissionParams): BuiltMission {
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], wonLines, vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -298,7 +306,7 @@ function buildMission(p: MissionParams): BuiltMission {
   const players: ScriptPlayer[] = [{ id: 0, control: 'user', race: 'human', team: 0, x: sx, y: sy, name: RT.PLAYER_NAME }];
   for (let i = 1; i <= RT.MAX_SIDE; i++) players.push({ id: i, control: 'computer', race: 'orc', team: i, x: sx, y: sy, name: `${RT.SIDE_NAME_PREFIX}${i}` });
 
-  const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports, ...(p.iconsInMap === false ? {} : { ...p.units.icons, ...p.units.models }) };
+  const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3map.w3q': p.units.w3q, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports, ...(p.iconsInMap === false ? {} : { ...p.units.icons, ...p.units.models }) };
   const m = buildMap({
     name: p.name, description: p.briefing || '', width: t.width, height: t.height, boundary: t.boundary,
     tileset: t.tileset, ground: t.ground, cliffs: t.cliffs, corner: t.corner, pathing: t.pathing, minimapColor: t.minimapColor,

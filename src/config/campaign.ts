@@ -63,6 +63,8 @@ export const CACHE_KEY = {
   pendingKind: 'pendkind',
   pendingEnemy: 'pendenemy',
   pendingFrom: 'pendfrom',
+  /** wonPrefix + attack script name = 1: that attack was won (picks Fail / Win defence variants) */
+  wonPrefix: 'won',
   /** result handed back to the hub: 1 win, 0 loss, -1 none */
   result: 'result',
   resultTerritory: 'resultterr',
