@@ -302,6 +302,15 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   assert.ok(m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'rebuild money');
   const yard = all.units.rawcode.get('HKConYard');
   assert.ok(m.script.includes(`set EmpTplType[16] = '${yard}'`), 'house 1 template starts with its construction yard');
+  // Regression: the money the base builder saves (EmpAiReserve) kept its last value when
+  // EmpEnemyProduce returned before the builder's turn (construction yard lost, template rebuild),
+  // throttling unit production for a building nobody would start. Every early return of the
+  // building part now sets it: 0 without a construction yard, the rebuild's price while saving for it.
+  const produce = m.script.slice(m.script.indexOf('function EmpEnemyProduce'), m.script.indexOf('call EmpAiBuild()', m.script.indexOf('function EmpEnemyProduce')));
+  const tail = produce.slice(produce.indexOf('// entry 0 of a template'));
+  const returns = tail.split('\n').map((l, i, a) => [l, a.slice(Math.max(0, i - 3), i).join('\n')] as const).filter(([l]) => l.trim() === 'return');
+  assert.ok(returns.length >= 2 && returns.every(([, before]) => before.includes('set EmpAiReserve = ')), 'reserve set before early returns');
+  assert.ok(tail.includes('set EmpAiReserve = c + 600'), 'saves for the template rebuild');
 });
 
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines

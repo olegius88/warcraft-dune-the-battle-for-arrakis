@@ -108,7 +108,10 @@ function EmpEnemyProduce takes nothing returns nothing
     endif
     // entry 0 of a template is the construction yard
     set k = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
+    // EmpAiReserve (what unit production leaves) is set on every way out: it kept a stale value
+    // before (test/emperor-mission.test.ts)
     if not EmpAlive(EmpTplUnit[k]) then
+        set EmpAiReserve = 0
         return
     endif
     loop
@@ -119,6 +122,9 @@ function EmpEnemyProduce takes nothing returns nothing
             if EmpEnemyGold() >= c + {{ai.minMoneyToBuild}} then
                 call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, EmpEnemyGold() - c)
                 call EmpTplBuild(k, b)
+                set EmpAiReserve = 0
+            else
+                set EmpAiReserve = c + {{ai.minMoneyToBuild}}
             endif
             return
         endif
