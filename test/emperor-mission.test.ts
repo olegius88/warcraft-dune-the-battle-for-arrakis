@@ -193,6 +193,28 @@ test('territory battles have surface and vertical worms with the Rules.txt chanc
   assert.ok(!story.script.includes('EmpWormTick'), 'no worms outside territory battles');
 });
 
+// Reinforcements (Rules.txt [General] UnitValue*Reinforcements, TicksBetweenReinforcements and the
+// units' ReinforcementValue). SetReinforcements was a stub and territory battles had none.
+test('territory battles bring reinforcement sets of the Rules.txt value; the pick table is per house', opts, () => {
+  const all = loadAll();
+  assert.deepStrictEqual(all.rules.reinforcements, { attacker: 20, defender: 5, reserves: 20, initial: 20, subsequent: 10, delay: 6600, variation: 600, messageBefore: 100 });
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const battle = buildMission({ scripts: [], meta, ...all, name: 'reinf', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.match(battle.script, /set EmpReinfDelay = 6600\n\s+set EmpReinfVariation = 600/);
+  assert.match(battle.script, /call EmpReinfStart\(0, EmpReinfInitial, EmpReinfSubsequent\)\n\s+call EmpReinfStart\(1, EmpReinfInitial, EmpReinfSubsequent\)/);
+  // every house has its own units in the table (index = house id: 0 AT, 1 HK, 2 OR), e.g. the trike
+  // of the Atreides costs 5 and needs tech level 2
+  const trike = all.units.rawcode.get('ATTrike');
+  const m = new RegExp(`set EmpReinfType\\[(\\d+)\\] = '${trike}'`).exec(battle.script);
+  assert.ok(m, 'ATTrike in the pick table');
+  const k = Number(m[1]);
+  assert.ok(k < 32, 'Atreides units in house slot 0');
+  assert.ok(battle.script.includes(`set EmpReinfCost[${k}] = 5\n    set EmpReinfTech[${k}] = 2`));
+  for (const h of [0, 1, 2]) assert.match(battle.script, new RegExp(`set EmpReinfCount\\[${h}\\] = [1-9]`));
+  const story = buildMission({ scripts: [], meta, ...all, name: 'no-reinf', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x' });
+  assert.ok(!story.script.includes('call EmpReinfStart(0'), 'story missions get sets only through SetReinforcements');
+});
+
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines
 // (ATP1D19GN -> KK-M024, KK-M026). They were not played: only the text was shown.
 test('mission start plays the spoken briefing of the chosen script', opts, () => {

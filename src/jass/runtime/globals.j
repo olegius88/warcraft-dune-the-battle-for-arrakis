@@ -94,3 +94,18 @@
     integer EmpShroudCount = 0
     boolean array EmpWormAttract
     boolean array EmpWormRepel
+    integer EmpPlayerHouse = 0
+    integer array EmpReinfType
+    integer array EmpReinfCost
+    integer array EmpReinfTech
+    integer array EmpReinfCount
+    integer array EmpReinfValue
+    integer array EmpReinfAfter
+    integer array EmpReinfNext
+    boolean array EmpReinfWarned
+    timer EmpReinfTimer = null
+    integer EmpReinfDelay = 0
+    integer EmpReinfVariation = 0
+    integer EmpReinfMessage = 0
+    integer EmpReinfInitial = 0
+    integer EmpReinfSubsequent = 0

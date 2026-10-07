@@ -7,6 +7,7 @@ function EmpStart takes nothing returns nothing
     call EmpDefaultDiplomacy()
     call EmpPlaced()
     call EmpVetData()
+    call EmpReinfData()
 {{pickScript}}{{#if hasBriefingSpeech}}
     call EmpBriefingSpeech(){{/if}}
 {{#if briefing}}    call CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, {{str name}}, {{str briefing}}, {{str ICON.briefingQuest}})

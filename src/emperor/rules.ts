@@ -88,6 +88,8 @@ export interface RulesObject {
   power: number;
   /** turret that stops while its side lacks power */
   disableWithLowPower: boolean;
+  /** value of the unit in reinforcement / reserve sets (0 = never sent) */
+  reinforcementValue: number;
   size: number;
   /** [width, height] in tiles from the Occupy rows */
   footprint: [number, number] | null;
@@ -111,6 +113,29 @@ export interface WormRules {
   attractionRadius: number;
 }
 
+/** Reinforcements, reserves and starting armies of territory battles ([General]; values are sums of
+ * the units' ReinforcementValue, times in ticks). */
+export interface ReinforcementRules {
+  /** initial army of the attacking side */
+  attacker: number;
+  /** initial army of the defending side */
+  defender: number;
+  reserves: number;
+  /** first and later reinforcement sets */
+  initial: number;
+  subsequent: number;
+  /** delay between sets, random +- variation, screen message this long before a set arrives */
+  delay: number;
+  variation: number;
+  messageBefore: number;
+}
+
+/** Credits of the player in a campaign battle ([General] CampaignAttackMoney / CampaignDefendMoney). */
+export interface CampaignMoney {
+  attack: number;
+  defend: number;
+}
+
 export interface Rules {
   sections: Map<string, RulesSection>;
   objects: Map<string, RulesObject>;
@@ -120,6 +145,8 @@ export interface Rules {
   /** crate type -> CrateGiftObject (unit type or CASH<n>) */
   crates: Map<string, string>;
   worms: WormRules;
+  reinforcements: ReinforcementRules;
+  campaignMoney: CampaignMoney;
 }
 
 function parseSections(text: string): { sections: Map<string, RulesSection>; order: string[] } {
@@ -247,7 +274,8 @@ function loadRules(rulesPath: string): Rules {
       secondaryBuilding: (v.SecondaryBuilding || '').split(',').map((x) => x.trim()).filter(Boolean),
       unitWhenBuilt: (v.GetUnitWhenBuilt || '').trim(), spiceCapacity: num(v.SpiceCapacity),
       infantry: bool(v.Infantry), canFly: bool(v.CanFly) || bool(v.Aircraft), harvester: bool(v.Harvester),
-      conYard: bool(v.ConYard), power: num(v.PowerGenerated) - num(v.PowerUsed), disableWithLowPower: bool(v.DisableWithLowPower), size: num(v.Size, 1),
+      conYard: bool(v.ConYard), power: num(v.PowerGenerated) - num(v.PowerUsed), disableWithLowPower: bool(v.DisableWithLowPower),
+      reinforcementValue: num(v.ReinforcementValue), size: num(v.Size, 1),
       footprint: occupy.length ? [Math.max(...occupy.map((r) => r.length)), occupy.length] : null,
       turrets, raw: v,
     });
@@ -268,7 +296,14 @@ function loadRules(rulesPath: string): Rules {
     maxLife: num(general.SurfaceWormMaxLife), disappearHealth: num(general.SurfaceWormDisappearHealth),
     minTick: num(general.MinimumTicksWormCanAppear), attractionRadius: num(general.WormAttractionRadius),
   };
-  return { sections, objects, armourTypes, general, category, crates, worms };
+  const reinforcements: ReinforcementRules = {
+    attacker: num(general.UnitValueAttacker), defender: num(general.UnitValueDefender), reserves: num(general.UnitValueReserves),
+    initial: num(general.UnitValueInitialReinforcements), subsequent: num(general.UnitValueSubsequentReinforcements),
+    delay: num(general.TicksBetweenReinforcements), variation: num(general.TicksBetweenReinforcementsVariation),
+    messageBefore: num(general.TicksBeforeReinforcementsForMessage),
+  };
+  const campaignMoney: CampaignMoney = { attack: num(general.CampaignAttackMoney), defend: num(general.CampaignDefendMoney) };
+  return { sections, objects, armourTypes, general, category, crates, worms, reinforcements, campaignMoney };
 }
 
 export { loadRules, parseSections };

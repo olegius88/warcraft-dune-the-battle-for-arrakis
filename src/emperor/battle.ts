@@ -172,7 +172,7 @@ endfunction`;
     defendArmyLines: playerArmy.slice(C.DEFEND_ARMY_FROM, C.DEFEND_ARMY_TO).map((id) => `    call CreateUnit(Player(0), '${id}', EmpBaseX[b] + GetRandomReal(-${C.DEFEND_ARMY_SPREAD}, ${C.DEFEND_ARMY_SPREAD}), EmpBaseY[b] + GetRandomReal(-${C.DEFEND_ARMY_SPREAD}, ${C.DEFEND_ARMY_SPREAD}), ${FACING})`).join('\n'),
   }));
 
-  fns.push(jass('init', { attackBattle: o.territoryBattle && !o.defend, defendBattle: o.territoryBattle && Boolean(o.defend) }));
+  fns.push(jass('init', { territoryBattle: o.territoryBattle, attackBattle: o.territoryBattle && !o.defend, defendBattle: o.territoryBattle && Boolean(o.defend) }));
   lines.push('    call EmpBattleInit()');
   return { functions: fns.join('\n\n'), init: lines.join('\n'), clusters: clusters.length };
 }

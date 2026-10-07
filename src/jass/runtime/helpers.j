@@ -478,3 +478,82 @@ function EmpNormalCheck takes nothing returns nothing
         call EmpEnd(false)
     endif
 endfunction
+
+// ---- reinforcements (Rules.txt [General] UnitValue*Reinforcements, TicksBetweenReinforcements):
+// every set brings random units of the side's house (ReinforcementValue <= what is left of the set's
+// value, TechLevel <= the current tech level) to the side's entrance. Sides 0 (player) and 1 (main
+// enemy) have a house; the pick table is filled by the mission (EmpReinfData).
+function EmpReinfHouse takes integer side returns integer
+    if side == 0 then
+        return EmpPlayerHouse
+    elseif side == 1 then
+        return EmpEnemyHouse
+    endif
+    return -1
+endfunction
+
+function EmpReinfArrive takes integer side returns nothing
+    local integer h = EmpReinfHouse(side)
+    local integer left = EmpReinfValue[side]
+    local integer tries = 0
+    local integer k
+    local integer e = EmpEntranceFor(side)
+    local unit u
+    if h < 0 or EmpReinfCount[h] == 0 then
+        return
+    endif
+    loop
+        exitwhen left <= 0 or tries > {{RT.REINF_PICK_TRIES}}
+        set k = h * {{RT.REINF_SLOT_STRIDE}} + GetRandomInt(0, EmpReinfCount[h] - 1)
+        if EmpReinfCost[k] <= left and EmpReinfTech[k] <= EmpTechLevel then
+            set u = CreateUnit(EmpSidePlayer(side), EmpReinfType[k], EmpEntrX[e] + GetRandomReal(-{{RT.REINF_SPREAD}}, {{RT.REINF_SPREAD}}), EmpEntrY[e] + GetRandomReal(-{{RT.REINF_SPREAD}}, {{RT.REINF_SPREAD}}), {{FACING}})
+            set left = left - EmpReinfCost[k]
+        endif
+        set tries = tries + 1
+    endloop
+    if side == 0 then
+        call EmpShow({{str RT.REINF_ARRIVED_MESSAGE}})
+        call PingMinimap(EmpEntrX[e], EmpEntrY[e], {{real RT.REINF_PING_SECONDS}})
+    endif
+    set u = null
+endfunction
+
+function EmpReinfSchedule takes integer side returns nothing
+    set EmpReinfNext[side] = EmpTick + EmpReinfDelay + GetRandomInt(-EmpReinfVariation, EmpReinfVariation)
+    set EmpReinfWarned[side] = false
+endfunction
+
+function EmpReinfTick takes nothing returns nothing
+    local integer side = 0
+    loop
+        exitwhen side > {{RT.MAX_SIDE}}
+        if EmpReinfValue[side] > 0 and EmpReinfNext[side] > 0 then
+            if side == 0 and not EmpReinfWarned[0] and EmpTick >= EmpReinfNext[0] - EmpReinfMessage then
+                set EmpReinfWarned[0] = true
+                call EmpShow({{str RT.REINF_SOON_MESSAGE}})
+            endif
+            if EmpTick >= EmpReinfNext[side] then
+                call EmpReinfArrive(side)
+                set EmpReinfValue[side] = EmpReinfAfter[side]
+                call EmpReinfSchedule(side)
+            endif
+        endif
+        set side = side + 1
+    endloop
+endfunction
+
+// side gets reinforcement sets: the first of value first, then of value later each
+function EmpReinfStart takes integer side, integer first, integer later returns nothing
+    if side < 0 or side > {{RT.MAX_SIDE}} then
+        return
+    endif
+    set EmpReinfValue[side] = first
+    set EmpReinfAfter[side] = later
+    if EmpReinfNext[side] == 0 then
+        call EmpReinfSchedule(side)
+    endif
+    if EmpReinfTimer == null then
+        set EmpReinfTimer = CreateTimer()
+        call TimerStart(EmpReinfTimer, {{real RT.REINF_TICK}}, true, function EmpReinfTick)
+    endif
+endfunction

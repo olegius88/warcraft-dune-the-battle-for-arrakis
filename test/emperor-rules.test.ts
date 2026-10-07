@@ -33,3 +33,34 @@ test('crate gift keeps names with a lowercase "s" and drops trailing words', () 
     assert.strictEqual(rules.crates.get('MoneyCrate'), 'CASH2000');
   });
 });
+
+test('reinforcement values of units and the [General] reinforcement / campaign money keys', () => {
+  withRules([
+    '[General]',
+    'UnitValueAttacker = 20 // c',
+    'UnitValueDefender = 5',
+    'UnitValueReserves = 20',
+    'UnitValueInitialReinforcements = 20',
+    'UnitValueSubsequentReinforcements = 10',
+    'TicksBetweenReinforcements = 6600',
+    'TicksBetweenReinforcementsVariation = 600',
+    'TicksBeforeReinforcementsForMessage = 100',
+    'CampaignAttackMoney = 5000',
+    'CampaignDefendMoney = 2500',
+    '[UnitTypes]',
+    'ATTrike',
+    'ATScout',
+    '[ATTrike]',
+    'House = Atreides',
+    'ReinforcementValue = 5',
+    '[ATScout]',
+    'House = Atreides',
+    '//ReinforcementValue = 6',
+  ].join('\r\n'), (file) => {
+    const rules = loadRules(file);
+    assert.deepStrictEqual(rules.reinforcements, { attacker: 20, defender: 5, reserves: 20, initial: 20, subsequent: 10, delay: 6600, variation: 600, messageBefore: 100 });
+    assert.deepStrictEqual(rules.campaignMoney, { attack: 5000, defend: 2500 });
+    assert.strictEqual(rules.objects.get('ATTrike')?.reinforcementValue, 5);
+    assert.strictEqual(rules.objects.get('ATScout')?.reinforcementValue, 0);
+  });
+});

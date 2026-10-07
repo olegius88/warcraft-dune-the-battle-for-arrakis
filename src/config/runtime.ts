@@ -130,6 +130,17 @@ export const CRATE_KIND = { bomb: -1, stealth: -2, shroud: -3 } as const;
 /** Alpha of a stealthed unit when the invisibility ability cannot be added. */
 export const STEALTH_ALPHA = 90;
 
+/** Reinforcements (timings and set values come from Rules.txt [General]): units of one house in the
+ * pick table at most, check period, random picks of a set before it is considered complete,
+ * spread around the entrance, texts and minimap ping for the player's sets. */
+export const REINF_SLOT_STRIDE = 32;
+export const REINF_TICK = 1;
+export const REINF_PICK_TRIES = 40;
+export const REINF_SPREAD = 256;
+export const REINF_SOON_MESSAGE = 'Ментат: Подкрепления на подходе.';
+export const REINF_ARRIVED_MESSAGE = 'Ментат: Подкрепления прибыли.';
+export const REINF_PING_SECONDS = 4;
+
 /** sounds.txt section that holds the spoken mission briefings (key = mission script name). */
 export const SPEECH_BRIEFING_SECTION = 'Briefing';
 /** sounds.txt section of the spoken debriefings; key = script name + suffix (first found wins). */

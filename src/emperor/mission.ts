@@ -18,7 +18,7 @@ import type { MissionContext } from './context.ts';
 import type { UnitData } from './units.ts';
 import type { Rules } from './rules.ts';
 import type { Speech } from './speech.ts';
-import { HOUSE_ID, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_BY_CODE } from '../config/houses.ts';
+import { HOUSE_ID, HOUSES, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_BY_CODE } from '../config/houses.ts';
 import { CACHE_FILE, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
@@ -215,6 +215,20 @@ function buildMission(p: MissionParams): BuiltMission {
     ? `    // pick the script of the current campaign phase (fallback: the first one)\n    set EmpScriptIndex = 0\n${scripts.map((s, i) => `    if EmpPhase == ${s.phase} then\n        set EmpScriptIndex = ${i}\n    endif`).join('\n')}`
     : '';
 
+  // reinforcement pick table: units with a ReinforcementValue, by house (index = house id)
+  const reinfLines: string[] = [];
+  HOUSES.forEach((house, h) => {
+    const list = [...(p.rules ? p.rules.objects.values() : [])]
+      .filter((o) => o.house === house && o.reinforcementValue > 0 && p.units.rawcode.has(o.name));
+    if (list.length > RT.REINF_SLOT_STRIDE) throw new Error(`${house}: ${list.length} reinforcement units > REINF_SLOT_STRIDE`);
+    list.forEach((o, k) => {
+      const i = h * RT.REINF_SLOT_STRIDE + k;
+      reinfLines.push(`    set EmpReinfType[${i}] = '${p.units.rawcode.get(o.name)}'`, `    set EmpReinfCost[${i}] = ${o.reinforcementValue}`, `    set EmpReinfTech[${i}] = ${o.techLevel}`);
+    });
+    reinfLines.push(`    set EmpReinfCount[${h}] = ${list.length}`);
+  });
+  const reinf = p.rules?.reinforcements ?? { delay: 0, variation: 0, messageBefore: 0, initial: 0, subsequent: 0 };
+
   // music: a JASS string literal of the ";"-separated playlist, or '' for none
   const musicList = p.music && p.music.length ? str(p.music.join(';')) : '';
 
@@ -232,6 +246,7 @@ function buildMission(p: MissionParams): BuiltMission {
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
+    playerHouse: playerHouseId, reinf, reinfLines: reinfLines.join('\n'),
     colorPlayer: HOUSE_COLOR[playerHouseId], colorAtreides: HOUSE_COLOR[HOUSE_ID.Atreides], colorHarkonnen: HOUSE_COLOR[HOUSE_ID.Harkonnen],
   };
   const jass = (name: string): string => renderFile(jassFile(`mission/${name}`), scope);
@@ -241,6 +256,7 @@ function buildMission(p: MissionParams): BuiltMission {
     `function EmpData takes nothing returns nothing\n${init.join('\n')}\nendfunction`,
     jass('crates'),
     jass('veterancy'),
+    jass('reinforcements'),
     `function EmpPlaced takes nothing returns nothing\n${placed.join('\n')}\nendfunction`,
     `function EmpMissionTick takes nothing returns nothing\n${dispatch}\nendfunction`,
     ...(debriefBlocks.length ? [`function EmpDebriefSpeech takes boolean win returns real\n    local real t = 0.0\n${debriefBlocks.join('\n')}\n    return t\nendfunction`] : []),

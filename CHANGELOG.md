@@ -5,6 +5,12 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-07 Подкрепления по Rules.txt. Раз в `TicksBetweenReinforcements` ±`Variation` к входу
+  стороны приходят случайные юниты её дома (по `ReinforcementValue` и `TechLevel`) на сумму
+  ценности волны; за `TicksBeforeReinforcementsForMessage` игрок получает сообщение. В битвах за
+  территорию это относится к обеим сторонам (первая волна `UnitValueInitialReinforcements`, далее
+  `UnitValueSubsequentReinforcements`). В сюжетных миссиях волны включает `SetReinforcements`.
+  Теперь у всех функций API есть тела, ни одной заглушки не осталось.
 - 2026-10-07 API скриптов Emperor реализован полностью, кроме `SetReinforcements`
   ([src/jass/runtime/api/](src/jass/runtime/api)):
   - камера: вращение (`CameraStartRotate`/`CameraStopRotate`), зум, `CameraIs*`;

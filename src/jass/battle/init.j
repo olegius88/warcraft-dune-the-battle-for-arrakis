@@ -22,7 +22,10 @@ function EmpBattleInit takes nothing returns nothing
     call TimerStart(CreateTimer(), {{real C.HARVEST_CHECK_PERIOD}}, true, function EmpHarvestTick)
     call EmpPowerData()
     call TimerStart(CreateTimer(), {{real C.POWER_CHECK_PERIOD}}, true, function EmpPowerTick)
-{{#if attackBattle}}    call EmpStartForces()
+{{#if territoryBattle}}    // both sides get reinforcement sets (Rules.txt UnitValueInitial/SubsequentReinforcements)
+    call EmpReinfStart(0, EmpReinfInitial, EmpReinfSubsequent)
+    call EmpReinfStart(1, EmpReinfInitial, EmpReinfSubsequent)
+{{/if}}{{#if attackBattle}}    call EmpStartForces()
     call TimerStart(CreateTimer(), {{real C.ENEMY_PRODUCE_PERIOD}}, true, function EmpEnemyProduce)
     call TimerStart(CreateTimer(), {{real C.ENEMY_WAVE_PERIOD}}, true, function EmpEnemyWave){{/if}}
 {{#if defendBattle}}    call EmpDefendStart()
