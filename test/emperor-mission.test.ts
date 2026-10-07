@@ -174,6 +174,12 @@ test('power: per-type balance table and low-power turret switch in mission maps'
   assert.ok(m.script.includes(`call EmpPowerType('${trapId}', ${trap.power}, false)`), 'windtrap in the power table');
   assert.ok(m.script.includes(`call EmpPowerType('${turretId}', ${turret.power}, true)`), 'turret in the power table, disabled on low power');
   assert.ok(m.script.includes('function EmpPowerTick takes nothing returns nothing'));
+  // Regression: a building counted in the balance from the moment its construction began (a windtrap
+  // gave power before it stood). The construction start marks it, the finish unmarks it, and the
+  // power tick skips marked buildings.
+  assert.ok(m.script.includes('call SaveBoolean(EmpPowerTab, GetHandleId(b), 2, true)'), 'construction start marks the building');
+  assert.ok(m.script.includes('call RemoveSavedBoolean(EmpPowerTab, GetHandleId(b), 2)'), 'finish unmarks it');
+  assert.ok(m.script.includes('if EmpAlive(u) and not LoadBoolean(EmpPowerTab, GetHandleId(u), 2) then'), 'power tick skips it');
 });
 
 // SetVeterancy(obj, level): 51 scripts promote their units at start; was a stub (TODO(runtime)).
