@@ -5,7 +5,7 @@
 # A watchdog runs for the whole game:
 #   - the game window became the foreground window (start-up, end of loading) -> push it to the
 #     bottom of the z-order and give focus back to the window the user was in (via
-#     AttachThreadInput; if even that fails, minimise the game without activating it);
+#     AttachThreadInput; if even that fails, minimise the game so Windows activates the next window);
 #   - the cursor is clipped (WC3 confines it to its window) -> release the clip (ClipCursor(NULL)),
 #     whichever window is in front.
 # It reports how often each happened ("watchdog: focus taken back N, cursor released M, minimised K").
@@ -53,10 +53,10 @@ $deadline = (Get-Date).AddSeconds($Seconds)
 $nextFrame = (Get-Date).AddSeconds(8); $frame = 0
 # The cursor check runs every 30 ms (the clip is set at the end of loading, even when the window
 # is not in front, and while the game is in front; confinemousecursor=0 in War3Preferences.txt
-# does not prevent it); the focus check every 240 ms.
+# does not prevent it); the focus check as well (the game re-activates itself in some maps).
 while ((Get-Date) -lt $deadline -and -not $p.HasExited) {
   $tick++
-  if ($tick % 8 -eq 0) {
+  if ($true) {
     $fg = [W.Guard2]::GetForegroundWindow()
     if ($fg -ne [IntPtr]::Zero -and (Get-OwnerPid $fg) -eq $p.Id) {
       # HWND_BOTTOM = 1; SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE = 0x13
@@ -73,8 +73,10 @@ while ((Get-Date) -lt $deadline -and -not $p.HasExited) {
         if ($attached) { [void][W.Guard2]::AttachThreadInput($me, $gameThread, $false) }
       }
       if (-not $ok -or (Get-OwnerPid ([W.Guard2]::GetForegroundWindow())) -eq $p.Id) {
-        # last resort: minimise without activating; Windows activates the next window
-        [void][W.Guard2]::ShowWindow($fg, 7) # SW_SHOWMINNOACTIVE
+        # last resort: SW_MINIMIZE (6) — Windows itself activates the next top-level window.
+        # (SW_SHOWMINNOACTIVE leaves the minimised game active: keyboard input kept going to it and
+        # the watchdog re-triggered every tick, 94 times in one run on 2026-10-07.)
+        [void][W.Guard2]::ShowWindow($fg, 6)
         $minimized++
       }
       $focusTaken++
