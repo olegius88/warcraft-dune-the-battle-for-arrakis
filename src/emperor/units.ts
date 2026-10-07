@@ -1,6 +1,6 @@
-// Emperor units/buildings (rules.ts) -> Warcraft III custom object data (war3map.w3u) built on
-// stock WC3 models, plus the combat table (war3mapMisc.txt DamageBonus*) derived from Emperor
-// warheads. Version 1 uses stand-in models (decision 2026-10-07); XBF conversion is a later track.
+// Emperor units/buildings (rules.ts) -> Warcraft III custom object data (war3map.w3u) on stock WC3
+// base objects, with Emperor's own models (src/emperor/models.ts) and icons (icons.ts) when given,
+// plus the combat table (war3mapMisc.txt DamageBonus*) derived from Emperor warheads.
 //
 // Scaling (Emperor -> WC3): HP /2, bullet damage /2, reload ticks /25 = seconds, range tiles *128,
 // speed (game coords per tick) *40, view range tiles *128, build time ticks /25 = seconds.
