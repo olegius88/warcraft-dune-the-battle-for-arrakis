@@ -66,6 +66,11 @@
   юнит получает здоровье, урон, броню, дальность, скорость, саморемонт, знак элиты
   ([src/emperor/rules.js](src/emperor/rules.js), [src/emperor/mission.js](src/emperor/mission.js)).
   В игре ещё не проверялось.
+- 2026-10-07 Оригинальная озвучка сообщений миссий: `DATA\Sounds\sounds.txt` связывает ключ сообщения
+  с репликой `DIALOG.BAG`, карта импортирует только свои реплики, `Message()` ставит их в очередь
+  (по одной, по известной длительности). Проверено в 1.31.1: IMA ADPCM WAV и MP3 открываются движком
+  ([src/emperor/bag.js](src/emperor/bag.js), [src/emperor/speech.js](src/emperor/speech.js),
+  [src/emperor/runtime.js](src/emperor/runtime.js)).
 - 2026-10-07 Тестовые прогоны пишут JPEG и GIF игрового окна для показа в чате
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.js](tools/make-gif.js); devDependencies `gifenc`, `pngjs`).
 
