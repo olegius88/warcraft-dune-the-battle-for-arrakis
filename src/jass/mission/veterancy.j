@@ -1,0 +1,137 @@
+// Veterancy (Rules.txt): the killer gets the victim's Score (assumed: Emperor's own docs are not
+// available; thresholds such as ATKindjal 2/10/20 against Score = 1..2 per kill fit it).
+// EmpVet[type]: child 0 = Score, 1 = level count, level L at L*VET_SLOT_STRIDE + 1..8.
+// EmpVetUnit[handle id]: 0 = score so far, 1 = level, 2..4 = original damage/armour/range.
+// Regression/feature test: test/emperor-mission.test.ts.
+function EmpVetLevel takes integer t, integer lv, integer score, integer hp, integer dmg, integer arm, integer rng, integer spd, boolean repair, boolean elite returns nothing
+    local integer b = lv * {{RT.VET_SLOT_STRIDE}}
+    call SaveInteger(EmpVet, t, b + 1, score)
+    call SaveInteger(EmpVet, t, b + 2, hp)
+    call SaveInteger(EmpVet, t, b + 3, dmg)
+    call SaveInteger(EmpVet, t, b + 4, arm)
+    call SaveInteger(EmpVet, t, b + 5, rng)
+    call SaveInteger(EmpVet, t, b + 6, spd)
+    call SaveBoolean(EmpVet, t, b + 7, repair)
+    call SaveBoolean(EmpVet, t, b + 8, elite)
+    if lv > LoadInteger(EmpVet, t, 1) then
+        call SaveInteger(EmpVet, t, 1, lv)
+    endif
+endfunction
+
+function EmpVetData takes nothing returns nothing
+    set EmpVet = InitHashtable()
+    set EmpVetUnit = InitHashtable()
+{{vetLines}}
+endfunction
+
+function EmpVetApply takes unit u, integer lv returns nothing
+    local integer t = GetUnitTypeId(u)
+    local integer h = GetHandleId(u)
+    local integer b = lv * {{RT.VET_SLOT_STRIDE}}
+    local integer v
+    local real r
+    local real pct
+    if not LoadBoolean(EmpVetUnit, h, 5) then
+        call SaveInteger(EmpVetUnit, h, 2, BlzGetUnitBaseDamage(u, 0))
+        call SaveReal(EmpVetUnit, h, 3, BlzGetUnitArmor(u))
+        call SaveReal(EmpVetUnit, h, 4, BlzGetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_RANGE, 0))
+        call SaveBoolean(EmpVetUnit, h, 5, true)
+    endif
+    set v = LoadInteger(EmpVet, t, b + 2)
+    if v > 0 then
+        set pct = GetUnitLifePercent(u)
+        call BlzSetUnitMaxHP(u, v)
+        call SetUnitLifePercentBJ(u, pct)
+    endif
+    set v = LoadInteger(EmpVet, t, b + 3)
+    if v > 0 then
+        call BlzSetUnitBaseDamage(u, R2I(LoadInteger(EmpVetUnit, h, 2) * (100 + v) / 100.0), 0)
+    endif
+    set v = LoadInteger(EmpVet, t, b + 4)
+    if v > 0 and v < 100 then
+        // "v% less damage received": WC3 armour a absorbs 0.06a / (1 + 0.06a)
+        set r = v / 100.0
+        call BlzSetUnitArmor(u, LoadReal(EmpVetUnit, h, 3) + r / ({{real ARMOR_REDUCTION}} * (1.0 - r)))
+    endif
+    set v = LoadInteger(EmpVet, t, b + 5)
+    if v > 0 then
+        // TODO(veterancy): weapon index base (0 or 1) of BlzSetUnitWeaponRealField in 1.31 not verified in game
+        call BlzSetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_RANGE, 0, LoadReal(EmpVetUnit, h, 4) * (100 + v) / 100.0)
+    endif
+    set v = LoadInteger(EmpVet, t, b + 6)
+    if v > 0 then
+        call SetUnitMoveSpeed(u, v)
+    endif
+    if LoadBoolean(EmpVet, t, b + 7) then
+        // TODO(veterancy): Emperor's self-repair rate is unknown; 1% of max HP per second
+        call BlzSetUnitRealField(u, UNIT_RF_HIT_POINTS_REGENERATION_RATE, BlzGetUnitMaxHP(u) * {{real RT.VET_SELF_REPAIR_RATE}})
+    endif
+    if LoadBoolean(EmpVet, t, b + 8) then
+        call AddSpecialEffectTarget({{str EFFECT.elite}}, u, "origin")
+    endif
+    call DestroyEffect(AddSpecialEffectTarget({{str EFFECT.levelUp}}, u, "origin"))
+endfunction
+
+// SetVeterancy(obj, level) of the scripts (EF_SetVeterancy hands the arguments over in globals):
+// apply the missing levels up to the wanted one and give the unit the score of that level.
+function EmpVetSetFromArgs takes nothing returns nothing
+    local unit u = EmpVetArgUnit
+    local integer t
+    local integer h
+    local integer lv
+    local integer n
+    if u == null or not EmpAlive(u) then
+        set u = null
+        return
+    endif
+    set t = GetUnitTypeId(u)
+    set h = GetHandleId(u)
+    set lv = LoadInteger(EmpVetUnit, h, 1)
+    set n = LoadInteger(EmpVet, t, 1)
+    loop
+        exitwhen lv >= EmpVetArgLevel or lv >= n
+        set lv = lv + 1
+        call EmpVetApply(u, lv)
+    endloop
+    call SaveInteger(EmpVetUnit, h, 1, lv)
+    if lv > 0 then
+        call SaveInteger(EmpVetUnit, h, 0, IMaxBJ(LoadInteger(EmpVetUnit, h, 0), LoadInteger(EmpVet, t, lv * {{RT.VET_SLOT_STRIDE}} + 1)))
+    endif
+    set u = null
+endfunction
+
+function EmpOnKill takes nothing returns nothing
+    local unit k = GetKillingUnit()
+    local unit d = GetTriggerUnit()
+    local integer t
+    local integer h
+    local integer s = 1
+    local integer lv
+    local integer n
+    // handle ids are reused: forget the dead unit's veterancy
+    call FlushChildHashtable(EmpVetUnit, GetHandleId(d))
+    if k == null or not EmpAlive(k) or IsUnitType(k, UNIT_TYPE_STRUCTURE) or GetOwningPlayer(k) == GetOwningPlayer(d) then
+        set k = null
+        set d = null
+        return
+    endif
+    set t = GetUnitTypeId(d)
+    if HaveSavedInteger(EmpVet, t, 0) then
+        set s = LoadInteger(EmpVet, t, 0)
+    endif
+    set t = GetUnitTypeId(k)
+    set h = GetHandleId(k)
+    set s = LoadInteger(EmpVetUnit, h, 0) + s
+    call SaveInteger(EmpVetUnit, h, 0, s)
+    set lv = LoadInteger(EmpVetUnit, h, 1)
+    set n = LoadInteger(EmpVet, t, 1)
+    loop
+        exitwhen lv >= n
+        exitwhen LoadInteger(EmpVet, t, (lv + 1) * {{RT.VET_SLOT_STRIDE}} + 1) > s
+        set lv = lv + 1
+        call EmpVetApply(k, lv)
+    endloop
+    call SaveInteger(EmpVetUnit, h, 1, lv)
+    set k = null
+    set d = null
+endfunction

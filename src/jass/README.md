@@ -29,6 +29,14 @@
 | `hub/globals.j` | `src/emperor/hub.ts` | глобальные переменные стратегической карты (хаба) |
 | `hub/functions.j` | `src/emperor/hub.ts` | хаб: территории, выбор атаки, результат битвы из game cache, фазы и тех-уровни, контратаки, сюжетные миссии, музыка |
 | `hub/autotest.j` | `src/emperor/hub.ts` | автотест хаба (`--autotest`): отчёт о каждом визите, одна атака |
+| `mission/globals.j` | `src/emperor/mission.ts` | глобальные переменные связки миссии с кампанией (game cache, фаза, ящики, ветеранство) |
+| `mission/crates.j` | `src/emperor/mission.ts` | ящики Emperor: появление и подбор по близости |
+| `mission/veterancy.j` | `src/emperor/mission.ts` | ветеранство: таблица уровней (`{{vetLines}}` из Rules.txt), повышение за убийства, `SetVeterancy` |
+| `mission/campaign.j` | `src/emperor/mission.ts` | чтение game cache, запись результата, возврат на хаб |
+| `mission/tick.j`, `mission/camera.j` | `src/emperor/mission.ts` | тик миссии; начальная камера на войсках игрока |
+| `mission/debug-report.j` | `src/emperor/mission.ts` | отчёт для автотестов в `CustomMapData` |
+| `mission/autowin.j` | `src/emperor/mission.ts` | автотест: победа через заданное время |
+| `mission/start.j` | `src/emperor/mission.ts` | `EmpStart`: порядок запуска, триггеры, таймеры, музыка, цвета игроков |
 | `runtime/globals.j` | `src/emperor/runtime.ts` | глобальные переменные рантайма API Emperor |
 | `runtime/helpers.j` | `src/emperor/runtime.ts` | вспомогательные функции рантайма (стороны, подсчёт, ИИ, речь, конец миссии) |
 | `runtime/api/<Name>.j` | `src/emperor/runtime.ts` | тело функции `EF_<Name>` API миссий Emperor |
