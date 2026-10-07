@@ -123,9 +123,12 @@ function parseGameElements(p: Buffer): GameElements {
     }
     groups[gname] = subs;
   }
-  // A second, point-less tree follows (zone names such as Route/Storyline, AI_Zone/Cliff/Valley).
-  // Parsed as nested "name[20], int32 childCount, children"; kept raw if that does not fit.
-  // TODO(map-zones): meaning of this tree not established; scripts may reference these zones.
+  // A second tree follows: zones (Route/Storyline, AI_Zone/Cliff/Valley) in the GameElements layout
+  // but with records longer than a point (regions; the first field of a Cliff record is a tag and
+  // a position, the rest is not decoded). Parsed as nested "name[20], int32 childCount, children",
+  // kept raw if that does not fit. They feed only GetValley / GetIsolatedInfantryRock /
+  // GetConvoyWayPointFunction (no shipped script calls them; the runtime falls back to script point
+  // 0) and Emperor's own AI (checked 2026-10-07), so missions do not depend on them.
   const zonesStart = c;
   const node = (): ZoneNode => ({ name: name(), children: list() });
   const list = (): ZoneNode[] => { const n = i32(); if (n < 0 || n > 64) throw new Error('bad zone count'); const a: ZoneNode[] = []; for (let k = 0; k < n; k++) a.push(node()); return a; };
