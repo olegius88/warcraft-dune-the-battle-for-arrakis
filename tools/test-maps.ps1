@@ -2,7 +2,7 @@
 # for each: crash / alive, the mission debug report and a window capture.
 # Usage: pwsh tools/test-maps.ps1 -Maps AT_Start.w3x,HK_A05.w3x [-Dir build\campaign\maps] [-Seconds 35] [-Gif]
 # Writes <map>.png (full window), <map>.jpg (1280 px, small enough to post in chat) and, with -Gif,
-# <map>.gif (a frame every 3 s from the 8th second, 800 px wide; tools/make-gif.js).
+# <map>.gif (a frame every 3 s from the 8th second, 800 px wide; tools/make-gif.ts).
 param(
   [Parameter(Mandatory = $true)][string[]]$Maps,
   [string]$Dir = 'build\campaign\maps',
@@ -36,7 +36,7 @@ foreach ($m in $Maps) {
   $out = & (Join-Path $PSScriptRoot 'run-wc3-classic.ps1') -Map (Join-Path $Dir $m) -Seconds $Seconds -Capture $shot @extra 2>&1
   if ($frames -and (Test-Path "${frames}000.png")) {
     $gifOut = $shot -replace '\.png$', '.gif'
-    & node (Join-Path $PSScriptRoot 'make-gif.js') $frames $gifOut 800 700 | Out-Null
+    & node (Join-Path $PSScriptRoot 'make-gif.ts') $frames $gifOut 800 700 | Out-Null
     # remove exactly the frames written for this run: <prefix>000.png, 001, ... until the first gap
     for ($i = 0; Test-Path ('{0}{1:d3}.png' -f $frames, $i); $i++) {
       & node 'C:\Users\Oleg\.codex\bin\safe-remove-temp-files.mjs' ('{0}{1:d3}.png' -f $frames, $i) | Out-Null

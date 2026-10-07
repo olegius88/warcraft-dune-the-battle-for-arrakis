@@ -4,17 +4,23 @@
   "private": true,
   "description": "Build pipeline that converts the user's own Emperor: Battle for Dune data into a Warcraft III campaign (.w3n)",
   "license": "UNLICENSED",
-  "type": "commonjs",
+  "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24.18"
   },
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\"",
-    "smoke": "node src/smoke/build-smoke.js"
+    "typecheck": "tsc -p .",
+    "test": "tsc -p . && node --test \"test/**/*.test.ts\"",
+    "test:fast": "node --test \"test/**/*.test.ts\"",
+    "smoke": "node src/smoke/build-smoke.ts",
+    "campaign": "node src/emperor/build-campaign.ts --check"
   },
   "devDependencies": {
+    "@types/node": "^24.19.1",
+    "@types/pngjs": "^6.0.5",
     "gifenc": "^1.0.3",
     "mdx-m3-viewer": "^5.12.0",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "typescript": "^7.0.2"
   }
 }
