@@ -4,12 +4,11 @@
 // edge; WC3 y grows upwards, so rows are flipped. The Emperor map is placed inside a WC3 map
 // padded to a multiple of 32 cells with the required boundary around it.
 //
-// Height is derived from tile types (Rules.txt [TerrainTypes]: Sand, Rock, Cliff, NBRock,
-// InfRock, DustBowl, MapEdge, Ramp): rock plateaus are raised, cliff tiles become steep
-// unwalkable slopes, ramps are half way. No WC3 cliff levels are used (they need exact ramp
-// shapes); pathing comes from our wpm.
-// TODO(terrain-height): test.CPF (u16 per tile, 256 stride) looks like height with noise but is
-// unverified; plateau heights are uniform for now.
+// Height comes from the map's own surface mesh (test.xbf scene, src/emperor/heightmap.ts) scaled
+// like the models (TERRAIN_HEIGHT_SCALE). Maps without one fall back to tile types (Rules.txt
+// [TerrainTypes]: Sand, Rock, Cliff, NBRock, InfRock, DustBowl, MapEdge, Ramp): rock plateaus are
+// raised, cliff tiles become steep slopes, ramps are half way. No WC3 cliff levels are used (they
+// need exact ramp shapes); pathing comes from our wpm (cliff tiles unwalkable).
 
 import { PATH } from '../wc3/formats.ts';
 import type { Boundary, Corner } from '../wc3/formats.ts';
@@ -17,7 +16,7 @@ import type { Rgb } from '../wc3/blp.ts';
 import type { MapMeta } from './mapxbf.ts';
 import { TERRAIN } from '../config/wc3.ts';
 import { TEX, MINIMAP_COLOR, TEX_RANK, CORNER_LAYER, NO_CLIFF } from '../config/terrain.ts';
-import { PLATEAU_HEIGHT as PLATEAU, CLIFF_HEIGHT_RATIO, RAMP_HEIGHT_RATIO, MAP_BOUNDARY_CELLS, MAP_SIZE_STEP, EMPEROR_TILE, WC3_UNITS_PER_TILE } from '../config/scale.ts';
+import { PLATEAU_HEIGHT as PLATEAU, CLIFF_HEIGHT_RATIO, RAMP_HEIGHT_RATIO, MAP_BOUNDARY_CELLS, MAP_SIZE_STEP, EMPEROR_TILE, WC3_UNITS_PER_TILE, TERRAIN_HEIGHT_SCALE } from '../config/scale.ts';
 
 /** Emperor tile types: Rules.txt [TerrainTypes] order (format, not a parameter). */
 const T = { SAND: 0, ROCK: 1, CLIFF: 2, NBROCK: 3, INFROCK: 4, DUSTBOWL: 5, MAPEDGE: 6, RAMP: 7 } as const;
@@ -89,6 +88,13 @@ function buildTerrain(meta: MapMeta): EmperorTerrain {
 
   // Corner (x, y) is shared by cells (x-1..x, y-1..y).
   const NEIGHBOURS: Array<[number, number]> = [[-1, -1], [0, -1], [-1, 0], [0, 0]];
+  // the map's own surface (src/emperor/heightmap.ts): WC3 corner (x, y) = Emperor corner
+  // (x - ox, H - (y - oy)), clamped to the map; heights in w3e layers
+  const heights = meta.heights;
+  const meshHeight = (x: number, y: number): number => {
+    const ex = Math.max(0, Math.min(W, x - ox)), row = Math.max(0, Math.min(H, H - (y - oy)));
+    return ((heights as Float64Array)[row * (W + 1) + ex] as number) * TERRAIN_HEIGHT_SCALE / WC3_UNITS_PER_TILE;
+  };
   const corner = (x: number, y: number): Corner => {
     let h = 0, n = 0, tex: number = TEX.SAND, best = -1;
     for (const [dx, dy] of NEIGHBOURS) {
@@ -101,7 +107,8 @@ function buildTerrain(meta: MapMeta): EmperorTerrain {
       if (rank > best) { best = rank; tex = tx; }
     }
     const outside = x < boundary[0] || x > width - boundary[1] || y < boundary[2] || y > height - boundary[3];
-    return { texture: tex, height: n ? h / n : 0, layer: CORNER_LAYER, cliff: NO_CLIFF, boundary: outside };
+    const z = heights ? meshHeight(x, y) : n ? h / n : 0;
+    return { texture: tex, height: z, layer: CORNER_LAYER, cliff: NO_CLIFF, boundary: outside };
   };
 
   const pathing = (px: number, py: number): number => {

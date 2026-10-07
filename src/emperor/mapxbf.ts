@@ -6,6 +6,8 @@
 // GameElements (0x05) is decoded here (see parseGameElements).
 
 import fs from 'node:fs';
+import { readXbf } from './xbf.ts';
+import { heightsFromScene } from './heightmap.ts';
 
 const TAG = { ZONES: 0x01, MAP_SIZE: 0x02, TILES: 0x03, SPICE: 0x04, GAME_ELEMENTS: 0x05, BUILDINGS: 0x07, SPICE_MOUND: 0x09, UNKNOWN_0A: 0x0A, TIMESTAMP: 0x0B };
 
@@ -52,6 +54,8 @@ export interface MapMeta {
   spiceMounds?: Array<[number, number]>;
   buildings?: PlacedObject[];
   gameElements?: GameElements;
+  /** terrain height at the tile corners, (W + 1) x (H + 1), row 0 = top (Emperor units) */
+  heights?: Float64Array;
 }
 
 function readMeta(fileOrBuffer: string | Buffer): MapMeta {
@@ -84,6 +88,10 @@ function readMeta(fileOrBuffer: string | Buffer): MapMeta {
   if (bld) out.buildings = parseBuildings(bld.payload);
   const ge = get(TAG.GAME_ELEMENTS);
   if (ge) out.gameElements = parseGameElements(ge.payload);
+  // the scene after the meta data is the terrain surface (src/emperor/heightmap.ts)
+  if (out.mapSize) {
+    try { out.heights = heightsFromScene(readXbf(b), out.mapSize[0], out.mapSize[1]); } catch { /* no usable mesh: heights from tile types */ }
+  }
   return out;
 }
 

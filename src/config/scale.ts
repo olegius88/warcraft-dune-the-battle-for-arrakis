@@ -43,10 +43,13 @@ export const BUILDING_DEFENSE = 2;
 /** Emperor value -> WC3 move speed (also for veterancy Speed). */
 export const moveSpeed = (emperorSpeed: number): number => Math.min(MAX_MOVE_SPEED, Math.max(MIN_MOVE_SPEED, emperorSpeed * SPEED_FACTOR));
 
-/** Rock plateau height in w3e layers (x128 world units); cliffs 60 %, ramps 50 % of it. */
+/** Maps without a usable mesh: rock plateau height in w3e layers (x128 world units); cliffs 60 %, ramps 50 % of it. */
 export const PLATEAU_HEIGHT = 1.2;
 export const CLIFF_HEIGHT_RATIO = 0.6;
 export const RAMP_HEIGHT_RATIO = 0.5;
+/** Terrain from the map mesh (src/emperor/heightmap.ts): WC3 units per Emperor height unit, as for
+ * models (config/models.ts MODEL_SCALE), so buildings and cliffs keep Emperor proportions. */
+export const TERRAIN_HEIGHT_SCALE = 4;
 /** Boundary cells around the Emperor map; the WC3 map is padded to a multiple of MAP_SIZE_STEP. */
 export const MAP_BOUNDARY_CELLS = 4;
 export const MAP_SIZE_STEP = 32;

@@ -11,6 +11,6 @@ function ModelProbeRun takes nothing returns nothing
     call IssuePointOrder(u, "move", 800.0, 250.0)
     call SetCameraField(CAMERA_FIELD_TARGET_DISTANCE, 1400.0, 0.0)
     call SetCameraField(CAMERA_FIELD_ANGLE_OF_ATTACK, 320.0, 0.0)
-    call SetCameraPosition(0.0, 0.0)
+    call SetCameraPosition(0.0, -350.0)
     set u = null
 endfunction
