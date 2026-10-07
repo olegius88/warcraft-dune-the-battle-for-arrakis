@@ -110,7 +110,8 @@ function EmpMoviePlay takes code after returns nothing
         set EmpMovieView = BlzCreateFrameByType("BACKDROP", "EmpMovie", ui, "", 0)
         call BlzFrameSetAbsPoint(EmpMovieView, FRAMEPOINT_TOPLEFT, {{real MOVIE_AREA.left}}, {{real MOVIE_AREA.top}})
         call BlzFrameSetAbsPoint(EmpMovieView, FRAMEPOINT_BOTTOMRIGHT, {{real MOVIE_AREA.right}}, {{real MOVIE_AREA.bottom}})
-        // Esc skips the current movie (the key that skips cinematics)
+        // Esc skips the current movie (the key that skips cinematics; verified in the campaign 2026-10-07:
+        // Esc 20 s into H01_F00E started H02_F00E at 23.1 s instead of 156.5 s)
         set EmpMovieEsc = CreateTrigger()
         call TriggerRegisterPlayerEvent(EmpMovieEsc, Player(0), EVENT_PLAYER_END_CINEMATIC)
         call TriggerAddAction(EmpMovieEsc, function EmpMovieSkip)

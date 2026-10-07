@@ -88,12 +88,12 @@ try {
   if (-not $KeysOnly) {
     Ui @{ Action = 'Click'; Fx = $MissionFx; Fy = $MissionFy }; Shot 'mission'
   } else {
-    # keys only: try each key on the campaign screen until the first mission writes its report
+    # -KeysOnly: no clicks on the menus; tries on the campaign screen until the first mission writes its report:
     $report = Join-Path $env:USERPROFILE "Documents\Warcraft III\CustomMapData\$StartReport"
     $since = Get-Date
-    # then a click posted to the game window (cannot reach another window), then a real one
-    $tries = @($MissionKeys | ForEach-Object { @{ Action = 'Key'; Vk = $_ } }) + @(
-      @{ Action = 'PostClick'; Fx = $MissionFx; Fy = $MissionFy },
+    # a click posted to the game window (cannot reach another window), the keys, then a real click;
+    # the posted click first: it is what starts the mission (2026-10-07); each failed try costs 45 s
+    $tries = @(@{ Action = 'PostClick'; Fx = $MissionFx; Fy = $MissionFy }) + @($MissionKeys | ForEach-Object { @{ Action = 'Key'; Vk = $_ } }) + @(
       @{ Action = 'Click'; Fx = $MissionFx; Fy = $MissionFy })
     $started = $false
     foreach ($try in $tries) {
