@@ -205,6 +205,27 @@ function EmpClampY takes real y returns real
     return y
 endfunction
 
+// Emperor sides are not enemies until a script says so (SideEnemyTo is called 1404 times in the
+// scripts); only the player and the main enemy start hostile. WC3 players on separate teams start as
+// enemies, so everything else is made neutral before the scripts run (regression test:
+// test/emperor-mission.test.ts).
+function EmpDefaultDiplomacy takes nothing returns nothing
+    local integer a = 0
+    local integer b
+    loop
+        exitwhen a > ${RT.MAX_SIDE}
+        set b = 0
+        loop
+            exitwhen b > ${RT.MAX_SIDE}
+            if a != b and not ((a == 0 and b == 1) or (a == 1 and b == 0)) then
+                call SetPlayerAllianceStateBJ(Player(a), Player(b), bj_ALLIANCE_NEUTRAL)
+            endif
+            set b = b + 1
+        endloop
+        set a = a + 1
+    endloop
+endfunction
+
 // one aircraft of an AirStrike: created at the entry point, attack-moves to the target base
 function EmpStrikeAdd takes integer slot, integer side, integer t, location from, integer b returns nothing
     local unit u

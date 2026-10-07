@@ -185,6 +185,8 @@ function buildMission(p: MissionParams): BuiltMission {
       placed.push(`    call CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${UNIT.civilianHouse}', ${at}, ${FACING})`);
     } else if (p.units.rawcode.has(n)) {
       // owner 0 = the player's side (own frigate on #H2/#H3, the HK base of #V1 Homeworld Defence)
+      // TODO(owners): owners >= 2 (Ix/Tleilaxu transports, smuggler starports of territory maps, frigates
+      // of #H1, windtraps of #V1) stay neutral: whether owner n means "the n-th scripted side" is not established.
       const who = b.owner === 1 ? 'Player(1)' : b.owner === 0 ? 'Player(0)' : 'Player(PLAYER_NEUTRAL_PASSIVE)';
       placed.push(`    call CreateUnit(${who}, '${p.units.rawcode.get(n)}', ${at}, ${FACING})`);
     }
@@ -545,6 +547,7 @@ endfunction`] : []),
     set EmpTmpGroup = CreateGroup()
     call EmpCampaignLoad()
     call EmpData()
+    call EmpDefaultDiplomacy()
     call EmpPlaced()
     call EmpVetData()
 ${pickScript}${briefingBlocks.length ? '\n    call EmpBriefingSpeech()' : ''}

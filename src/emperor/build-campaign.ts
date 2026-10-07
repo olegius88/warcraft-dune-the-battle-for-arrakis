@@ -149,12 +149,13 @@ for (const h of houses) {
 
   // story missions
   const storyFile: Omit<StoryMaps, 'homeAttack'> & { homeAttack: Record<string, string> } = { homeAttack: {} };
-  const storyMission = (key: 'heighliner' | 'homeDefence' | 'end', fileKey: string, def: StoryRef | undefined, title: string): void => {
+  const storyMission = (key: 'heighliner' | 'homeDefence' | 'civilWar' | 'end', fileKey: string, def: StoryRef | undefined, title: string): void => {
     if (!def) return;
     storyFile[key] = mission(CP.MAP_FILE.story(h, fileKey), title, [{ name: def[0], phase: 0 }], def[1], 'story');
   };
   storyMission('heighliner', 'Heighliner', story.heighliner, `${HOUSE_RU[h]}: Хайлайнер`);
   storyMission('homeDefence', 'HomeDefence', story.homeDefence, `${HOUSE_RU[h]}: Оборона родного мира`);
+  storyMission('civilWar', 'CivilWar', story.civilWar, `${HOUSE_RU[h]}: Гражданская война`);
   for (const [foe, def] of Object.entries(story.homeAttack)) {
     if (!def || !isHouseCode(foe)) continue;
     storyFile.homeAttack[foe] = mission(CP.MAP_FILE.homeAttack(h, foe), `${HOUSE_RU[h]}: Вторжение (${HOUSE_RU[foe]})`, [{ name: def[0], phase: 0 }], def[1], 'story');
@@ -164,7 +165,7 @@ for (const h of houses) {
   const hubMap = buildHub({
     house: h, campaign: camp, units: all.units, autoTest, music: useMusic(music ? music.hub(h) : []),
     battleMap: (kind, n) => battleFile[`${kind}:${n}`] || null,
-    storyMap: { heighliner: storyFile.heighliner, homeDefence: storyFile.homeDefence, homeAttack: storyFile.homeAttack, end: storyFile.end },
+    storyMap: { heighliner: storyFile.heighliner, homeDefence: storyFile.homeDefence, civilWar: storyFile.civilWar, homeAttack: storyFile.homeAttack, end: storyFile.end },
   });
   add(hub, hubMap.buffer, `Арракис — ${HOUSE_RU[h]}`, '', false, hubMap.script);
 }

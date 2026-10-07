@@ -221,3 +221,20 @@ test('mission result plays the win/lose debriefing of the chosen script', opts, 
   assert.ok(fn.includes('KK-D346.') && fn.includes('KK-D344.'), 'win and lose lines');
   assert.match(m.script, /EmpDebriefSpeech\(win\)/);
 });
+
+// Regression: every side was hostile to every other side (each WC3 player on its own team), while
+// Emperor sides are not enemies until a script says so: the scripts call SideEnemyTo 1404 times
+// (e.g. the HK civil war declares sides v2..v9 enemies of the player and leaves v10, which later
+// joins the player, alone). Created sides attacked the player without a reason. Guaranteed now:
+// before the scripts run all sides are neutral to each other except the player vs the main enemy.
+test('sides start neutral to each other except the player vs the main enemy', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#C1 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW, 'HHK Civil War Attack Mission.tok')), phase: 0, name: 'HHK Civil War Attack Mission' }],
+    meta, ...all, name: 'civil war', playerHouse: 'Harkonnen', kind: 'story', hubMap: 'HK_Hub.w3x' });
+  const fn = (m.script.split('function EmpDefaultDiplomacy takes nothing returns nothing')[1] ?? '').split('endfunction')[0] ?? '';
+  assert.ok(fn.includes('bj_ALLIANCE_NEUTRAL') && fn.includes('not ((a == 0 and b == 1) or (a == 1 and b == 0))'));
+  const start = (m.script.split('function EmpStart takes nothing returns nothing')[1] ?? '').split('endfunction')[0] ?? '';
+  const d = start.indexOf('call EmpDefaultDiplomacy()');
+  assert.ok(d >= 0 && d < start.indexOf('call EmpPlaced()'), 'diplomacy set before placed objects and scripts');
+});

@@ -66,6 +66,8 @@ export const CACHE_KEY = {
   homeAttackEnemy: 'haenemy',
   /** 1 = the last hub visit offered a counter-attack */
   lastKind: 'lastkind',
+  /** second story mission of a phase (HK: civil war attack after the home defence): 1 = next */
+  storyStep: 'storystep',
   /** autotest runs only: hub visits since the start mission */
   autotestVisits: 'atvisits',
 } as const;

@@ -211,7 +211,8 @@ function EmpLoad takes nothing returns nothing
         set EmpTech = ${START_TECH}
         set EmpCaptured = 0
         call StoreInteger(EmpCache, ${CAT}, ${K.house}, ${me})
-        call StoreInteger(EmpCache, ${CAT}, ${K.result}, -1)
+        call StoreInteger(EmpCache, ${CAT}, ${K.result}, -1)${story.civilWar ? `
+        call StoreInteger(EmpCache, ${CAT}, ${K.storyStep}, 0)` : ''}
         call EmpSave()
         return
     endif
@@ -326,7 +327,10 @@ endfunction
 function EmpStoryMap takes nothing returns string
     if EmpPhase == ${PHASE.first} then
         return ${str(story.heighliner || '')}
-    elseif EmpPhase == ${PHASE.second} then
+    elseif EmpPhase == ${PHASE.second} then${story.civilWar ? `
+        if GetStoredInteger(EmpCache, ${CAT}, ${K.storyStep}) == 1 then
+            return ${str(story.civilWar)}
+        endif` : ''}
         return ${str(story.homeDefence || '')}
     elseif EmpPhase == ${PHASE.homeAttack} then
         if GetStoredInteger(EmpCache, ${CAT}, ${K.homeAttackEnemy}) == ${foes[0]} then
@@ -344,7 +348,7 @@ function EmpOfferStory takes nothing returns boolean
     if m == "" then
         return false
     endif
-    if (EmpPhase == ${PHASE.first} or EmpPhase == ${PHASE.second}) and EmpCaptured < ${CAPTURES_FOR_STORY} then
+    if (EmpPhase == ${PHASE.first} or EmpPhase == ${PHASE.second}) and EmpCaptured < ${CAPTURES_FOR_STORY}${story.civilWar ? ` and GetStoredInteger(EmpCache, ${CAT}, ${K.storyStep}) == 0` : ''} then
         return false
     endif
     set EmpNextMap = m
@@ -442,7 +446,15 @@ function EmpApplyResult takes nothing returns boolean
                 call CustomVictoryBJ(Player(0), true, true)
                 return true
             endif
-            if EmpPhase < ${PHASE.lastWar} then
+${story.civilWar ? `            if EmpPhase == ${PHASE.second} and GetStoredInteger(EmpCache, ${CAT}, ${K.storyStep}) == 0 then
+                // the home defence is won: the civil war attack follows before phase ${PHASE.lastWar}
+                call StoreInteger(EmpCache, ${CAT}, ${K.storyStep}, 1)
+                call EmpSay("|cffffcc00Гражданская война! Сюжетная миссия доступна.|r")
+                call EmpSave()
+                return false
+            endif
+            call StoreInteger(EmpCache, ${CAT}, ${K.storyStep}, 0)
+` : ''}            if EmpPhase < ${PHASE.lastWar} then
                 set EmpPhase = EmpPhase + 1
                 set EmpCaptured = 0
                 set EmpTech = IMaxBJ(EmpTech, 2 * EmpPhase - 1)
