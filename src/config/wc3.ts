@@ -39,7 +39,8 @@ export const UNIT_FIELD = {
   tintBlue: 'uclb',
   /** Art - Icon - Game Interface (command card; seen in game 2026-10-07: src/smoke/build-icon-probe.ts) */
   icon: 'uico',
-  /** Art - Model File (code from memory, checked in game by src/smoke/build-model-probe.ts) */
+  /** Art - Model File: an .mdl path, the game loads the .mdx next to it (seen in game 2026-10-07,
+   * src/smoke/build-model-probe.ts: a .mdx path draws nothing) */
   model: 'umdl',
 } as const;
 
