@@ -98,6 +98,10 @@ export interface RulesObject {
   aiThreat: number;
   /** invisible while it stands still (scouts) */
   stealthedWhenStill: boolean;
+  /** worms eat it (TastyToWorms; false for story characters) */
+  tastyToWorms: boolean;
+  /** weight with which a worm picks it (WormAttraction; GUMaker -20 = never) */
+  wormAttraction: number;
   size: number;
   /** [width, height] in tiles from the Occupy rows */
   footprint: [number, number] | null;
@@ -286,6 +290,7 @@ function loadRules(rulesPath: string): Rules {
       infantry: bool(v.Infantry), canFly: bool(v.CanFly) || bool(v.Aircraft), harvester: bool(v.Harvester),
       conYard: bool(v.ConYard), power: num(v.PowerGenerated) - num(v.PowerUsed), disableWithLowPower: bool(v.DisableWithLowPower),
       reinforcementValue: num(v.ReinforcementValue), aiThreat: num(v.AIThreat), stealthedWhenStill: bool(v.StealthedWhenStill),
+      tastyToWorms: v.TastyToWorms === undefined || bool(v.TastyToWorms), wormAttraction: num(v.WormAttraction, 1),
       size: num(v.Size, 1),
       footprint: occupy.length ? [Math.max(...occupy.map((r) => r.length)), occupy.length] : null,
       turrets, raw: v,

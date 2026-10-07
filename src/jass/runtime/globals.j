@@ -57,6 +57,7 @@
     boolean EmpEndWin = false
     hashtable EmpPowerTab = null
     hashtable EmpCostTab = null
+    hashtable EmpWormTab = null
     unit EmpWorm = null
     integer EmpWormEnd = 0
     group array EmpStrike

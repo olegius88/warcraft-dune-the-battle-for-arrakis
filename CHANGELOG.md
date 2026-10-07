@@ -5,6 +5,10 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-07 Черви по Rules.txt: жертва выбирается с весом `WormAttraction`. Типы с
+  `TastyToWorms = False` (генералы, учёные, раб) и Guild Maker (−20) червь не трогает. Червь,
+  выползший на скалу, уходит под песок. Закрыт `TODO(worms)`
+  ([src/jass/battle/worms.j](src/jass/battle/worms.j)).
 - 2026-10-07 Ещё данные Rules.txt в миссиях
   ([src/jass/mission/stealth.j](src/jass/mission/stealth.j), [veterancy.j](src/jass/mission/veterancy.j)):
   - `StealthedWhenStill`: разведчики по типу, снайпер Атрейдесов с 3-го уровня ветеранства.

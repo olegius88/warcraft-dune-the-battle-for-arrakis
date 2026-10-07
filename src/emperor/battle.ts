@@ -139,7 +139,7 @@ function battleSetup(o: BattleOptions): BattleSetup {
       .map((x) => `    call EmpPowerType('${x.id}', ${x.emperor?.power}, ${x.emperor?.disableWithLowPower})`).join('\n'),
   }));
 
-  // ---- sandworms (territory battles; TODO(worms) in src/jass/battle/worms.j) ----
+  // ---- sandworms (territory battles; src/jass/battle/worms.j) ----
   const wormId = rc(C.SURFACE_WORM);
   const w = o.worms;
   if (o.territoryBattle && w && wormId) {
@@ -147,8 +147,12 @@ function battleSetup(o: BattleOptions): BattleSetup {
       w, wormId,
       isSand: [TEX.SAND, TEX.DUST, TEX.SPICE].map((slot) => `t == '${TERRAIN.ground[slot]}'`).join(' or '),
       perCheck: C.WORM_CHECK_PERIOD * TICKS_PER_SECOND, // chances are per tick
+      // types whose weight is not the default 1
+      wormLines: [...(o.rules ? o.rules.objects.values() : [])]
+        .filter((x) => rc(x.name) && (!x.tastyToWorms || x.wormAttraction !== 1))
+        .map((x) => `    call SaveInteger(EmpWormTab, '${rc(x.name)}', 0, ${x.tastyToWorms ? x.wormAttraction : 0})`).join('\n'),
     }));
-    lines.push(`    call TimerStart(CreateTimer(), ${real(C.WORM_CHECK_PERIOD)}, true, function EmpWormTick)`);
+    lines.push('    call EmpWormData()', `    call TimerStart(CreateTimer(), ${real(C.WORM_CHECK_PERIOD)}, true, function EmpWormTick)`);
   }
 
   // ---- starting forces / enemy base (territory battles) ----
