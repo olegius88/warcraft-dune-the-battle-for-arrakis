@@ -16,6 +16,9 @@ param(
   # -KeysOnly: no clicks; the campaign must be first in the list (Enter opens it) and the mission
   # keys are tried in turn until -StartReport (CustomMapData path) is written by the first mission
   [switch]$KeysOnly,
+  # -ScreenOnly: stop on the campaign screen (its background and music), -ScreenSeconds of captures
+  [switch]$ScreenOnly,
+  [int]$ScreenSeconds = 30,
   [int[]]$MissionKeys = @(0x0D, 0x20),
   [string]$StartReport = 'DuneTest\HK_Start.pld',
   [int]$Minutes = 20,
@@ -41,6 +44,9 @@ function Game { Get-Process 'Warcraft III' -ErrorAction SilentlyContinue | Where
 $step = 0
 function Shot([string]$name) {
   $script:step++
+  # the game's committed memory with every capture (movie frames stay cached until the map ends)
+  $g = Game
+  if ($g) { '{0:HH:mm:ss} {1}: private {2} MB' -f (Get-Date), $name, [int]($g.PrivateMemorySize64 / 1MB) }
   & ./tools/wc3-ui.ps1 -Action Capture -Out ('{0}{1:d2}-{2}.png' -f $ShotsPrefix, $script:step, $name) | Out-Null
 }
 # The game stays behind the user's windows: it takes the focus at start and at every level change;
@@ -81,10 +87,18 @@ try {
   $until = (Get-Date).AddSeconds(20)
   while ((Get-Date) -lt $until) { KeepGameBehind; Start-Sleep -Milliseconds 300 }
   Shot 'menu'
+  if ($ScreenOnly) { 'main menu sound: ' + (& ./tools/audio-peak.ps1 -Seconds 5) }
   Ui @{ Action = 'Key'; Vk = 0x53 }; Start-Sleep 3; Shot 'single'      # S: single player
   Ui @{ Action = 'Key'; Vk = 0x55 }; Start-Sleep 3; Shot 'custom'      # U: custom campaigns
   if (-not $KeysOnly) { Ui @{ Action = 'Click'; Fx = $ListFx; Fy = $ListFy }; Start-Sleep 2; Shot 'list' }
   Ui @{ Action = 'Key'; Vk = 0x0D }; Start-Sleep 5; Shot 'campaign'    # Enter: open it
+  if ($ScreenOnly) {
+    # the campaign screen's music (tools/audio-peak.ps1: peak level of the game's audio sessions)
+    'campaign screen sound: ' + (& ./tools/audio-peak.ps1 -Seconds 8)
+    $until = (Get-Date).AddSeconds($ScreenSeconds)
+    while ((Get-Date) -lt $until) { KeepGameBehind; Start-Sleep 5; Shot 'screen' }
+    return
+  }
   if (-not $KeysOnly) {
     Ui @{ Action = 'Click'; Fx = $MissionFx; Fy = $MissionFy }; Shot 'mission'
   } else {
