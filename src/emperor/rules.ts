@@ -240,9 +240,9 @@ function loadRules(rulesPath: string): Rules {
   for (const n of listOf('CrateTypes')) {
     const s = sec(n);
     const gift = s && s.entries.find(([k]) => k === 'CrateGiftObject');
-    // TODO(bug): /s+/ should be /\s+/ (a heredoc ate the backslash); latent - no current gift name
-    // contains a lowercase "s". Fixed in its own commit with a regression test.
-    if (s && gift) crates.set(s.name, gift[1].split(/s+/)[0] as string);
+    // was split(/s+/) (a heredoc ate the backslash): cut names at a lowercase "s"
+    // (regression test: test/emperor-rules.test.ts)
+    if (s && gift) crates.set(s.name, gift[1].split(/\s+/)[0] as string);
   }
   return { sections, objects, armourTypes, general, category, crates };
 }
