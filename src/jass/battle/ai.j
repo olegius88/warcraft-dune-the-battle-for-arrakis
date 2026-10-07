@@ -238,21 +238,33 @@ function EmpAiStart takes integer t, real x, real y returns nothing
     set tm = null
 endfunction
 
-// a random type of category c the AI may build now (0: none)
+// the type of category c the AI may build now that it has fewest of, random among equals (0: none).
+// A random type every turn let a cheap one win whenever a dear one was not affordable yet (5 barracks
+// and no factory, HK_A02 2026-10-08); now the builder saves for the one it lacks (test in
+// test/emperor-mission.test.ts).
 function EmpAiPick takes integer c returns integer
     local integer i = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
     local integer last = i + EmpAiBCount[EmpEnemyHouse]
     local integer n = 0
     local integer t
+    local integer have
+    local integer fewest = 1000000
     local integer pick = 0
     loop
         exitwhen i >= last
         set t = EmpAiBType[i]
         if LoadInteger(EmpAiTab, t, 0) == c and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
-            // reservoir sampling: each allowed type equally likely
-            set n = n + 1
-            if GetRandomInt(1, n) == 1 then
+            set have = EmpCount(1, t)
+            if have < fewest then
+                set fewest = have
+                set n = 1
                 set pick = t
+            elseif have == fewest then
+                // reservoir sampling among the equally few
+                set n = n + 1
+                if GetRandomInt(1, n) == 1 then
+                    set pick = t
+                endif
             endif
         endif
         set i = i + 1

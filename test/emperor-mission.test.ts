@@ -370,6 +370,11 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   const returns = tail.split('\n').map((l, i, a) => [l, a.slice(Math.max(0, i - 3), i).join('\n')] as const).filter(([l]) => l.trim() === 'return');
   assert.ok(returns.length >= 2 && returns.every(([, before]) => before.includes('set EmpAiReserve = ')), 'reserve set before early returns');
   assert.ok(tail.includes('set EmpAiReserve = c + 600'), 'saves for the template rebuild');
+  // Regression: the type within a category was random every turn, so while a factory (1000) was
+  // too dear the next turn picked the cheaper barracks: 5 barracks, no factory in 7 minutes (HK_A02
+  // report 2026-10-08). The type the AI has fewest of is picked (random among equals).
+  const pick = m.script.slice(m.script.indexOf('function EmpAiPick'), m.script.indexOf('endfunction', m.script.indexOf('function EmpAiPick')));
+  assert.ok(pick.includes('set have = EmpCount(1, t)') && pick.includes('if have < fewest then'), 'fewest-first pick');
 });
 
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines
