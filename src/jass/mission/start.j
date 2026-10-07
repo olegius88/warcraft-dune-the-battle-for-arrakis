@@ -54,6 +54,7 @@ function EmpStart takes nothing returns nothing
     call TimerStart(CreateTimer(), {{real RT.AI_TICK}}, true, function EmpAITick)
     call TimerStart(CreateTimer(), {{real RT.NORMAL_CHECK_PERIOD}}, true, function EmpNormalCheck)
     call TimerStart(CreateTimer(), {{real RT.INITIAL_CAMERA_DELAY}}, false, function EmpInitialCamera)
+    call TimerStart(CreateTimer(), {{real RT.STEALTH_TICK}}, true, function EmpStillTick)
     call TimerStart(CreateTimer(), {{real RT.CRATE_TICK}}, true, function EmpCrateTick){{#if autoWinSeconds}}
     call TimerStart(CreateTimer(), {{real autoWinSeconds}}, false, function EmpAutoWin){{/if}}
     set tr = null

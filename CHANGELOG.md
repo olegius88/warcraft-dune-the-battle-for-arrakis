@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-07 Ещё данные Rules.txt в миссиях
+  ([src/jass/mission/stealth.j](src/jass/mission/stealth.j), [veterancy.j](src/jass/mission/veterancy.j)):
+  - `StealthedWhenStill`: разведчики по типу, снайпер Атрейдесов с 3-го уровня ветеранства.
+    Невидимы через `StealthDelay` тиков после остановки и через `StealthDelayAfterFiring` после
+    выстрела.
+  - `AIThreat`: стандартный приоритет целей ИИ, `SetThreatLevel` его переопределяет.
+  - Самопочинка ветеранов: `CanSelfRepair` единиц здоровья за 10-тиковый период `RepairRate`.
+    Раньше было выдуманное «1 % в секунду».
 - 2026-10-07 Карта-проба движка [src/smoke/build-probe.ts](src/smoke/build-probe.ts). Она отвечает
   в игре на вопросы, которые не решают документация и аннотации (`naichabaobao/jass`). Ответы 1.31.1:
   - `BlzGet/SetUnitBaseDamage`: индекс 0 — первое оружие;

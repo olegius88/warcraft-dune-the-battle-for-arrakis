@@ -88,7 +88,7 @@ test('veterancy levels are parsed from Rules.txt and wired into missions', opts,
   assert.deepStrictEqual(k.veterancy.map((l) => l.score), [2, 10, 20]);
   assert.strictEqual(k.veterancy[0].health, 800);
   assert.strictEqual(k.veterancy[0].extraDamage, 50);
-  assert.strictEqual(k.veterancy[1].selfRepair, true);
+  assert.strictEqual(k.veterancy[1].selfRepair, 1, 'CanSelfRepair = 1 is an amount per repair period');
   assert.strictEqual(k.veterancy[2].elite, true);
   assert.strictEqual(k.veterancy[2].extraDamage, 100);
   const meta = readMeta(path.join(ensureMap('#H3 ')[0], 'test.xbf'));
@@ -98,9 +98,30 @@ test('veterancy levels are parsed from Rules.txt and wired into missions', opts,
   });
   const id = all.units.rawcode.get('ATKindjal');
   // level 1 of ATKindjal: threshold 2, health 800 -> WC3 400
-  assert.ok(m.script.includes(`call EmpVetLevel('${id}', 1, 2, 400, 50, 0, 0, 0, false, false)`), 'ATKindjal level 1 registered');
+  assert.ok(m.script.includes(`call EmpVetLevel('${id}', 1, 2, 400, 50, 0, 0, 0, 0.0, false, false)`), 'ATKindjal level 1 registered');
   assert.match(m.script, /EVENT_PLAYER_UNIT_DEATH/);
   assert.match(m.script, /function EmpOnKill takes nothing returns nothing/);
+  // level 2 of ATKindjal: CanSelfRepair = 1 per 10 ticks (Rules.txt RepairRate period) = 2.5
+  // Emperor health per second = 1.25 WC3 health per second; it was 1 % of max health (a guess)
+  assert.ok(m.script.includes(`call EmpVetLevel('${id}', 2, 10, 0, 0, 0, 0, 0, 1.25, false, false)`), 'ATKindjal level 2 self-repair rate');
+});
+
+// StealthedWhenStill (scouts by type, ATSniper at veterancy level 3) and AIThreat were not modelled.
+test('stealthed-when-still units and the AIThreat target priority come from Rules.txt', opts, () => {
+  const all = loadAll();
+  assert.deepStrictEqual(all.rules.stealth, { delay: 30, afterFiring: 10 });
+  assert.strictEqual(all.rules.objects.get('ATScout')?.stealthedWhenStill, true);
+  assert.strictEqual(all.rules.objects.get('ATSniper')?.veterancy[2]?.stealthedWhenStill, true);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'stealth', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call SaveBoolean(EmpVet, '${all.units.rawcode.get('ATScout')}', 2, true)`), 'scout type stealthed when still');
+  assert.match(m.script, new RegExp(`call EmpVetLevel\\('${all.units.rawcode.get('ATSniper')}', 3, [^)]*, true\\)`), 'sniper level 3 stealth');
+  assert.match(m.script, /TimerStart\(CreateTimer\(\), 0\.2, true, function EmpStillTick\)/);
+  assert.ok(m.script.includes('EmpTick - LoadInteger(EmpVetUnit, h, 10) >= 30'), 'StealthDelay');
+  const kindjal = all.rules.objects.get('ATKindjal');
+  assert.strictEqual(kindjal?.aiThreat, 50);
+  assert.ok(m.script.includes(`call SaveInteger(EmpThreat, '${all.units.rawcode.get('ATKindjal')}', 0, 50)`), 'AIThreat default');
+  assert.ok(m.script.includes('set EmpThreatAny = true'));
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

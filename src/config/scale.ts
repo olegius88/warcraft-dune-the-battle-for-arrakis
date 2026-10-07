@@ -1,7 +1,11 @@
 // How Emperor quantities become WC3 ones. Emperor values come from Rules.txt and the map files.
 
-/** Emperor script/game ticks per second (TODO(tick-rate): Rules.txt comment says 20; 25 fits the
- * "in 2/1 minutes" timers of ATP1D18GN). */
+/** Emperor script/game ticks per second. TODO(tick-rate): the sources disagree. For 25: ATP1D18GN
+ * says "Sardaukar attack in 3/2/1 minutes" (ATSATimer3..1) at v1, v1+1500, v1+3000, attack at
+ * v1+4500. For 20: Rules.txt comments "6600 = 5.5 minutes" (TicksBetweenReinforcements) and
+ * "3000 = 2.5 minutes" (crate Lifespan). Message gaps against the spoken line lengths (47 pairs,
+ * 2026-10-07) do not decide it, and no external source was found. 25 is kept because the mission
+ * scripts, which use the tick most, state it in their own text. */
 export const TICKS_PER_SECOND = 25;
 export const TICK_SECONDS = 1 / TICKS_PER_SECOND;
 
@@ -12,6 +16,10 @@ export const WC3_UNITS_PER_TILE = 128;
 
 /** Emperor Health / bullet Damage are divided by these. */
 export const HP_DIVISOR = 2;
+/** Repair period in ticks: Rules.txt [General] "RepairRate = 12 // health increase every 10 ticks".
+ * CanSelfRepair = n of a veterancy level is read as n health per this period (assumption: the
+ * Rules.txt only states the period for buildings). */
+export const REPAIR_PERIOD_TICKS = 10;
 export const DAMAGE_DIVISOR = 2;
 /** WC3 hit points never go below this. */
 export const MIN_HP = 10;

@@ -442,6 +442,10 @@ function EmpOnAttacked takes nothing returns nothing
     local integer a = EmpPlayerSide(GetOwningPlayer(GetAttacker()))
     local integer b = EmpPlayerSide(GetOwningPlayer(GetTriggerUnit()))
     set EmpAttacked[a * {{RT.SIDE_STRIDE}} + b] = true
+    // the attacker's last shot (StealthedWhenStill units show themselves while firing)
+    if EmpVetUnit != null then
+        call SaveInteger(EmpVetUnit, GetHandleId(GetAttacker()), 9, EmpTick)
+    endif
 endfunction
 
 function EmpOnConstructed takes nothing returns nothing

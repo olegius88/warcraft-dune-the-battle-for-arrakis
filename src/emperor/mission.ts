@@ -22,8 +22,8 @@ import { HOUSE_ID, HOUSES, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_
 import { CACHE_FILE, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
-import { TICK_SECONDS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
-import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON, ART_ABILITY } from '../config/wc3.ts';
+import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
+import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON, ART_ABILITY, ABILITY } from '../config/wc3.ts';
 import * as SC from '../config/scenery.ts';
 import { SHUFFLE_BATTLE_MUSIC } from '../config/music.ts';
 
@@ -199,8 +199,14 @@ function buildMission(p: MissionParams): BuiltMission {
     const id = p.units.rawcode.get(o.name);
     if (!id) continue;
     if (o.score !== 1) vetLines.push(`    call SaveInteger(EmpVet, '${id}', 0, ${o.score})`);
-    o.veterancy.forEach((l, i) => vetLines.push(`    call EmpVetLevel('${id}', ${i + 1}, ${l.score}, ${Math.round(l.health / HP_DIVISOR)}, ${l.extraDamage}, ${l.extraArmour}, ${l.extraRange}, ${l.speed ? Math.round(moveSpeed(l.speed)) : 0}, ${l.selfRepair}, ${l.elite})`));
+    if (o.stealthedWhenStill) vetLines.push(`    call SaveBoolean(EmpVet, '${id}', 2, true)`);
+    if (o.aiThreat > 0) vetLines.push(`    call SaveInteger(EmpThreat, '${id}', 0, ${o.aiThreat})`);
+    // CanSelfRepair n = n health per repair period -> WC3 health per second
+    const regen = (n: number): string => real((n * TICKS_PER_SECOND) / REPAIR_PERIOD_TICKS / HP_DIVISOR);
+    o.veterancy.forEach((l, i) => vetLines.push(`    call EmpVetLevel('${id}', ${i + 1}, ${l.score}, ${Math.round(l.health / HP_DIVISOR)}, ${l.extraDamage}, ${l.extraArmour}, ${l.extraRange}, ${l.speed ? Math.round(moveSpeed(l.speed)) : 0}, ${regen(l.selfRepair)}, ${l.elite}, ${l.stealthedWhenStill})`));
   }
+  // every Rules.txt type has an AIThreat: the AI's threat targeting is always on
+  if (p.rules && [...p.rules.objects.values()].some((o) => o.aiThreat > 0)) vetLines.push('    set EmpThreatAny = true');
   const half = (n: number): number => (n * WC3_UNITS_PER_TILE) / 2;
   const [bl, br, bb, btop] = t.boundary;
   init.push(`    set EmpMapMinX = ${real(-half(t.width) + bl * WC3_UNITS_PER_TILE)}`, `    set EmpMapMaxX = ${real(half(t.width) - br * WC3_UNITS_PER_TILE)}`);
@@ -246,7 +252,8 @@ function buildMission(p: MissionParams): BuiltMission {
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
-    playerHouse: playerHouseId, reinf, reinfLines: reinfLines.join('\n'),
+    playerHouse: playerHouseId, reinf, reinfLines: reinfLines.join('\n'), ABILITY,
+    stealth: p.rules?.stealth ?? { delay: 0, afterFiring: 0 },
     colorPlayer: HOUSE_COLOR[playerHouseId], colorAtreides: HOUSE_COLOR[HOUSE_ID.Atreides], colorHarkonnen: HOUSE_COLOR[HOUSE_ID.Harkonnen],
   };
   const jass = (name: string): string => renderFile(jassFile(`mission/${name}`), scope);
@@ -257,6 +264,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('crates'),
     jass('veterancy'),
     jass('reinforcements'),
+    jass('stealth'),
     `function EmpPlaced takes nothing returns nothing\n${placed.join('\n')}\nendfunction`,
     `function EmpMissionTick takes nothing returns nothing\n${dispatch}\nendfunction`,
     ...(debriefBlocks.length ? [`function EmpDebriefSpeech takes boolean win returns real\n    local real t = 0.0\n${debriefBlocks.join('\n')}\n    return t\nendfunction`] : []),

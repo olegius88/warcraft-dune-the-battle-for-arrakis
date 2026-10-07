@@ -53,8 +53,12 @@ export interface VeterancyLevel {
   extraRange: number;
   /** new absolute speed (0 = unchanged) */
   speed: number;
-  selfRepair: boolean;
+  /** CanSelfRepair: health regained per repair period (0 = none; Rules.txt asks "Need 0.5?" next to
+   * 1, so it is an amount, not a flag) */
+  selfRepair: number;
   elite: boolean;
+  /** invisible while it stands still (ATSniper level 3) */
+  stealthedWhenStill: boolean;
 }
 
 export type ObjectCategory = 'Unit' | 'Building' | 'Turret' | 'Bullet' | 'Warhead';
@@ -90,6 +94,10 @@ export interface RulesObject {
   disableWithLowPower: boolean;
   /** value of the unit in reinforcement / reserve sets (0 = never sent) */
   reinforcementValue: number;
+  /** how attractive a target it is for the AI (SetThreatLevel overrides it per type) */
+  aiThreat: number;
+  /** invisible while it stands still (scouts) */
+  stealthedWhenStill: boolean;
   size: number;
   /** [width, height] in tiles from the Occupy rows */
   footprint: [number, number] | null;
@@ -147,6 +155,8 @@ export interface Rules {
   worms: WormRules;
   reinforcements: ReinforcementRules;
   campaignMoney: CampaignMoney;
+  /** StealthedWhenStill units turn invisible this many ticks after they stop / after they fired */
+  stealth: { delay: number; afterFiring: number };
 }
 
 function parseSections(text: string): { sections: Map<string, RulesSection>; order: string[] } {
@@ -197,17 +207,17 @@ function veterancyLevels(section: RulesSection): VeterancyLevel[] {
   let cur: VeterancyLevel | null = null;
   for (const [k, v] of section.entries) {
     if (k === 'VeterancyLevel') {
-      cur = { score: num(v), health: 0, extraDamage: 0, extraArmour: 0, extraRange: 0, speed: 0, selfRepair: false, elite: false };
+      cur = { score: num(v), health: 0, extraDamage: 0, extraArmour: 0, extraRange: 0, speed: 0, selfRepair: 0, elite: false, stealthedWhenStill: false };
       levels.push(cur);
     } else if (cur) {
       if (k === 'Health') cur.health = num(v);
       else if (k === 'ExtraDamage') cur.extraDamage = num(v);
       else if (k === 'ExtraArmour') cur.extraArmour = num(v);
       else if (k === 'ExtraRange') cur.extraRange = num(v);
-      else if (k === 'CanSelfRepair') cur.selfRepair = bool(v);
+      else if (k === 'CanSelfRepair') cur.selfRepair = bool(v) && !num(v) ? 1 : num(v);
       else if (k === 'Elite') cur.elite = bool(v);
       else if (k === 'Speed') cur.speed = num(v); // absolute, like the base Speed
-      // TODO(veterancy): StealthedWhenStill (ATSniper level 3) is not modelled.
+      else if (k === 'StealthedWhenStill') cur.stealthedWhenStill = bool(v);
     }
   }
   return levels;
@@ -275,7 +285,8 @@ function loadRules(rulesPath: string): Rules {
       unitWhenBuilt: (v.GetUnitWhenBuilt || '').trim(), spiceCapacity: num(v.SpiceCapacity),
       infantry: bool(v.Infantry), canFly: bool(v.CanFly) || bool(v.Aircraft), harvester: bool(v.Harvester),
       conYard: bool(v.ConYard), power: num(v.PowerGenerated) - num(v.PowerUsed), disableWithLowPower: bool(v.DisableWithLowPower),
-      reinforcementValue: num(v.ReinforcementValue), size: num(v.Size, 1),
+      reinforcementValue: num(v.ReinforcementValue), aiThreat: num(v.AIThreat), stealthedWhenStill: bool(v.StealthedWhenStill),
+      size: num(v.Size, 1),
       footprint: occupy.length ? [Math.max(...occupy.map((r) => r.length)), occupy.length] : null,
       turrets, raw: v,
     });
@@ -303,7 +314,8 @@ function loadRules(rulesPath: string): Rules {
     messageBefore: num(general.TicksBeforeReinforcementsForMessage),
   };
   const campaignMoney: CampaignMoney = { attack: num(general.CampaignAttackMoney), defend: num(general.CampaignDefendMoney) };
-  return { sections, objects, armourTypes, general, category, crates, worms, reinforcements, campaignMoney };
+  const stealth = { delay: num(general.StealthDelay), afterFiring: num(general.StealthDelayAfterFiring) };
+  return { sections, objects, armourTypes, general, category, crates, worms, reinforcements, campaignMoney, stealth };
 }
 
 export { loadRules, parseSections };

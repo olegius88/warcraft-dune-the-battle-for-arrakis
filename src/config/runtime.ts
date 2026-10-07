@@ -62,8 +62,8 @@ export const CRATE_DEFAULT_CASH = 500;
 /** Crates of the scripts (NewCrate*) disappear after this many ticks (Rules.txt [Crate] Lifespan). */
 export const CRATE_LIFESPAN_TICKS = 10000;
 
-/** Veterancy self-repair: share of max HP per second (TODO(veterancy): Emperor's rate unknown). */
-export const VET_SELF_REPAIR_RATE = 0.01;
+/** StealthedWhenStill check period (the delays themselves come from Rules.txt). */
+export const STEALTH_TICK = 0.2;
 
 /** Time of day on every map (frozen): noon. */
 export const TIME_OF_DAY = 12;

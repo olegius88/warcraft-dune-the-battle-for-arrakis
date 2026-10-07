@@ -37,6 +37,7 @@
 | `mission/crates.j` | `src/emperor/mission.ts` | ящики Emperor: появление и подбор по близости |
 | `mission/veterancy.j` | `src/emperor/mission.ts` | ветеранство: таблица уровней (`{{vetLines}}` из Rules.txt), повышение за убийства, `SetVeterancy` |
 | `mission/reinforcements.j` | `src/emperor/mission.ts` | таблица подкреплений по домам (ReinforcementValue, TechLevel) и тайминги из Rules.txt |
+| `mission/stealth.j` | `src/emperor/mission.ts` | невидимость стоя на месте (StealthedWhenStill) с задержками из Rules.txt |
 | `mission/campaign.j` | `src/emperor/mission.ts` | чтение game cache, запись результата, возврат на хаб |
 | `mission/tick.j`, `mission/camera.j` | `src/emperor/mission.ts` | тик миссии; начальная камера на войсках игрока |
 | `mission/debug-report.j` | `src/emperor/mission.ts` | отчёт для автотестов в `CustomMapData` |

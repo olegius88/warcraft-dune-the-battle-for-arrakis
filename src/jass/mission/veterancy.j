@@ -1,9 +1,12 @@
 // Veterancy (Rules.txt): the killer gets the victim's Score (assumed: Emperor's own docs are not
 // available; thresholds such as ATKindjal 2/10/20 against Score = 1..2 per kill fit it).
-// EmpVet[type]: child 0 = Score, 1 = level count, level L at L*VET_SLOT_STRIDE + 1..8.
-// EmpVetUnit[handle id]: 0 = score so far, 1 = level, 2..3 = original damage/armour.
+// EmpVet[type]: child 0 = Score, 1 = level count, 2 = StealthedWhenStill of the type,
+// level L at L*VET_SLOT_STRIDE + 1..9.
+// EmpVetUnit[handle id]: 0 = score so far, 1 = level, 2..3 = original damage/armour,
+// 6 = stealthed when still (veterancy), 7..8 = last x/y, 10 = still since (tick), 9 = last shot (tick).
 // Regression/feature test: test/emperor-mission.test.ts.
-function EmpVetLevel takes integer t, integer lv, integer score, integer hp, integer dmg, integer arm, integer rng, integer spd, boolean repair, boolean elite returns nothing
+// regen: WC3 health per second (CanSelfRepair per Rules.txt repair period)
+function EmpVetLevel takes integer t, integer lv, integer score, integer hp, integer dmg, integer arm, integer rng, integer spd, real regen, boolean elite, boolean stealth returns nothing
     local integer b = lv * {{RT.VET_SLOT_STRIDE}}
     call SaveInteger(EmpVet, t, b + 1, score)
     call SaveInteger(EmpVet, t, b + 2, hp)
@@ -11,16 +14,22 @@ function EmpVetLevel takes integer t, integer lv, integer score, integer hp, int
     call SaveInteger(EmpVet, t, b + 4, arm)
     call SaveInteger(EmpVet, t, b + 5, rng)
     call SaveInteger(EmpVet, t, b + 6, spd)
-    call SaveBoolean(EmpVet, t, b + 7, repair)
+    call SaveReal(EmpVet, t, b + 7, regen)
     call SaveBoolean(EmpVet, t, b + 8, elite)
+    call SaveBoolean(EmpVet, t, b + 9, stealth)
     if lv > LoadInteger(EmpVet, t, 1) then
         call SaveInteger(EmpVet, t, 1, lv)
     endif
 endfunction
 
+// type data of Rules.txt besides the levels: Score, StealthedWhenStill, AIThreat (the AI's default
+// target priority, SetThreatLevel overrides it)
 function EmpVetData takes nothing returns nothing
     set EmpVet = InitHashtable()
     set EmpVetUnit = InitHashtable()
+    if EmpThreat == null then
+        set EmpThreat = InitHashtable()
+    endif
 {{vetLines}}
 endfunction
 
@@ -60,9 +69,11 @@ function EmpVetApply takes unit u, integer lv returns nothing
     if v > 0 then
         call SetUnitMoveSpeed(u, v)
     endif
-    if LoadBoolean(EmpVet, t, b + 7) then
-        // TODO(veterancy): Emperor's self-repair rate is unknown; 1% of max HP per second
-        call BlzSetUnitRealField(u, UNIT_RF_HIT_POINTS_REGENERATION_RATE, BlzGetUnitMaxHP(u) * {{real RT.VET_SELF_REPAIR_RATE}})
+    if LoadReal(EmpVet, t, b + 7) > 0.0 then
+        call BlzSetUnitRealField(u, UNIT_RF_HIT_POINTS_REGENERATION_RATE, LoadReal(EmpVet, t, b + 7))
+    endif
+    if LoadBoolean(EmpVet, t, b + 9) then
+        call SaveBoolean(EmpVetUnit, h, 6, true)
     endif
     if LoadBoolean(EmpVet, t, b + 8) then
         call AddSpecialEffectTarget({{str EFFECT.elite}}, u, "origin")
