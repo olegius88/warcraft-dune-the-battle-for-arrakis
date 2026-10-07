@@ -92,6 +92,8 @@ const HEADER_GLOBALS = `
     integer EmpWavesLeft = 0
     boolean EmpEndWin = false
     hashtable EmpPowerTab = null
+    group array EmpStrike
+    integer array EmpStrikeEnd
     unit EmpVetArgUnit = null
     integer EmpVetArgLevel = 0
     boolean array EmpLowPower
@@ -199,6 +201,18 @@ function EmpClampY takes real y returns real
         return EmpMapMaxY
     endif
     return y
+endfunction
+
+// one aircraft of an AirStrike: created at the entry point, attack-moves to the target base
+function EmpStrikeAdd takes integer slot, integer side, integer t, location from, integer b returns nothing
+    local unit u
+    if t <= 0 then
+        return
+    endif
+    set u = CreateUnit(EmpSidePlayer(side), t, GetLocationX(from), GetLocationY(from), ${FACING})
+    call GroupAddUnit(EmpStrike[slot], u)
+    call IssuePointOrder(u, "attack", EmpBaseX[b], EmpBaseY[b])
+    set u = null
 endfunction
 
 function EmpBaseOfSide takes integer side returns integer
@@ -753,6 +767,61 @@ const IMPL: Partial<Record<string, string>> = {
     call DestroyEffect(AddSpecialEffectLoc(${str(EFFECT.wormStrike)}, a1))
     call DestroyGroup(g)
     set g = null`,
+  // AirStrike(id, from, side, types...): aircraft of 'side' fly in at 'from' and attack the base of
+  // the side's enemy (player <-> main enemy); AirStrikeDone(id): all down, or time is up (then the
+  // survivors leave = are removed).
+  AirStrike: `local integer slot = ModuloInteger(a1, ${RT.AIRSTRIKE_SLOTS})
+    local integer b
+    if a3 == 0 then
+        set b = EmpBaseOfSide(1)
+    else
+        set b = EmpBaseOfSide(0)
+    endif
+    if EmpStrike[slot] == null then
+        set EmpStrike[slot] = CreateGroup()
+    endif
+    call GroupClear(EmpStrike[slot])
+    set EmpStrikeEnd[slot] = EmpTick + ${RT.AIRSTRIKE_SECONDS * TICKS_PER_SECOND}
+    if a2 == null then
+        return
+    endif
+    call EmpStrikeAdd(slot, a3, a4, a2, b)
+    call EmpStrikeAdd(slot, a3, a5, a2, b)
+    call EmpStrikeAdd(slot, a3, a6, a2, b)
+    call EmpStrikeAdd(slot, a3, a7, a2, b)
+    call EmpStrikeAdd(slot, a3, a8, a2, b)
+    call EmpStrikeAdd(slot, a3, a9, a2, b)
+    call EmpStrikeAdd(slot, a3, a10, a2, b)`,
+  AirStrikeDone: `local integer slot = ModuloInteger(a1, ${RT.AIRSTRIKE_SLOTS})
+    local group g = EmpStrike[slot]
+    local group left
+    local unit u
+    local integer alive = 0
+    if g == null then
+        return 1
+    endif
+    set left = CreateGroup()
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) then
+            if EmpTick >= EmpStrikeEnd[slot] then
+                call RemoveUnit(u)
+            else
+                set alive = alive + 1
+                call GroupAddUnit(left, u)
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set EmpStrike[slot] = left
+    set left = null
+    set g = null
+    if alive == 0 then
+        return 1
+    endif
+    return 0`,
   // veterancy lives in the mission part of the script (after these functions): hand the
   // arguments over through globals and call it by name
   SetVeterancy: `set EmpVetArgUnit = a1

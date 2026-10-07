@@ -166,3 +166,14 @@ test('SetVeterancy promotes a unit through the veterancy levels', opts, () => {
   assert.ok(ef.includes('call ExecuteFunc("EmpVetSetFromArgs")'));
   assert.match(m.script, /function EmpVetSetFromArgs takes nothing returns nothing/);
 });
+
+// AirStrike(id, from, side, types...) / AirStrikeDone(id): 7 scripts call air support; were stubs.
+test('AirStrike brings aircraft that attack the enemy base; AirStrikeDone reports the end', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW, 'ATP1M9GN.tok')), phase: 1, name: 'ATP1M9GN' }],
+    meta, ...all, name: 'air', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(!m.stubbed.includes('AirStrike') && !m.stubbed.includes('AirStrikeDone'));
+  const ef = (m.script.split('function EF_AirStrike takes')[1] ?? '').split('endfunction')[0] ?? '';
+  assert.ok(ef.includes('call EmpStrikeAdd('), 'strike units are created');
+});

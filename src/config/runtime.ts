@@ -84,3 +84,8 @@ export const SIDE_NAME_PREFIX = 'Сторона ';
 export const HEALTH_SCALE = 100;
 /** NewObjectOffsetOrientation: orientation 0..3 = steps of this many degrees. */
 export const ORIENTATION_STEP = 90;
+
+/** AirStrike: aircraft attack the enemy base and leave after AIRSTRIKE_SECONDS; strike ids of the
+ * scripts map to AIRSTRIKE_SLOTS slots. */
+export const AIRSTRIKE_SECONDS = 60;
+export const AIRSTRIKE_SLOTS = 64;
