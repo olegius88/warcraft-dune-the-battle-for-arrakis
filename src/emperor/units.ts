@@ -11,6 +11,7 @@ import { writeObjects, idAllocator } from '../wc3/objects.ts';
 import type { ObjectDef, ObjectMod } from '../wc3/objects.ts';
 import type { Rules, RulesObject, Warhead } from './rules.ts';
 import type { IconSet } from './icons.ts';
+import type { ModelSet } from './models.ts';
 import { HOUSE_CODES, HOUSE_BY_CODE, HOUSE_RACE } from '../config/houses.ts';
 import type { Wc3Race } from '../config/houses.ts';
 import { UNIT_FIELD as F, ABILITY_FIELD, ABILITY, UNIT, CUSTOM_ID } from '../config/wc3.ts';
@@ -48,6 +49,8 @@ export interface UnitData {
   w3a: Buffer;
   /** command card icons the object data refers to: archive path -> BLP (import once per campaign) */
   icons: Record<string, Buffer>;
+  /** converted Emperor models and their textures: archive path -> MDX / BLP (import once per campaign) */
+  models: Record<string, Buffer>;
 }
 
 export interface CombatTable {
@@ -95,7 +98,7 @@ const unreal = (field: string, value: number): ObjectMod => ({ field, type: 'unr
 const real = (field: string, value: number): ObjectMod => ({ field, type: 'real', value });
 
 /** displayName: localised name lookup (falls back to the id). */
-function buildUnitData(rules: Rules, displayName: (name: string) => string = (n) => n, icons?: IconSet): UnitData {
+function buildUnitData(rules: Rules, displayName: (name: string) => string = (n) => n, icons?: IconSet, models?: ModelSet): UnitData {
   const nextId = idAllocator();
   const warheads = new Map<string, Warhead>();
   for (const o of rules.objects.values()) for (const t of o.turrets) if (t.bullet && t.bullet.warhead) warheads.set(t.bullet.warhead.name, t.bullet.warhead);
@@ -128,12 +131,16 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       int(F.buildTime, Math.max(1, (o.buildTime || S.DEFAULT_BUILD_TICKS) / S.TICKS_PER_SECOND)),
       int(F.sightDay, Math.max(1, o.viewRange) * S.SIGHT_DAY_PER_TILE), int(F.sightNight, Math.max(1, o.viewRange) * S.SIGHT_NIGHT_PER_TILE),
       str(F.race, race === 'neutral' ? U.NEUTRAL_RACE_FIELD : race),
-      real(F.scale, scale), real(F.selectionScale, scale),
+      // a converted Emperor model is already at WC3 scale (src/emperor/model.ts)
+      real(F.scale, models?.model.has(o.name) ? 1 : scale), real(F.selectionScale, scale),
     ];
     if (o.category !== 'Building' && o.speed > 0) mods.push(int(F.moveSpeed, S.moveSpeed(o.speed)));
     // Emperor's own sidebar icon (src/emperor/icons.ts)
     const icon = icons?.icon.get(o.name);
     if (icon) mods.push(str(F.icon, icon));
+    // Emperor's own model (src/emperor/models.ts)
+    const model = models?.model.get(o.name);
+    if (model) mods.push(str(F.model, model));
     const weapon = o.turrets.find((t) => t.bullet && t.bullet.damage > 0);
     if (weapon && weapon.bullet) {
       const b = weapon.bullet;
@@ -208,6 +215,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   }
   return {
     objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {},
+    models: Object.fromEntries(Object.entries(models?.files ?? {})),
     w3u: writeObjects(objects.map(({ base, id, mods }) => ({ base, id, mods }))),
     w3a: writeObjects(abilities, true),
   };

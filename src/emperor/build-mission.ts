@@ -7,6 +7,7 @@ import { loadContext } from './context.ts';
 import { loadRules } from './rules.ts';
 import { loadArtIni } from './artini.ts';
 import { buildIcons } from './icons.ts';
+import { buildModels } from './models.ts';
 import { loadAiRules } from './ai-rules.ts';
 import type { AiRules } from './ai-rules.ts';
 import { buildUnitData } from './units.ts';
@@ -35,13 +36,16 @@ export interface EmperorData {
   ai?: AiRules;
 }
 
-function loadAll(): EmperorData {
+/** All Emperor data a mission needs; `models`: also convert the object models (about 20 s). */
+function loadAll({ models = false }: { models?: boolean } = {}): EmperorData {
   const ctx = loadContext(RAW_DIR, LOCAL_STRINGS_DIR);
   const rules = loadRules(path.join(RAW_DIR, 'Rules.txt'));
   const tooltipName = new Map(ctx.tooltips.map((t) => [t.key.toLowerCase(), ctx.tooltipText(ctx.tooltips.indexOf(t))]));
   const artIni = path.join(RAW_DIR, 'ArtIni.txt');
-  const icons = fs.existsSync(artIni) ? buildIcons(rules.objects.keys(), loadArtIni(artIni)) : undefined;
-  const units = buildUnitData(rules, (n) => tooltipName.get(n.toLowerCase()) || n, icons);
+  const art = fs.existsSync(artIni) ? loadArtIni(artIni) : undefined;
+  const icons = art ? buildIcons(rules.objects.keys(), art) : undefined;
+  const modelSet = art && models ? buildModels(rules.objects.keys(), art) : undefined;
+  const units = buildUnitData(rules, (n) => tooltipName.get(n.toLowerCase()) || n, icons, modelSet);
   const table = loadTokenTable(GAME_EXE);
   const speech = loadSpeech(GAME_DIR);
   const aiIni = path.join(RAW_DIR, 'ai.ini');
@@ -62,7 +66,7 @@ if (import.meta.main) {
   const territory = args.includes('--territory');
   if (territory) args.splice(args.indexOf('--territory'), 1);
   const [script, mapNeedle, outArg] = args;
-  const all = loadAll();
+  const all = loadAll({ models: true });
   const folder = ensureMap(mapNeedle)[0];
   const meta = readMeta(path.join(folder, 'test.xbf'));
   const m = buildMission({ scripts: [{ tok: fs.readFileSync(path.join(RAW_DIR, script)), phase: 1, name: script }], meta, ...all, name: path.basename(script, '.tok'),

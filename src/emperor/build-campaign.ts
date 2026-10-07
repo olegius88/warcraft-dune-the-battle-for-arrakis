@@ -42,11 +42,12 @@ const houses: HouseCode[] = opt('--houses', 'AT,HK,OR').split(',').map((h) => {
 const [tFrom = 1, tTo = CP.TERRITORY_COUNT] = opt('--territories', `1-${CP.TERRITORY_COUNT}`).split('-').map(Number);
 const out = opt('--out', CAMPAIGN_OUT);
 
-const all = loadAll();
+const all = loadAll({ models: true });
 // music lives once in the campaign archive; maps get playlists of archive paths
 const music = loadMusic();
-// command card icons live once in the campaign archive too (the object data of every map refers to them)
-const campaignImports: Record<string, Buffer> = { ...all.units.icons };
+// command card icons and the Emperor models live once in the campaign archive too (the object data
+// of every map refers to them)
+const campaignImports: Record<string, Buffer> = { ...all.units.icons, ...all.units.models };
 const useMusic = (paths: string[]): string[] => {
   for (const p of paths) {
     const t = music && [...music.tracks.values()].find((x) => x.path === p);

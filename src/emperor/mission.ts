@@ -75,7 +75,7 @@ export interface MissionParams {
   autoWinSeconds?: number;
   /** music playlist: archive paths of tracks stored in the campaign (src/emperor/music.ts) */
   music?: string[];
-  /** import the command card icons into this map (false: the campaign archive holds them once) */
+  /** import the icons and Emperor models into this map (false: the campaign archive holds them once) */
   iconsInMap?: boolean;
 }
 
@@ -296,7 +296,7 @@ function buildMission(p: MissionParams): BuiltMission {
   const players: ScriptPlayer[] = [{ id: 0, control: 'user', race: 'human', team: 0, x: sx, y: sy, name: RT.PLAYER_NAME }];
   for (let i = 1; i <= RT.MAX_SIDE; i++) players.push({ id: i, control: 'computer', race: 'orc', team: i, x: sx, y: sy, name: `${RT.SIDE_NAME_PREFIX}${i}` });
 
-  const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports, ...(p.iconsInMap === false ? {} : p.units.icons) };
+  const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports, ...(p.iconsInMap === false ? {} : { ...p.units.icons, ...p.units.models }) };
   const m = buildMap({
     name: p.name, description: p.briefing || '', width: t.width, height: t.height, boundary: t.boundary,
     tileset: t.tileset, ground: t.ground, cliffs: t.cliffs, corner: t.corner, pathing: t.pathing, minimapColor: t.minimapColor,

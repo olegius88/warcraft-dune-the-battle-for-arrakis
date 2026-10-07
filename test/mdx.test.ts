@@ -109,3 +109,20 @@ test('XBF -> MDX: every texture a converted model refers to is among the convert
     }
   }
 });
+
+test('unit data: a converted model goes into the model field, at scale 1', { skip: fs.existsSync(archive + '.RFH') ? false : 'Emperor not installed' }, async () => {
+  const path = await import('node:path');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const { buildModels } = await import('../src/emperor/models.ts');
+  const { loadRules } = await import('../src/emperor/rules.ts');
+  const { buildUnitData } = await import('../src/emperor/units.ts');
+  const { RAW_DIR } = await import('../src/config/paths.ts');
+  const { UNIT_FIELD } = await import('../src/config/wc3.ts');
+  const rules = loadRules(path.join(RAW_DIR, 'Rules.txt'));
+  const models = buildModels(['ATTrike'], loadArtIni(path.join(RAW_DIR, 'ArtIni.txt')));
+  const data = buildUnitData(rules, (n) => n, undefined, models);
+  const trike = data.objects.find((o) => o.emperor?.name === 'ATTrike');
+  assert.strictEqual(trike?.mods.find((m) => m.field === UNIT_FIELD.model)?.value, 'Emperor\\Models\\AT_Trike.mdl');
+  assert.strictEqual(trike?.mods.find((m) => m.field === UNIT_FIELD.scale)?.value, 1);
+  assert.ok(data.models['Emperor\\Models\\AT_Trike.mdx'], 'the model file comes with the unit data');
+});
