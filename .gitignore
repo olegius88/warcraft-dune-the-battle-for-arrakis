@@ -1,0 +1,6 @@
+node_modules/
+build/
+data/
+*.w3x
+*.w3n
+*.bik
