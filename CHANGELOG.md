@@ -207,6 +207,12 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-07 Миссия кампании не запускалась без человека: экран масштабирован на 125 %, а скрипты
+  `tools/*.ps1` не были DPI-aware. Координаты масштабировались, снимки окна обрезались на четверть, и
+  кнопка миссии, найденная по такому снимку, промахивалась. Теперь скрипты работают в физических
+  пикселях, и миссия запускается кликом-сообщением окну игры
+  ([tools/campaign-session.ps1](tools/campaign-session.ps1)). Окна «поверх всех» больше не
+  перекрывают клик: на время клика игра тоже topmost ([tools/wc3-ui.ps1](tools/wc3-ui.ps1)).
 - 2026-10-07 Хаб не заполнял таблицу кадров роликов (`EmpMovieData`), и проигрыватель пропускал все
   ролики — найдено прогоном в игре; регрессия в [test/movies.test.ts](test/movies.test.ts).
 - 2026-10-07 Сессия кампании ([tools/campaign-session.ps1](tools/campaign-session.ps1)) 20 минут
