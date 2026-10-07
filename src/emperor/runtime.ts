@@ -1,5 +1,5 @@
 // JASS runtime implementing the Emperor mission API (EF_<Name>) for translated scripts.
-// Signatures are generated from the Game.exe token table (same rules as translate.js), bodies
+// Signatures are generated from the Game.exe token table (same rules as translate.ts), bodies
 // come from IMPL below; anything not implemented gets a safe stub (0 / null) marked TODO.
 //
 // Model: an Emperor "side" is an integer 0..11 mapped to Player(side); side 0 is the human
@@ -7,10 +7,25 @@
 // side is 12 -> Player(PLAYER_NEUTRAL_PASSIVE). Points come from the map's GameElements tree.
 // One Emperor tick = 1/25 s (TODO(tick-rate)).
 
-const RET_J = { 0: 'integer', 1: 'location', 2: 'unit', 8: 'nothing' };
 import { RETURN_OVERRIDE } from './translate.ts';
-const ARG_J = (code) => (code === 1 ? 'location' : code === 2 ? 'unit' : 'integer');
-const DEFAULT = { integer: 'return 0', location: 'return null', unit: 'return null', nothing: '' };
+import type { TokenTable } from './tok.ts';
+
+type JassType = 'integer' | 'location' | 'unit' | 'nothing';
+const RET_J: Record<number, JassType> = { 0: 'integer', 1: 'location', 2: 'unit', 8: 'nothing' };
+const ARG_J = (code: number): JassType => (code === 1 ? 'location' : code === 2 ? 'unit' : 'integer');
+const DEFAULT: Record<JassType, string> = { integer: 'return 0', location: 'return null', unit: 'return null', nothing: '' };
+
+/** JASS pieces of the Emperor API runtime for one map. */
+export interface Runtime {
+  /** globals block lines */
+  globals: string;
+  /** helper functions (before the EF_ functions) */
+  helpers: string;
+  /** EF_<name> for every function of the token table */
+  functions: string;
+  /** API functions that only got a stub */
+  stubbed: string[];
+}
 
 const HEADER_GLOBALS = `
     integer EmpTick = 0
@@ -349,7 +364,7 @@ function EmpNormalCheck takes nothing returns nothing
 endfunction`;
 
 // Bodies for EF_ functions. Parameters are a1..aN in declaration order.
-const IMPL = {
+const IMPL: Partial<Record<string, string>> = {
   ModelTick: 'return EmpTick',
   Random: 'return GetRandomInt(0, IMaxBJ(a1 - 1, 0))',
   Multiplayer: 'return 0',
@@ -732,17 +747,17 @@ const IMPL = {
 };
 
 /** Build the runtime: globals block lines and functions text for the given token table. */
-function buildRuntime(table, { deployMap = {} } = {}) {
-  const fns = [];
+function buildRuntime(table: TokenTable, { deployMap = {} }: { deployMap?: Record<string, string> } = {}): Runtime {
+  const fns: string[] = [];
   // MCV/ConYard deploy table (generated): returns the construction yard type for an MCV type.
   const deploy = Object.entries(deployMap).map(([from, to]) => `    if t == '${from}' then\n        return '${to}'\n    endif`).join('\n');
   fns.push(`function EmpDeployType takes integer t returns integer\n${deploy}\n    return 0\nendfunction`);
-  const stubbed = [];
+  const stubbed: string[] = [];
   for (const e of table) {
     if (e.kind !== 0) continue;
     const n = Math.min(e.argCount, 10);
-    const params = Array.from({ length: n }, (_, i) => `${ARG_J(e.argTypes[i] != null ? e.argTypes[i] : 0)} a${i + 1}`);
-    const ret = RET_J[RETURN_OVERRIDE[e.name] != null ? RETURN_OVERRIDE[e.name] : e.returnType] || 'integer';
+    const params = Array.from({ length: n }, (_, i) => `${ARG_J(e.argTypes[i] ?? 0)} a${i + 1}`);
+    const ret: JassType = RET_J[RETURN_OVERRIDE[e.name] ?? e.returnType] || 'integer';
     let body = IMPL[e.name];
     if (body == null) { stubbed.push(e.name); if (ret === 'nothing') body = `// TODO(runtime): ${e.name} not implemented`; else body = `// TODO(runtime): ${e.name} not implemented\n    ${DEFAULT[ret]}`; }
     if (ret === 'nothing' && /^\s*return\s+\S/.test(body)) body = body.replace(/^\s*return\s+/, 'call ');
