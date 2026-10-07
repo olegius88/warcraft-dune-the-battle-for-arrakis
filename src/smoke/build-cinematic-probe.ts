@@ -10,8 +10,12 @@ import { buildMap } from '../wc3/map.ts';
 import { renderFile } from '../wc3/template.ts';
 import { BUILD_DIR, gameData, jassFile } from '../config/paths.ts';
 
-const movie = process.argv[2] || 'A00_F00E.BIK';
-const out = process.argv[3] || path.join(BUILD_DIR, 'test', 'CinematicProbe.w3x');
+// --stock: play a movie of the client itself instead (does PlayCinematic work at all?)
+const stock = process.argv.includes('--stock');
+const STOCK_MOVIE = 'Movies\\HumanEd.avi';
+const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const movie = args[0] || 'A00_F00E.BIK';
+const out = args[1] || path.join(BUILD_DIR, 'test', stock ? 'CinematicStock.w3x' : 'CinematicProbe.w3x');
 const work = path.join(BUILD_DIR, 'test', 'fmv');
 fs.mkdirSync(work, { recursive: true });
 const avi = path.join(work, 'probe.avi'), mp3 = path.join(work, 'probe.mp3');
@@ -23,7 +27,7 @@ const m = buildMap({
   name: 'Cinematic Probe', width: 32, height: 32, tileset: 'B', ground: ['Bdsr'], cliffs: ['CBde'], corner: () => ({}),
   players: [{ id: 0, control: 'user', race: 'human', team: 0, x: 0, y: 0 }],
   globals: '    timer udg_clock = null',
-  functions: renderFile(jassFile('smoke/cinematic-probe'), { movie: `Movies\\${name}.avi`, report: 'DuneSmoke\\cinematic.pld' }),
+  functions: renderFile(jassFile('smoke/cinematic-probe'), { movie: stock ? STOCK_MOVIE : `Movies\\${name}.avi`, report: 'DuneSmoke\\cinematic.pld' }),
   init: '    set udg_clock = CreateTimer()\n    call TimerStart(udg_clock, 1000.0, false, null)\n    call TimerStart( CreateTimer(), 2.0, false, function CinematicProbeRun )',
   imports: { [`Movies\\${name}.avi`]: fs.readFileSync(avi), [`Movies\\audio\\${name}.mp3`]: fs.readFileSync(mp3) },
 });

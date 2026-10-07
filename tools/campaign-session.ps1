@@ -43,7 +43,7 @@ function YieldIfUserBack {
     'user back: game minimised'
   }
 }
-function Ui([string[]]$a) {
+function Ui([hashtable]$a) {
   & ./tools/wc3-ui.ps1 @a -IdleSeconds 20
   $script:lastOwn = Get-Date
   if ($LASTEXITCODE -eq 3) { throw 'click skipped (game window not under the point): session ends' }
@@ -60,11 +60,11 @@ try {
   $until = (Get-Date).AddSeconds(20)
   while ((Get-Date) -lt $until) { YieldIfUserBack; Start-Sleep -Milliseconds 300 }
   Shot 'menu'
-  Ui @('-Action', 'Key', '-Vk', '0x53'); Start-Sleep 3; Shot 'single'      # S: single player
-  Ui @('-Action', 'Key', '-Vk', '0x55'); Start-Sleep 3; Shot 'custom'      # U: custom campaigns
-  Ui @('-Action', 'Click', '-Fx', "$ListFx", '-Fy', "$ListFy"); Start-Sleep 2; Shot 'list'
-  Ui @('-Action', 'Key', '-Vk', '0x0D'); Start-Sleep 5; Shot 'campaign'    # Enter: open it
-  Ui @('-Action', 'Click', '-Fx', "$MissionFx", '-Fy', "$MissionFy"); Shot 'mission'
+  Ui @{ Action = 'Key'; Vk = 0x53 }; Start-Sleep 3; Shot 'single'      # S: single player
+  Ui @{ Action = 'Key'; Vk = 0x55 }; Start-Sleep 3; Shot 'custom'      # U: custom campaigns
+  Ui @{ Action = 'Click'; Fx = $ListFx; Fy = $ListFy }; Start-Sleep 2; Shot 'list'
+  Ui @{ Action = 'Key'; Vk = 0x0D }; Start-Sleep 5; Shot 'campaign'    # Enter: open it
+  Ui @{ Action = 'Click'; Fx = $MissionFx; Fy = $MissionFy }; Shot 'mission'
   $end = (Get-Date).AddMinutes($Minutes)
   $next = Get-Date
   while ((Get-Date) -lt $end -and (Game)) {

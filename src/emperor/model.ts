@@ -293,6 +293,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   }
   const geosetAnimations: GeosetAnimation[] = [];
   let morphGeosets = 0;
+  const frameGeosets: Array<{ id: number; at: number; until: number; end: number }> = [];
   const bindInv = new Map<number, Mat>();
   for (const ni of boneOfNode.keys()) bindInv.set(ni, invert(bind[ni] as Mat));
   /** append a key unless it repeats the previous value (linear interpolation keeps the shape) */
@@ -330,9 +331,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
       if ((f - first) % M.MORPH_FRAME_STEP === 0) {
         for (const m of morphs) {
           for (const id of addGeosets(m.node, m.byTex, m.w, m.bone, m.poseAt(f))) {
-            const until = at + M.MORPH_FRAME_STEP * M.MS_PER_FRAME;
-            const alpha: Track = at === 0 ? { interpolation: 0, frames: [0, until], values: [[1], [0]] } : { interpolation: 0, frames: [0, at, until], values: [[0], [1], [0]] };
-            geosetAnimations.push({ geosetId: id, alpha });
+            frameGeosets.push({ id, at, until: at + M.MORPH_FRAME_STEP * M.MS_PER_FRAME, end: start + (last - first) * M.MS_PER_FRAME });
             morphGeosets++;
           }
         }
@@ -351,6 +350,19 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     const bone = bones[b] as Bone;
     bone.translation = rec.t;
     bone.rotation = rec.r;
+  }
+  // Frame copies are visible from their frame to the next sampled one (or the end of their sequence).
+  // The game evaluates a track inside the interval of the playing sequence only and draws a geoset
+  // with no key there, so every copy is hidden by a key at the start and end of every sequence
+  // (bug: all poses of the infantryman at once, regression test test/mdx.test.ts).
+  for (const g of frameGeosets) {
+    const keys = new Map<number, number>();
+    for (const s of sequences) { keys.set(s.start, 0); keys.set(s.end, 0); }
+    keys.set(g.at, 1);
+    if (g.until < g.end) keys.set(g.until, 0);
+    else keys.set(g.end, 1);
+    const frames = [...keys.keys()].sort((a, b) => a - b);
+    geosetAnimations.push({ geosetId: g.id, alpha: { interpolation: 0, frames, values: frames.map((t) => [keys.get(t) as number]) } });
   }
   // with frame copies, the bind-pose geosets of morphing nodes are never shown
   if (morphGeosets) for (const m of morphs) for (const id of m.staticGeosets) geosetAnimations.push({ geosetId: id, staticAlpha: 0 });

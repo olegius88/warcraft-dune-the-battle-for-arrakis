@@ -82,6 +82,15 @@ test('XBF -> MDX: infantry vertex animation becomes per-frame geosets with step 
   const steps = model.geosetAnimations.filter((a) => a.alpha?.interpolation === 0);
   assert.ok(steps.length > 50, `${steps.length} frame geosets`);
   assert.ok(model.geosetAnimations.some((a) => a.staticAlpha === 0), 'bind-pose geoset hidden');
+  // Regression: a frame geoset had alpha keys only inside its own sequence; in the others the game
+  // found no key in the sequence's interval and drew it (in game 2026-10-07 all poses of the
+  // infantryman at once). Guaranteed now: every frame geoset has a key at the start and end of
+  // every sequence.
+  for (const a of steps) {
+    for (const s of model.sequences) {
+      assert.ok(a.alpha?.frames.includes(s.start) && a.alpha.frames.includes(s.end), `geoset ${a.geosetId}: keys at ${s.name} ${s.start}..${s.end}`);
+    }
+  }
   const buf = writeMdx(model);
   const m = new MdlxModel();
   m.load(new Uint8Array(buf));
