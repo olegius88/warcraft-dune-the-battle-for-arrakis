@@ -44,6 +44,10 @@
     integer EmpTmpCount = 0
     integer EmpTmpType = 0
     boolean EmpTmpLose = false
+    // palace super weapons (helpers.j EmpSwStrike; data from mission superweapon.j)
+    hashtable EmpSwTab = null
+    group EmpSwFleeGroup = null
+    integer EmpSwDeathHand = 0
     real EmpTmpX = 0.0
     real EmpTmpY = 0.0
     real EmpTmpR = 0.0
@@ -146,6 +150,10 @@
     integer array EmpAiUpgCost
     real array EmpAiUpgTime
     integer array EmpAiUpgCount
+    integer array EmpAiSw
+    integer array EmpAiSwPalace
+    integer array EmpAiSwTicks
+    integer EmpAiSwFrom = -1
     string array EmpAiLogLine
     integer EmpAiLogCount = 0
     integer array EmpPowerSum

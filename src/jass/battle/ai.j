@@ -480,6 +480,23 @@ function EmpAiOnAttacked takes nothing returns nothing
     endif
 endfunction
 
+// the palace super weapon (src/emperor/superweapons.ts): charged for its BuildTime while the AI's
+// palace stands, fired at the player's base once the AI knows where it is
+function EmpAiSuperweapon takes nothing returns nothing
+    local integer t = EmpAiSw[EmpEnemyHouse]
+    if t == 0 or EmpCount(1, EmpAiSwPalace[EmpEnemyHouse]) == 0 then
+        set EmpAiSwFrom = -1
+        return
+    endif
+    if EmpAiSwFrom < 0 then
+        set EmpAiSwFrom = EmpTick
+    elseif EmpTick - EmpAiSwFrom >= EmpAiSwTicks[EmpEnemyHouse] and EmpAiKnown then
+        call EmpSwStrike(t, Player(1), EmpAiKnownX, EmpAiKnownY)
+        call EmpAiLog("super weapon " + GetObjectName(t))
+        set EmpAiSwFrom = EmpTick
+    endif
+endfunction
+
 function EmpAiTactics takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
@@ -645,6 +662,7 @@ function EmpAiInit takes nothing returns nothing
     call TriggerRegisterPlayerUnitEvent(tr, Player(1), EVENT_PLAYER_UNIT_ATTACKED, null)
     call TriggerAddAction(tr, function EmpAiOnAttacked)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiTactics)
+    call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiSuperweapon)
     call TimerStart(CreateTimer(), {{real wavePeriod}}, true, function EmpAiWave)
     set tr = null
 endfunction

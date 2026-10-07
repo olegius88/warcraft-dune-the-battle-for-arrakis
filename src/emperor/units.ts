@@ -17,6 +17,7 @@ import type { Wc3Race } from '../config/houses.ts';
 import { UNIT_FIELD as F, ABILITY_FIELD, UPGRADE_FIELD as G, ABILITY, UNIT, CUSTOM_ID } from '../config/wc3.ts';
 import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
+import { superweaponKind } from './superweapons.ts';
 
 type RaceOrNeutral = Wc3Race | 'neutral';
 
@@ -135,7 +136,12 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   for (const o of all) {
     const race: RaceOrNeutral = HOUSE_RACE[o.house] || 'neutral';
     let base: string, scale: number;
-    if (o.category === 'Building') {
+    const charge = superweaponKind(o) !== null;
+    if (charge) {
+      // palace super weapon charge: an artillery unit whose attack-ground order is the strike
+      // (src/jass/mission/superweapon.j)
+      base = U.SUPERWEAPON_BASE; scale = U.SUPERWEAPON_SCALE;
+    } else if (o.category === 'Building') {
       // the last entry matches every name
       const b = U.BUILDING_MODELS.find(([re]) => re.test(o.name)) as (typeof U.BUILDING_MODELS)[number];
       base = b[1][race] || b[1].neutral; scale = b[2];
@@ -172,7 +178,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       mods.push(unreal(F.cooldown, Math.max(S.MIN_ATTACK_COOLDOWN, weapon.reload / S.TICKS_PER_SECOND)));
       mods.push(str(F.attackType, (b.warhead && combat.attackOf.get(b.warhead.name)) || U.DEFAULT_ATTACK_TYPE));
       mods.push(str(F.targets, b.antiAircraft ? U.TARGETS_AIR : U.TARGETS_GROUND));
-    } else if (o.category !== 'Building' || /Wall/i.test(o.name)) {
+    } else if (!charge && (o.category !== 'Building' || /Wall/i.test(o.name))) {
       mods.push(int(F.attacksEnabled, 0));
     }
     objects.push({ base, id: idOf(o.name), mods, emperor: o });
@@ -216,13 +222,26 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     obj.mods.push(str(F.upgrades, ''), str(F.researches, upgradeOf.get(o.name)?.id ?? ''));
     if (o.category === 'Building') {
       // Production: units whose PrimaryBuilding names this building.
-      const trains = all.filter((u) => u.category === 'Unit' && u.cost > 0 && u.primaryBuilding.includes(o.name)).map((u) => rawcode.get(u.name));
+      // (super weapon charges cost nothing: Cost 0, trained for their BuildTime)
+      // A starport (Starport = TRUE) sells the Starportable types of its house and the houseless
+      // ones (Harvester, MCV, Carryall). TODO(starport): Emperor's prices vary by
+      // StarportCostVariationPercent every StarportCostUpdateDelay ticks, with a stock and a frigate
+      // delivery; here they cost their Rules.txt Cost and arrive after their BuildTime.
+      const sells = /^true$/i.test((o.raw.Starport ?? '').trim())
+        ? all.filter((u) => u.category === 'Unit' && u.cost > 0 && /^true$/i.test((u.raw.Starportable ?? '').trim()) && (u.house === o.house || (!u.house && !houseOf(u))))
+        : [];
+      const trains = [...new Set([
+        ...all.filter((u) => u.category === 'Unit' && (u.cost > 0 || superweaponKind(u)) && u.primaryBuilding.includes(o.name)), ...sells,
+      ])].map((u) => rawcode.get(u.name));
       obj.mods.push(str(F.trains, trains.join(',')));
       const abil: string[] = [];
       if (/Refinery/i.test(o.name)) abil.push(ABILITY.returnResources);
       obj.mods.push(str(F.abilities, abil.join(',')));
     } else if (o.harvester || /Harvester/.test(o.name)) {
       obj.mods.push(str(F.abilities, HARVEST_ABILITY));
+    } else if (superweaponKind(o)) {
+      // invulnerable, and none of the stock unit's requirements
+      obj.mods.push(str(F.abilities, ABILITY.invulnerable), str(F.requires, ''));
     } else if (/^MCV$/.test(o.name)) {
       // MCV builds (and is consumed by) a construction yard: runtime removes it on construct start.
       obj.mods.push(str(F.abilities, ABILITY.build), str(F.builds, HOUSE_CODES.map((c) => rawcode.get(`${c}ConYard`)).join(',')));

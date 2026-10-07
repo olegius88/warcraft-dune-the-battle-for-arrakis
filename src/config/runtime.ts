@@ -116,9 +116,10 @@ export const AI_HOME_RADIUS = 1536;
 /** Shroud areas opened by RemoveShroud, remembered so ReplaceShroud can close them again. */
 export const SHROUD_SLOTS = 64;
 
-/** Super weapon strike (SideNuke, SideNukeAll, FireSpecialWeapon): radius, damage. */
-export const NUKE_RADIUS = 1024;
-export const NUKE_DAMAGE = 2000;
+/** Palace super weapons (src/emperor/superweapons.ts; SideNuke strikes with the Death Hand): a unit
+ * hit by the Hawk Strike is ordered SW_FLEE_STEP away from the strike point every SW_FLEE_PERIOD s. */
+export const SW_FLEE_STEP = 600;
+export const SW_FLEE_PERIOD = 0.5;
 
 /** Special crates: bomb damage and radius, stealth duration and radius around the taker. */
 export const CRATE_BOMB_DAMAGE = 300;

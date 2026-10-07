@@ -184,10 +184,174 @@ function EmpDamageArea takes real x, real y, real r, real dmg returns nothing
     set g = null
 endfunction
 
-// super weapon strike (Death Hand / SideNuke): the model comes from a stock ability (config ART_ABILITY)
-function EmpNukeAt takes real x, real y returns nothing
+// ---- palace super weapons (src/emperor/superweapons.ts, Rules.txt): EmpSwTab[charge type]:
+// 0 kind (1 Death Hand, 2 Hawk, 3 Chaos Lightning), 1 damage, 2 radius, 3 friendly fire, 4 seconds a
+// hit unit flees / is berserk; fallout 5 damage per second, 6 radius, 7 seconds, 8 friendly fire.
+// Handle keys: 20 flee until (tick), 21/22 flee from x/y, 23 berserk owner (player id + 1).
+function EmpSwType takes integer t, integer kind, real dmg, real r, boolean friendly, real effect returns nothing
+    call SaveInteger(EmpSwTab, t, 0, kind)
+    call SaveReal(EmpSwTab, t, 1, dmg)
+    call SaveReal(EmpSwTab, t, 2, r)
+    call SaveBoolean(EmpSwTab, t, 3, friendly)
+    call SaveReal(EmpSwTab, t, 4, effect)
+endfunction
+
+function EmpSwFallout takes integer t, real dps, real r, real seconds, boolean friendly returns nothing
+    call SaveReal(EmpSwTab, t, 5, dps)
+    call SaveReal(EmpSwTab, t, 6, r)
+    call SaveReal(EmpSwTab, t, 7, seconds)
+    call SaveBoolean(EmpSwTab, t, 8, friendly)
+endfunction
+
+// damage within r of (x, y); without friendly fire who's allies are spared
+function EmpSwDamage takes player who, real x, real y, real r, real dmg, boolean friendly returns nothing
+    local group g = CreateGroup()
+    local unit u
+    call GroupEnumUnitsInRange(g, x, y, r, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and u != EmpWorm and (friendly or not IsUnitAlly(u, who)) then
+            if GetWidgetLife(u) <= dmg then
+                call KillUnit(u)
+            else
+                call SetWidgetLife(u, GetWidgetLife(u) - dmg)
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
+// radioactive fallout of the Death Hand: damage every second for its Lifespan
+// TODO(superweapon): how often the DeathHandSplat_B damage applies is not in Rules.txt; once a
+// second is assumed (per tick would be 25 times as much). Warhead percentages (Death_W,
+// DeathHandSplat_W) are not applied: the damage is the same for every armour.
+function EmpSwFalloutTick takes nothing returns nothing
+    local timer tm = GetExpiredTimer()
+    local integer h = GetHandleId(tm)
+    local integer t = LoadInteger(EmpSwTab, h, 0)
+    local integer left = LoadInteger(EmpSwTab, h, 3) - 1
+    call EmpSwDamage(Player(LoadInteger(EmpSwTab, h, 4)), LoadReal(EmpSwTab, h, 1), LoadReal(EmpSwTab, h, 2), LoadReal(EmpSwTab, t, 6), LoadReal(EmpSwTab, t, 5), LoadBoolean(EmpSwTab, t, 8))
+    if left <= 0 then
+        call DestroyEffect(LoadEffectHandle(EmpSwTab, h, 5))
+        call FlushChildHashtable(EmpSwTab, h)
+        call DestroyTimer(tm)
+    else
+        call SaveInteger(EmpSwTab, h, 3, left)
+    endif
+    set tm = null
+endfunction
+
+// Hawk Strike: hit enemy units flee from the strike point, out of their owner's control
+function EmpSwFleeTick takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local integer h
+    local real a
+    call GroupAddGroup(EmpSwFleeGroup, g)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        set h = GetHandleId(u)
+        if not EmpAlive(u) or EmpTick >= LoadInteger(EmpSwTab, h, 20) then
+            call GroupRemoveUnit(EmpSwFleeGroup, u)
+            call RemoveSavedInteger(EmpSwTab, h, 20)
+            if EmpAlive(u) then
+                call IssueImmediateOrder(u, "stop")
+            endif
+        else
+            set a = Atan2(GetUnitY(u) - LoadReal(EmpSwTab, h, 22), GetUnitX(u) - LoadReal(EmpSwTab, h, 21))
+            call IssuePointOrder(u, "move", GetUnitX(u) + {{real RT.SW_FLEE_STEP}} * Cos(a), GetUnitY(u) + {{real RT.SW_FLEE_STEP}} * Sin(a))
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
+// Chaos Lightning: a berserk unit is back with its owner when the effect wears off
+function EmpSwCalm takes nothing returns nothing
+    local timer tm = GetExpiredTimer()
+    local unit u = LoadUnitHandle(EmpSwTab, GetHandleId(tm), 0)
+    local integer p = LoadInteger(EmpSwTab, GetHandleId(u), 23)
+    if u != null and p > 0 and EmpAlive(u) then
+        call SetUnitOwner(u, Player(p - 1), true)
+    endif
+    if u != null then
+        call RemoveSavedInteger(EmpSwTab, GetHandleId(u), 23)
+    endif
+    call FlushChildHashtable(EmpSwTab, GetHandleId(tm))
+    call DestroyTimer(tm)
+    set tm = null
+    set u = null
+endfunction
+
+// flee (Hawk) or berserk (Chaos Lightning) for the enemy units of who within r
+function EmpSwAffect takes player who, real x, real y, real r, integer kind, real seconds returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local timer tm
+    call GroupEnumUnitsInRange(g, x, y, r, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and u != EmpWorm and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and not IsUnitAlly(u, who) and GetOwningPlayer(u) != Player(PLAYER_NEUTRAL_AGGRESSIVE) then
+            if kind == 2 then
+                call SaveInteger(EmpSwTab, GetHandleId(u), 20, EmpTick + R2I(seconds * {{TPS}}))
+                call SaveReal(EmpSwTab, GetHandleId(u), 21, x)
+                call SaveReal(EmpSwTab, GetHandleId(u), 22, y)
+                call GroupAddUnit(EmpSwFleeGroup, u)
+            elseif kind == 3 and not HaveSavedInteger(EmpSwTab, GetHandleId(u), 23) then
+                // owned by Neutral Hostile the unit fires on everyone nearby, its old side included
+                call SaveInteger(EmpSwTab, GetHandleId(u), 23, GetPlayerId(GetOwningPlayer(u)) + 1)
+                call SetUnitOwner(u, Player(PLAYER_NEUTRAL_AGGRESSIVE), false)
+                set tm = CreateTimer()
+                call SaveUnitHandle(EmpSwTab, GetHandleId(tm), 0, u)
+                call TimerStart(tm, seconds, false, function EmpSwCalm)
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    set tm = null
+endfunction
+
+// strike of the charge type t for who at (x, y)
+function EmpSwStrike takes integer t, player who, real x, real y returns nothing
+    local integer kind = LoadInteger(EmpSwTab, t, 0)
+    local timer tm
+    local integer h
+    if EmpSwFleeGroup == null then
+        set EmpSwFleeGroup = CreateGroup()
+        call TimerStart(CreateTimer(), {{real RT.SW_FLEE_PERIOD}}, true, function EmpSwFleeTick)
+    endif
     call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.nuke.id}}', {{ART_ABILITY.nuke.type}}, 0), x, y))
-    call EmpDamageArea(x, y, {{real RT.NUKE_RADIUS}}, {{real RT.NUKE_DAMAGE}})
+    call EmpSwDamage(who, x, y, LoadReal(EmpSwTab, t, 2), LoadReal(EmpSwTab, t, 1), LoadBoolean(EmpSwTab, t, 3))
+    if kind == 2 or kind == 3 then
+        call EmpSwAffect(who, x, y, LoadReal(EmpSwTab, t, 2), kind, LoadReal(EmpSwTab, t, 4))
+    endif
+    if LoadReal(EmpSwTab, t, 7) > 0.0 then
+        set tm = CreateTimer()
+        set h = GetHandleId(tm)
+        call SaveInteger(EmpSwTab, h, 0, t)
+        call SaveReal(EmpSwTab, h, 1, x)
+        call SaveReal(EmpSwTab, h, 2, y)
+        call SaveInteger(EmpSwTab, h, 3, R2I(LoadReal(EmpSwTab, t, 7)))
+        call SaveInteger(EmpSwTab, h, 4, GetPlayerId(who))
+        call SaveEffectHandle(EmpSwTab, h, 5, AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.fallout.id}}', {{ART_ABILITY.fallout.type}}, 0), x, y))
+        call TimerStart(tm, 1.0, true, function EmpSwFalloutTick)
+    endif
+    set tm = null
+endfunction
+
+// super weapon strike of the scripts (SideNuke, SideNukeAll, FireSpecialWeapon): the Death Hand
+function EmpNukeAt takes real x, real y returns nothing
+    if EmpSwDeathHand != 0 then
+        call EmpSwStrike(EmpSwDeathHand, Player(PLAYER_NEUTRAL_AGGRESSIVE), x, y)
+    endif
 endfunction
 
 // stealth crate: the taker's units around it turn invisible for CRATE_STEALTH_SECONDS. The

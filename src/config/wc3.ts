@@ -85,6 +85,8 @@ export const ART_ABILITY = {
   nuke: { id: 'AUin', type: 'EFFECT_TYPE_EFFECT' },
   /** bomb crate */
   bomb: { id: 'AHfs', type: 'EFFECT_TYPE_EFFECT' },
+  /** Death Hand fallout cloud (Disease Cloud of the abomination) */
+  fallout: { id: 'Aap1', type: 'EFFECT_TYPE_CASTER' },
   /** stealth crate */
   stealth: { id: 'AOws', type: 'EFFECT_TYPE_CASTER' },
 } as const;

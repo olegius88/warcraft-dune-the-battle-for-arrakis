@@ -78,3 +78,7 @@ export const TERRITORY_MARKER_SCALE = 0.7;
 export const BUILDER_NAME = 'Строитель';
 /** Name of a building upgrade (war3map.w3q): prefix + the building's name. */
 export const UPGRADE_NAME_PREFIX = 'Улучшение: ';
+/** Palace super weapon charge (src/emperor/superweapons.ts): a stock artillery unit (mortar team),
+ * whose attack-ground order fires the strike (probe src/smoke/build-superweapon-probe.ts). */
+export const SUPERWEAPON_BASE = 'hmtm';
+export const SUPERWEAPON_SCALE = 1.0;

@@ -7,6 +7,7 @@ function EmpStart takes nothing returns nothing
     call EmpDefaultDiplomacy()
     call EmpPlaced()
     call EmpVetData()
+    call EmpSwInit()
     call EmpReinfData()
 {{pickScript}}{{#if hasBriefingSpeech}}
     call EmpBriefingSpeech(){{/if}}
@@ -56,6 +57,7 @@ function EmpStart takes nothing returns nothing
     call TimerStart(CreateTimer(), {{real RT.INITIAL_CAMERA_DELAY}}, false, function EmpInitialCamera)
     call TimerStart(CreateTimer(), {{real RT.STEALTH_TICK}}, true, function EmpStillTick)
     call TimerStart(CreateTimer(), {{real RT.CRATE_TICK}}, true, function EmpCrateTick){{#if autoWinSeconds}}
-    call TimerStart(CreateTimer(), {{real autoWinSeconds}}, false, function EmpAutoWin){{/if}}
+    call TimerStart(CreateTimer(), {{real autoWinSeconds}}, false, function EmpAutoWin){{/if}}{{#if extraStart}}
+    call ExecuteFunc({{str extraStart}}){{/if}}
     set tr = null
 endfunction

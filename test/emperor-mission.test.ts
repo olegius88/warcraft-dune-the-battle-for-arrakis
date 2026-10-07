@@ -10,6 +10,7 @@ import { readMeta } from '../src/emperor/mapxbf.ts';
 import { ensureMap } from '../src/emperor/preview-map.ts';
 import { buildMission } from '../src/emperor/mission.ts';
 import { loadCampaign, defendVariant } from '../src/emperor/campaign-data.ts';
+import { superweapons } from '../src/emperor/superweapons.ts';
 
 import { RAW_DIR, GAME_EXE } from '../src/config/paths.ts';
 const RAW = RAW_DIR;
@@ -201,6 +202,51 @@ test('defence scripts pick their Fail / Win variant by the won attack on the sam
   assert.ok(d.script.includes('if EmpInCampaign and EmpPhase == 1 and GetStoredInteger(EmpCache, "emp", "wonATP1M1FR") != 1 then\n        set EmpScriptIndex = 1'), 'variant picked when the attack was not won');
   const a = buildMission({ scripts: [{ tok: tokOf('ATP1M1FR'), phase: 1, name: 'ATP1M1FR' }], meta, ...all, name: 'attack', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(a.script.includes('call StoreInteger(EmpCache, "emp", "wonATP1M1FR", 1)'), 'attack win recorded');
+});
+
+// Palace super weapons (Rules.txt HKDeathHand / ATHawkWeapon / ORBeamWeapon, Cost 0) were filtered
+// out, and SideNuke used invented NUKE_RADIUS / NUKE_DAMAGE. A palace now trains the charge for its
+// BuildTime; the charge's attack-ground order is the strike (in-game probe
+// src/smoke/build-superweapon-probe.ts, 2026-10-08). Effects from Rules.txt; what Hawk and Chaos
+// Lightning do to units from cncnz.com (Atreides / Ordos structures): units flee / go berserk.
+test('palace super weapons: Rules.txt strike data, trained by the palace, fired by attack-ground', opts, () => {
+  const all = loadAll();
+  const sw = superweapons(all.rules);
+  const dh = sw.find((w) => w.kind === 'deathHand');
+  assert.deepStrictEqual(dh && { name: dh.name, palace: dh.palace, chargeTicks: dh.chargeTicks, damage: dh.damage, radiusTiles: dh.radiusTiles, friendly: dh.friendly },
+    { name: 'HKDeathHand', palace: 'HKPalace', chargeTicks: 5184, damage: 5000, radiusTiles: 3, friendly: true });
+  assert.deepStrictEqual(dh?.fallout, { damage: 15, sizeTiles: 10, lifespanTicks: 1000, friendly: true });
+  const hawk = sw.find((w) => w.kind === 'hawk');
+  assert.deepStrictEqual(hawk && [hawk.name, hawk.palace, hawk.chargeTicks, hawk.damage, hawk.radiusTiles, hawk.friendly, hawk.effectTicks], ['ATHawkWeapon', 'ATPalace', 4536, 1000, 4, false, 500]);
+  const beam = sw.find((w) => w.kind === 'beam');
+  assert.deepStrictEqual(beam && [beam.name, beam.palace, beam.chargeTicks, beam.damage, beam.radiusTiles, beam.friendly, beam.effectTicks], ['ORBeamWeapon', 'ORPalace', 6220, 1000, 4, false, 300]);
+  const objOf = (name: string) => all.units.objects.find((o) => o.id === all.units.rawcode.get(name));
+  const fieldOf = (name: string, field: string) => objOf(name)?.mods.filter((m) => m.field === field).map((m) => String(m.value)).at(-1) ?? '';
+  assert.ok(fieldOf('HKPalace', 'utra').split(',').includes(all.units.rawcode.get('HKDeathHand') as string), 'the palace trains its charge');
+  assert.notStrictEqual(fieldOf('HKDeathHand', 'uaen'), '0', 'the charge keeps its attack (attack-ground)');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'sw', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const dhId = all.units.rawcode.get('HKDeathHand');
+  // damage / radius scaled like units.ts: /DAMAGE_DIVISOR, tiles * 128
+  assert.ok(m.script.includes(`call EmpSwType('${dhId}', 1, 2500.0, 384.0, true, 0.0)`), 'Death Hand strike data');
+  assert.ok(m.script.includes('EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER') && m.script.includes('OrderId("attackground")'), 'strike by attack-ground');
+  assert.ok(!/NUKE_RADIUS|2000\.0\)\s*$/m.test(m.script) && m.script.includes('function EmpNukeAt'), 'SideNuke strikes with the Death Hand data');
+  // the enemy AI charges its palace weapon and fires it at the player's base it knows (house 1 = HK)
+  assert.ok(m.script.includes(`set EmpAiSw[1] = '${dhId}'`) && m.script.includes('set EmpAiSwTicks[1] = 5184'), 'AI super weapon data');
+  assert.ok(m.script.includes('call EmpSwStrike(t, Player(1), EmpAiKnownX, EmpAiKnownY)'), 'AI fires at the known base');
+});
+
+// The starports sold nothing: no unit names a starport as PrimaryBuilding, the 33 Starportable types
+// are ordered there in Emperor. A house starport now trains the Starportable types of its house and
+// the houseless ones (Harvester, MCV, Carryall). Found by an independent audit 2026-10-08.
+test('starports train the Starportable units of their house', opts, () => {
+  const all = loadAll();
+  const trains = (b: string): string[] => all.units.objects.find((o) => o.id === all.units.rawcode.get(b))?.mods.filter((m) => m.field === 'utra').map((m) => String(m.value)).at(-1)?.split(',') ?? [];
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const at = trains('ATStarport');
+  for (const n of ['ATTrike', 'ATMinotaurus', 'ATOrni', 'Harvester', 'MCV', 'Carryall']) assert.ok(at.includes(id(n)), `ATStarport sells ${n}`);
+  for (const n of ['HKDevastator', 'ORLaserTank', 'SMQuad', 'GUMaker']) assert.ok(!at.includes(id(n)), `ATStarport does not sell ${n}`);
+  assert.ok(trains('HKStarport').includes(id('HKDevastator')));
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

@@ -28,6 +28,7 @@ import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules } from './rules.ts';
 import type { AiRules } from './ai-rules.ts';
 import { parseAiRules } from './ai-rules.ts';
+import { superweapons } from './superweapons.ts';
 import { MAX_SIDE, DEFAULT_FACING } from '../config/runtime.ts';
 import * as C from '../config/battle.ts';
 import type { MapMeta } from './mapxbf.ts';
@@ -240,6 +241,12 @@ endfunction`;
       aiLines.push(`    set EmpAiUpg[${i}] = '${u.id}'`, `    set EmpAiUpgB[${i}] = '${rc(u.building)}'`, `    set EmpAiUpgCost[${i}] = ${u.cost}`, `    set EmpAiUpgTime[${i}] = ${real(u.seconds)}`);
     });
     aiLines.push(`    set EmpAiUpgCount[${hi}] = ${list.length}`);
+  });
+  // the house's palace super weapon (src/emperor/superweapons.ts): charge type, palace, charge ticks
+  const sw = o.rules ? superweapons(o.rules) : [];
+  PREFIXES.forEach((h, hi) => {
+    const w = sw.find((x) => x.palace.startsWith(h) && rc(x.name) && rc(x.palace));
+    if (w) aiLines.push(`    set EmpAiSw[${hi}] = '${rc(w.name)}'`, `    set EmpAiSwPalace[${hi}] = '${rc(w.palace)}'`, `    set EmpAiSwTicks[${hi}] = ${w.chargeTicks}`);
   });
   for (const id of produced) {
     const req = o.units.objects.find((x) => x.id === id)?.mods.filter((m) => m.field === UNIT_FIELD.requires).map((m) => String(m.value)).at(-1) ?? '';

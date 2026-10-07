@@ -17,13 +17,14 @@ import type { TokenTable } from './tok.ts';
 import type { MissionContext } from './context.ts';
 import type { UnitData } from './units.ts';
 import type { Rules } from './rules.ts';
+import { superweapons } from './superweapons.ts';
 import type { Speech } from './speech.ts';
 import type { AiRules } from './ai-rules.ts';
 import { HOUSE_ID, HOUSES, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_BY_CODE } from '../config/houses.ts';
 import { CACHE_FILE, CACHE_KEY, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
-import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
+import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, DAMAGE_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
 import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON, ART_ABILITY, ABILITY } from '../config/wc3.ts';
 import * as SC from '../config/scenery.ts';
 import { SHUFFLE_BATTLE_MUSIC } from '../config/music.ts';
@@ -74,6 +75,8 @@ export interface MissionParams {
   debugName?: string;
   /** extra JASS functions appended to the map script */
   extraFunctions?: string;
+  /** probes: a function of extraFunctions run (ExecuteFunc) once the mission has started */
+  extraStart?: string;
   /** automatic flow test: win the mission after this many seconds (config AUTOTEST_WIN_SECONDS) */
   autoWinSeconds?: number;
   /** music playlist: archive paths of tracks stored in the campaign (src/emperor/music.ts) */
@@ -231,6 +234,20 @@ function buildMission(p: MissionParams): BuiltMission {
   const dispatch = scripts.length
     ? scripts.map((s, i) => `    ${i === 0 ? 'if' : 'elseif'} EmpScriptIndex == ${i} then\n        call EmpScript${i}()`).join('\n') + '\n    endif'
     : '';
+  // ---- palace super weapons (src/emperor/superweapons.ts; strike in runtime helpers.j) ----
+  const SW_KIND = { deathHand: 1, hawk: 2, beam: 3 } as const;
+  const swLines: string[] = [];
+  const swLimitLines: string[] = [];
+  for (const w of p.rules ? superweapons(p.rules) : []) {
+    const id = p.units.rawcode.get(w.name);
+    if (!id) continue;
+    swLines.push(`    call EmpSwType('${id}', ${SW_KIND[w.kind]}, ${real(w.damage / DAMAGE_DIVISOR)}, ${real(w.radiusTiles * WC3_UNITS_PER_TILE)}, ${w.friendly}, ${real(w.effectTicks / TICKS_PER_SECOND)})`);
+    // DeathHandSplat Size is the side of the square splat in tiles: radius half of it
+    if (w.fallout) swLines.push(`    call EmpSwFallout('${id}', ${real(w.fallout.damage / DAMAGE_DIVISOR)}, ${real((w.fallout.sizeTiles / 2) * WC3_UNITS_PER_TILE)}, ${real(w.fallout.lifespanTicks / TICKS_PER_SECOND)}, ${w.fallout.friendly})`);
+    if (w.kind === 'deathHand') swLines.push(`    set EmpSwDeathHand = '${id}'`);
+    swLimitLines.push(`        call SetPlayerTechMaxAllowed(Player(i), '${id}', 1)`);
+  }
+
   // a Fail / Win variant (listed after its base script) replaces it by the attack's result
   const wonKey = (attack: string): string => str(CACHE_KEY.wonPrefix + attack);
   const wonCheck = (s: MissionScript): string => (s.whenWon ? ` and GetStoredInteger(EmpCache, ${CAT}, ${wonKey(s.whenWon.attack)}) ${s.whenWon.won ? '==' : '!='} 1` : '');
@@ -267,7 +284,7 @@ function buildMission(p: MissionParams): BuiltMission {
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], wonLines, vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], wonLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -286,6 +303,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('veterancy'),
     jass('reinforcements'),
     jass('stealth'),
+    jass('superweapon'),
     `function EmpPlaced takes nothing returns nothing\n${placed.join('\n')}\nendfunction`,
     `function EmpMissionTick takes nothing returns nothing\n${dispatch}\nendfunction`,
     ...(debriefBlocks.length ? [`function EmpDebriefSpeech takes boolean win returns real\n    local real t = 0.0\n${debriefBlocks.join('\n')}\n    return t\nendfunction`] : []),
