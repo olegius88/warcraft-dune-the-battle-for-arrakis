@@ -189,8 +189,10 @@ function buildMission(p: MissionParams): BuiltMission {
       placed.push(`    call CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${UNIT.civilianHouse}', ${at}, ${FACING})`);
     } else if (p.units.rawcode.has(n)) {
       // owner 0 = the player's side (own frigate on #H2/#H3, the HK base of #V1 Homeworld Defence)
-      // TODO(owners): owners >= 2 (Ix/Tleilaxu transports, smuggler starports of territory maps, frigates
-      // of #H1, windtraps of #V1) stay neutral: whether owner n means "the n-th scripted side" is not established.
+      // Owners 2 and 3 are categories of neutral objects, not scripted sides (all 48 maps checked
+      // 2026-10-07): 2 = crates, trees, town buildings, the docked frigates of #H1 (its script makes its
+      // own frigate with NewObjectOffsetOrientation); 3 = wrecks, barrels, civilian houses, Ix/Tleilaxu
+      // transports, smuggler starports, Ix/Guild cannons. No map places an army for them.
       const who = b.owner === 1 ? 'Player(1)' : b.owner === 0 ? 'Player(0)' : 'Player(PLAYER_NEUTRAL_PASSIVE)';
       placed.push(`    call CreateUnit(${who}, '${p.units.rawcode.get(n)}', ${at}, ${FACING})`);
     }
