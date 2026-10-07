@@ -106,7 +106,7 @@ function buildMission(p: MissionParams): BuiltMission {
   const tooltips = new Set<number>();
   for (const s of scripts) { s.tr.used.forEach((x) => used.add(x)); s.tr.messages.forEach((x) => messages.add(x)); s.tr.tooltips.forEach((x) => tooltips.add(x)); }
 
-  const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend', worms: p.rules?.worms, rules: p.rules, ...(p.ai ? { ai: p.ai } : {}) });
+  const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend', worms: p.rules?.worms, rules: p.rules, ...(p.ai ? { ai: p.ai } : {}), ...(p.debugName ? { aiReport: `${RT.DEBUG_REPORT_DIR}\\${p.debugName}_AI.pld` } : {}) });
   const deployMap: Record<string, string> = { [String(p.units.rawcode.get('MCV'))]: String(p.units.rawcode.get(`${CODE_BY_HOUSE[p.playerHouse]}ConYard`)) };
   const rt = buildRuntime(p.table, { deployMap });
 
@@ -210,6 +210,8 @@ function buildMission(p: MissionParams): BuiltMission {
     // UnstealthRange: this type reveals stealthed enemies within it (WC3 units)
     if (o.unstealthRange > 0) vetLines.push(`    call SaveReal(EmpVet, '${id}', 3, ${real(o.unstealthRange * WC3_UNITS_PER_TILE)})`);
     if (o.aiThreat > 0) vetLines.push(`    call SaveInteger(EmpThreat, '${id}', 0, ${o.aiThreat})`);
+    // ExcludeFromCampaignLose: not counted by the normal win/lose rule (EmpLoseCount)
+    if (o.excludeFromLose) vetLines.push(`    call SaveBoolean(EmpVet, '${id}', 4, true)`);
     // CanSelfRepair n = n health per repair period -> WC3 health per second
     const regen = (n: number): string => real((n * TICKS_PER_SECOND) / REPAIR_PERIOD_TICKS / HP_DIVISOR);
     o.veterancy.forEach((l, i) => vetLines.push(`    call EmpVetLevel('${id}', ${i + 1}, ${l.score}, ${Math.round(l.health / HP_DIVISOR)}, ${l.extraDamage}, ${l.extraArmour}, ${l.extraRange}, ${l.speed ? Math.round(moveSpeed(l.speed)) : 0}, ${regen(l.selfRepair)}, ${l.elite}, ${l.stealthedWhenStill})`));

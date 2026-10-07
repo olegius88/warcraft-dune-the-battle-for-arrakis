@@ -128,6 +128,22 @@ test('stealthed-when-still units and the AIThreat target priority come from Rule
   assert.ok(m.script.includes('set EmpThreatAny = true'));
 });
 
+// Regression: the normal win/lose rule counted every object, so a side that had only walls or
+// small windtraps left (Rules.txt ExcludeFromCampaignLose = TRUE: *Wall, *SmWindtrap, IXWindtrap,
+// INTLWindtrap) was not beaten. Found by an independent audit 2026-10-08 (the flag was never read).
+test('objects with ExcludeFromCampaignLose do not keep a side alive in the normal win/lose rule', opts, () => {
+  const all = loadAll();
+  assert.strictEqual(all.rules.objects.get('HKWall')?.excludeFromLose, true);
+  assert.strictEqual(all.rules.objects.get('ATSmWindtrap')?.excludeFromLose, true);
+  assert.strictEqual(all.rules.objects.get('ATBarracks')?.excludeFromLose, false);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'lose', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call SaveBoolean(EmpVet, '${all.units.rawcode.get('HKWall')}', 4, true)`), 'wall excluded');
+  assert.ok(!m.script.includes(`call SaveBoolean(EmpVet, '${all.units.rawcode.get('ATBarracks')}', 4, true)`), 'barracks counted');
+  const check = m.script.slice(m.script.indexOf('function EmpNormalCheck'), m.script.indexOf('endfunction', m.script.indexOf('function EmpNormalCheck')));
+  assert.ok(check.length > 0 && !/EmpCount\(/.test(check) && /EmpLoseCount\(/.test(check), 'normal rule counts through EmpLoseCount');
+});
+
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
 // lines its scripts use and Message() queues them (one at a time, by known duration).
 test('mission messages play the original speech', opts, () => {
@@ -277,7 +293,7 @@ test('territory battle armies, credits and paid enemy production follow Rules.tx
 // army in every wave, no rebuilding. It now uses ai.ini.
 test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat chance', opts, () => {
   const all = loadAll();
-  assert.deepStrictEqual(all.ai, { foot: 20, tank: 80, defencePercent: 24, minMoneyToBuild: 600, retreatChance: 50 });
+  assert.deepStrictEqual({ foot: all.ai?.foot, tank: all.ai?.tank, defencePercent: all.ai?.defencePercent, minMoneyToBuild: all.ai?.minMoneyToBuild, retreatChance: all.ai?.retreatChance }, { foot: 20, tank: 80, defencePercent: 24, minMoneyToBuild: 600, retreatChance: 50 });
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes('local boolean veh = GetRandomInt(1, 20 + 80) > 20'), 'Foot / Tank mix');

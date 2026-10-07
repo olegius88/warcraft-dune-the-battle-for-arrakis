@@ -43,6 +43,7 @@
     integer EmpTmpSide = 0
     integer EmpTmpCount = 0
     integer EmpTmpType = 0
+    boolean EmpTmpLose = false
     real EmpTmpX = 0.0
     real EmpTmpY = 0.0
     real EmpTmpR = 0.0
