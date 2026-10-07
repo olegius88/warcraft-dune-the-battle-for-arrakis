@@ -11,7 +11,7 @@ function EmpStart takes nothing returns nothing
 {{pickScript}}{{#if hasBriefingSpeech}}
     call EmpBriefingSpeech(){{/if}}
 {{#if briefing}}    call CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, {{str name}}, {{str briefing}}, {{str ICON.briefingQuest}})
-    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, {{real RT.BRIEFING_SECONDS}}, "|cffffcc00" + {{str name}} + "|r|n" + {{str briefing}}){{/if}}
+    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, {{real RT.BRIEFING_SECONDS}}, "|cffffcc00" + {{str name}} + "|r\n" + {{str briefing}}){{/if}}
     call SetPlayerColorBJ(Player(0), ConvertPlayerColor({{colorPlayer}}), true)
     if EmpEnemyHouse == {{HOUSE_ID.Atreides}} then
         call SetPlayerColorBJ(Player(1), ConvertPlayerColor({{colorAtreides}}), true)

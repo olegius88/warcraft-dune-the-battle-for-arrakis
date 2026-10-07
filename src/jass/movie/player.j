@@ -74,7 +74,7 @@ function EmpMovieText takes integer ms returns nothing
                 set s = EmpCapText[i]
                 set y = EmpCapY[i]
             else
-                set s = s + "|n" + EmpCapText[i]
+                set s = s + "\n" + EmpCapText[i]
             endif
         endif
         set i = i + 1

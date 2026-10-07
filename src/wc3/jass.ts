@@ -5,9 +5,10 @@
 import { CELL } from './formats.ts';
 import type { Boundary } from './formats.ts';
 
-/** JASS string literal. */
+/** JASS string literal. Line breaks become the \n escape: "|n" is only read by object data texts
+ * and showed as is in game messages (regression test in test/jass.test.ts). */
 function str(s: string | number): string {
-  return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r?\n/g, '|n') + '"';
+  return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r?\n/g, '\\n') + '"';
 }
 
 // JASS real literal. Up to 4 decimals, never exponent notation. (Was toFixed(1): turned the
