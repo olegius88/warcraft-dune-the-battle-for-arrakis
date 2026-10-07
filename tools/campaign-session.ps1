@@ -18,6 +18,8 @@ param(
   [switch]$KeysOnly,
   # -ScreenOnly: stop on the campaign screen (its background and music), -ScreenSeconds of captures
   [switch]$ScreenOnly,
+  # -NoKeepBehind: leave the game where it is after the mission starts (no focus handling)
+  [switch]$NoKeepBehind,
   [int]$ScreenSeconds = 30,
   [int[]]$MissionKeys = @(0x0D, 0x20),
   [string]$StartReport = 'DuneTest\HK_Start.pld',
@@ -35,6 +37,8 @@ Add-Type -Namespace CS -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, out uint pid);
 [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
 [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+[StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+[DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
 '@
 # Physical pixels: the display is scaled (125 %) and an unaware process gets scaled coordinates and
 # window captures cut to the scaled size (2026-10-07: the game's right quarter was never captured and
@@ -57,7 +61,17 @@ function Shot([string]$name) {
 $script:lastOwn = Get-Date
 $script:userWindow = [CS.Win]::GetForegroundWindow()
 $script:lastBehind = [DateTime]::MinValue
+$script:missionStarted = $false
+$script:cursor = New-Object CS.Win+POINT
 function KeepGameBehind {
+  if ($NoKeepBehind -and $script:missionStarted) { return }
+  # once the mission runs, only for a user who is back (the real cursor moved): moving the game
+  # behind and attaching to its busy thread while it held gigabytes of movie frames stopped the movies
+  # twice (2026-10-08); left alone, the whole intro (10 GB) played in the campaign
+  $p = New-Object CS.Win+POINT; [void][CS.Win]::GetCursorPos([ref]$p)
+  $moved = $p.X -ne $script:cursor.X -or $p.Y -ne $script:cursor.Y
+  $script:cursor = $p
+  if ($script:missionStarted -and -not $moved) { return }
   $g = Game
   $fg = [CS.Win]::GetForegroundWindow()
   if (-not $g -or $fg -ne $g.MainWindowHandle) { if ($fg -ne [IntPtr]::Zero) { $script:userWindow = $fg }; return }
@@ -121,7 +135,7 @@ try {
       $wait = (Get-Date).AddSeconds(45)
       while ((Get-Date) -lt $wait -and -not ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since)) { KeepGameBehind; Start-Sleep 1 }
       Shot $try.Action
-      if ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since) { "mission started by $($try.Action) $($try.Vk)"; $started = $true; break }
+      if ((Test-Path $report) -and (Get-Item $report).LastWriteTime -gt $since) { "mission started by $($try.Action) $($try.Vk)"; $started = $true; $script:missionStarted = $true; break }
     }
     # nothing started the mission: the campaign screen would just sit there (2026-10-07: 20 minutes of
     # captures, the game minimised again and again while the user worked)
