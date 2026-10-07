@@ -42,3 +42,6 @@ export const RAMP_HEIGHT_RATIO = 0.5;
 /** Boundary cells around the Emperor map; the WC3 map is padded to a multiple of MAP_SIZE_STEP. */
 export const MAP_BOUNDARY_CELLS = 4;
 export const MAP_SIZE_STEP = 32;
+
+/** WC3 armour a reduces damage by ARMOR_REDUCTION * a / (1 + ARMOR_REDUCTION * a) (game constant). */
+export const ARMOR_REDUCTION = 0.06;

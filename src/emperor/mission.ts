@@ -16,14 +16,16 @@ import type { MissionContext } from './context.ts';
 import type { UnitData } from './units.ts';
 import type { Rules } from './rules.ts';
 import type { Speech } from './speech.ts';
+import { HOUSE_ID, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE } from '../config/houses.ts';
+import { CACHE_FILE, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
+import type { MissionKind } from '../config/campaign.ts';
+import * as RT from '../config/runtime.ts';
+import { TICK_SECONDS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
+import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON } from '../config/wc3.ts';
+import * as SC from '../config/scenery.ts';
 
-const TICK = 1 / 25; // seconds per Emperor tick, TODO(tick-rate)
-const HOUSE_ID: Record<House, number> = { Atreides: 0, Harkonnen: 1, Ordos: 2 };
-const HOUSE_COLOR = [1, 0, 6]; // WC3 player colours: blue, red, green
-const CACHE_FILE = 'EmperorCampaign.w3v';
-
-export type MissionKind = 'attack' | 'defend' | 'story' | 'start' | 'tutorial';
-const KIND_ID: Record<MissionKind, number> = { attack: 0, defend: 1, story: 2, start: 3, tutorial: 4 };
+export type { MissionKind };
+const FACING = real(RT.DEFAULT_FACING);
 
 export interface MissionScript {
   tok: Buffer;
@@ -82,7 +84,7 @@ function buildMission(p: MissionParams): BuiltMission {
   const rawcodeOfIndex = (n: number): string => {
     const name = typeNames[n];
     const id = name && p.units.rawcode.get(name);
-    return id || 'hfoo'; // non-unit object types (explosions, bullets) fall back to a harmless unit
+    return id || UNIT.fallback; // non-unit object types (explosions, bullets) fall back to a harmless unit
   };
   const scripts = (p.scripts || []).map((s, i) => ({
     ...s, tr: translateScript(s.tok, p.table, { rawcode: rawcodeOfIndex, varPrefix: `e${i}v` }, `EmpScript${i}`),
@@ -93,8 +95,7 @@ function buildMission(p: MissionParams): BuiltMission {
   for (const s of scripts) { s.tr.used.forEach((x) => used.add(x)); s.tr.messages.forEach((x) => messages.add(x)); s.tr.tooltips.forEach((x) => tooltips.add(x)); }
 
   const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend' });
-  const HOUSE_PREFIX: Record<House, string> = { Atreides: 'AT', Harkonnen: 'HK', Ordos: 'OR' };
-  const deployMap: Record<string, string> = { [String(p.units.rawcode.get('MCV'))]: String(p.units.rawcode.get(`${HOUSE_PREFIX[p.playerHouse]}ConYard`)) };
+  const deployMap: Record<string, string> = { [String(p.units.rawcode.get('MCV'))]: String(p.units.rawcode.get(`${CODE_BY_HOUSE[p.playerHouse]}ConYard`)) };
   const rt = buildRuntime(p.table, { deployMap });
 
   // ---- generated data init (points, strings) ----
@@ -111,12 +112,12 @@ function buildMission(p: MissionParams): BuiltMission {
   bases.forEach((b, i) => { const [x, y] = toW(b); init.push(`    set EmpBaseX[${i}] = ${real(x)}`, `    set EmpBaseY[${i}] = ${real(y)}`, `    set EmpBaseOwner[${i}] = -1`); });
   init.push(`    set EmpBaseCount = ${Math.max(1, bases.length)}`);
   if (!bases.length) init.push('    set EmpBaseX[0] = 0.0', '    set EmpBaseY[0] = 0.0', '    set EmpBaseOwner[0] = -1');
-  for (let s = 0; s <= 12; s++) init.push(`    set EmpSideBase[${s}] = -1`);
+  for (let s = 0; s <= RT.NEUTRAL_SIDE; s++) init.push(`    set EmpSideBase[${s}] = -1`);
   init.push('    set EmpSideBase[0] = 0', '    set EmpBaseOwner[0] = 0');
   const entrances = ((ge.Entrance || {}).Connected_Entrance) || [];
   entrances.forEach((e, i) => { const [x, y] = toW(e); init.push(`    set EmpEntrX[${i}] = ${real(x)}`, `    set EmpEntrY[${i}] = ${real(y)}`, `    set EmpEntrTag[${i}] = ${e.tag}`); });
   init.push(`    set EmpEntrCount = ${entrances.length}`);
-  if (!entrances.length) init.push('    set EmpEntrX[0] = 0.0', '    set EmpEntrY[0] = 0.0', '    set EmpEntrTag[0] = 99', '    set EmpEntrCount = 1');
+  if (!entrances.length) init.push('    set EmpEntrX[0] = 0.0', '    set EmpEntrY[0] = 0.0', `    set EmpEntrTag[0] = ${RT.NEUTRAL_TAG}`, '    set EmpEntrCount = 1');
   // Scripts that end the game themselves (story/start missions) do not use the normal
   // "destroy the enemy house" rule; territory battles do.
   init.push(`    set EmpNormalConditions = ${used.has('EndGameWin') || used.has('EndGameLose') ? 'false' : 'true'}`);
@@ -136,44 +137,44 @@ function buildMission(p: MissionParams): BuiltMission {
   // (trees, houses, barrels, wrecks, crates).
   const placed = [];
   for (const b of p.meta.buildings || []) {
-    const [x, y] = t.toWorld(b.x * 32 + 16, b.y * 32 + 16);
+    const [x, y] = t.toWorld(b.x * EMPEROR_TILE + EMPEROR_TILE / 2, b.y * EMPEROR_TILE + EMPEROR_TILE / 2);
     const at = `${real(x)}, ${real(y)}`;
     const n = b.name;
     // Factory frigates are real objects: heighliner scripts win when the enemy has none left
     // (regression test: test/emperor-mission.test.ts).
-    if (/SFX|hungfigure|NoddingDonkey|Bird|Seagul|Spotlight|DrKynes|CampFire|pyramid|bubble|MegaCannon/i.test(n)) continue;
-    if (/Barrel/i.test(n)) placed.push(`    call CreateDestructable('LTbr', ${at}, ${real((b.x * 37) % 360)}, 1.0, 0)`);
-    else if (/Tree/i.test(n)) placed.push(`    call CreateDestructable('BTtc', ${at}, ${real((b.x * 53) % 360)}, 1.0, 0)`);
-    else if (/Wreck|Crash/i.test(n)) placed.push(`    call CreateDestructable('LTrc', ${at}, 0.0, 1.2, 0)`);
-    else if (/Crate/i.test(n)) {
+    if (SC.SKIPPED_OBJECTS.test(n)) continue;
+    if (SC.BARREL.test(n)) placed.push(`    call CreateDestructable('${DESTRUCTABLE.barrel}', ${at}, ${real((b.x * SC.BARREL_FACING_HASH) % 360)}, 1.0, 0)`);
+    else if (SC.TREE.test(n)) placed.push(`    call CreateDestructable('${DESTRUCTABLE.tree}', ${at}, ${real((b.x * SC.TREE_FACING_HASH) % 360)}, 1.0, 0)`);
+    else if (SC.WRECK.test(n)) placed.push(`    call CreateDestructable('${DESTRUCTABLE.wreck}', ${at}, 0.0, ${real(SC.WRECK_SCALE)}, 0)`);
+    else if (SC.CRATE.test(n)) {
       // Rules.txt CrateGiftObject: a unit type or CASH<n>; unknown gifts (GUNiabTank) -> 500 credits
       const gift = (p.rules && p.rules.crates && p.rules.crates.get(n)) || '';
       // was /^CASH(d+)/ (a heredoc ate the backslash): money crates gave 500 instead of n
       // (regression test: test/emperor-mission.test.ts)
       const cash = /^CASH(\d+)/i.exec(gift);
       const id = cash ? null : p.units.rawcode.get(gift);
-      placed.push(`    call EmpAddCrate(${at}, ${id ? `'${id}'` : 0}, ${id ? 0 : cash ? cash[1] : 500})`);
+      placed.push(`    call EmpAddCrate(${at}, ${id ? `'${id}'` : 0}, ${id ? 0 : cash ? cash[1] : RT.CRATE_DEFAULT_CASH})`);
     }
-    else if (/^(AT|HK|OR|HL)?IN|^IN/i.test(n) && /House|Store|Hut|Tower|Apartment|Tennament|Townhall|hall|Mart|Palace|Sultan|Workshop|Tent|StPauls|Indi|Moss|Trafford|Twafford|Tyower|GiediRef|Oxygen|Vent|Gate/i.test(n)) {
-      placed.push(`    call CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), 'nfh0', ${at}, 270.0)`);
+    else if (SC.CIVILIAN_PREFIX.test(n) && SC.CIVILIAN_KIND.test(n)) {
+      placed.push(`    call CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${UNIT.civilianHouse}', ${at}, ${FACING})`);
     } else if (p.units.rawcode.has(n)) {
       // owner 0 = the player's side (own frigate on #H2/#H3, the HK base of #V1 Homeworld Defence)
       const who = b.owner === 1 ? 'Player(1)' : b.owner === 0 ? 'Player(0)' : 'Player(PLAYER_NEUTRAL_PASSIVE)';
-      placed.push(`    call CreateUnit(${who}, '${p.units.rawcode.get(n)}', ${at}, 270.0)`);
+      placed.push(`    call CreateUnit(${who}, '${p.units.rawcode.get(n)}', ${at}, ${FACING})`);
     }
   }
-  // ---- veterancy table (Rules.txt Score + VeterancyLevel blocks), same scaling as units.js ----
+  // ---- veterancy table (Rules.txt Score + VeterancyLevel blocks), same scaling as units.ts ----
   const vetLines = [];
   for (const o of (p.rules ? p.rules.objects.values() : [])) {
     const id = p.units.rawcode.get(o.name);
     if (!id) continue;
     if (o.score !== 1) vetLines.push(`    call SaveInteger(EmpVet, '${id}', 0, ${o.score})`);
-    o.veterancy.forEach((l, i) => vetLines.push(`    call EmpVetLevel('${id}', ${i + 1}, ${l.score}, ${Math.round(l.health / 2)}, ${l.extraDamage}, ${l.extraArmour}, ${l.extraRange}, ${l.speed ? Math.min(522, Math.max(60, Math.round(l.speed * 40))) : 0}, ${l.selfRepair}, ${l.elite})`));
+    o.veterancy.forEach((l, i) => vetLines.push(`    call EmpVetLevel('${id}', ${i + 1}, ${l.score}, ${Math.round(l.health / HP_DIVISOR)}, ${l.extraDamage}, ${l.extraArmour}, ${l.extraRange}, ${l.speed ? Math.round(moveSpeed(l.speed)) : 0}, ${l.selfRepair}, ${l.elite})`));
   }
-  const half = (n: number): number => (n * 128) / 2;
+  const half = (n: number): number => (n * WC3_UNITS_PER_TILE) / 2;
   const [bl, br, bb, btop] = t.boundary;
-  init.push(`    set EmpMapMinX = ${real(-half(t.width) + bl * 128)}`, `    set EmpMapMaxX = ${real(half(t.width) - br * 128)}`);
-  init.push(`    set EmpMapMinY = ${real(-half(t.height) + bb * 128)}`, `    set EmpMapMaxY = ${real(half(t.height) - btop * 128)}`);
+  init.push(`    set EmpMapMinX = ${real(-half(t.width) + bl * WC3_UNITS_PER_TILE)}`, `    set EmpMapMaxX = ${real(half(t.width) - br * WC3_UNITS_PER_TILE)}`);
+  init.push(`    set EmpMapMinY = ${real(-half(t.height) + bb * WC3_UNITS_PER_TILE)}`, `    set EmpMapMaxY = ${real(half(t.height) - btop * WC3_UNITS_PER_TILE)}`);
 
   const playerHouseId = HOUSE_ID[p.playerHouse];
   const defaultEnemy = HOUSE_ID[p.defaultEnemyHouse || (p.playerHouse === 'Harkonnen' ? 'Atreides' : 'Harkonnen')];
@@ -187,8 +188,8 @@ function buildMission(p: MissionParams): BuiltMission {
   const glueGlobals = `
     gamecache EmpCache = null
     boolean EmpInCampaign = false
-    integer EmpPhase = ${p.defaultPhase || 1}
-    integer EmpTechLevel = ${p.defaultTech || 3}
+    integer EmpPhase = ${p.defaultPhase || DEFAULT_PHASE}
+    integer EmpTechLevel = ${p.defaultTech || DEFAULT_TECH}
     integer EmpEnemyHouse = ${defaultEnemy}
     integer EmpScriptIndex = 0
     integer EmpTerritory = ${p.territory || 0}
@@ -206,7 +207,7 @@ function buildMission(p: MissionParams): BuiltMission {
     // inventory, which Emperor units do not have, so the pickup is a proximity check
     // (regression test: test/emperor-mission.test.ts).
     `function EmpAddCrate takes real x, real y, integer gift, integer cash returns nothing
-    set EmpCrateItem[EmpCrateCount] = CreateItem('gold', x, y)
+    set EmpCrateItem[EmpCrateCount] = CreateItem('${ITEM.crate}', x, y)
     call SetItemInvulnerable(EmpCrateItem[EmpCrateCount], true)
     set EmpCrateGift[EmpCrateCount] = gift
     set EmpCrateCash[EmpCrateCount] = cash
@@ -223,23 +224,23 @@ function EmpCrateTick takes nothing returns nothing
         exitwhen i >= EmpCrateCount
         if EmpCrateItem[i] != null then
             set taker = null
-            call GroupEnumUnitsInRange(g, GetItemX(EmpCrateItem[i]), GetItemY(EmpCrateItem[i]), 160.0, null)
+            call GroupEnumUnitsInRange(g, GetItemX(EmpCrateItem[i]), GetItemY(EmpCrateItem[i]), ${real(RT.CRATE_RADIUS)}, null)
             loop
                 set u = FirstOfGroup(g)
                 exitwhen u == null
                 call GroupRemoveUnit(g, u)
-                if taker == null and EmpAlive(u) and GetPlayerId(GetOwningPlayer(u)) < 12 and not IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+                if taker == null and EmpAlive(u) and GetPlayerId(GetOwningPlayer(u)) < ${RT.NEUTRAL_SIDE} and not IsUnitType(u, UNIT_TYPE_STRUCTURE) then
                     set taker = u
                 endif
             endloop
             if taker != null then
                 set who = GetOwningPlayer(taker)
                 if EmpCrateGift[i] != 0 then
-                    call CreateUnit(who, EmpCrateGift[i], GetUnitX(taker), GetUnitY(taker), 270.0)
+                    call CreateUnit(who, EmpCrateGift[i], GetUnitX(taker), GetUnitY(taker), ${FACING})
                 else
                     call SetPlayerState(who, PLAYER_STATE_RESOURCE_GOLD, GetPlayerState(who, PLAYER_STATE_RESOURCE_GOLD) + EmpCrateCash[i])
                 endif
-                call DestroyEffect(AddSpecialEffect("Abilities\\\\Spells\\\\Items\\\\ResourceItems\\\\ResourceEffectTarget.mdl", GetItemX(EmpCrateItem[i]), GetItemY(EmpCrateItem[i])))
+                call DestroyEffect(AddSpecialEffect(${str(EFFECT.crateTaken)}, GetItemX(EmpCrateItem[i]), GetItemY(EmpCrateItem[i])))
                 call RemoveItem(EmpCrateItem[i])
                 set EmpCrateItem[i] = null
             endif
@@ -253,11 +254,11 @@ function EmpCrateTick takes nothing returns nothing
 endfunction`,
     // Veterancy (Rules.txt): the killer gets the victim's Score (assumed: Emperor's own docs are not
     // available; thresholds such as ATKindjal 2/10/20 against Score = 1..2 per kill fit it).
-    // EmpVet[type]: child 0 = Score, 1 = level count, level L at L*16 + 1..8.
+    // EmpVet[type]: child 0 = Score, 1 = level count, level L at L*VET_SLOT_STRIDE + 1..8.
     // EmpVetUnit[handle id]: 0 = score so far, 1 = level, 2..4 = original damage/armour/range.
     // Regression/feature test: test/emperor-mission.test.ts.
     `function EmpVetLevel takes integer t, integer lv, integer score, integer hp, integer dmg, integer arm, integer rng, integer spd, boolean repair, boolean elite returns nothing
-    local integer b = lv * 16
+    local integer b = lv * ${RT.VET_SLOT_STRIDE}
     call SaveInteger(EmpVet, t, b + 1, score)
     call SaveInteger(EmpVet, t, b + 2, hp)
     call SaveInteger(EmpVet, t, b + 3, dmg)
@@ -280,7 +281,7 @@ endfunction
 function EmpVetApply takes unit u, integer lv returns nothing
     local integer t = GetUnitTypeId(u)
     local integer h = GetHandleId(u)
-    local integer b = lv * 16
+    local integer b = lv * ${RT.VET_SLOT_STRIDE}
     local integer v
     local real r
     local real pct
@@ -304,7 +305,7 @@ function EmpVetApply takes unit u, integer lv returns nothing
     if v > 0 and v < 100 then
         // "v% less damage received": WC3 armour a absorbs 0.06a / (1 + 0.06a)
         set r = v / 100.0
-        call BlzSetUnitArmor(u, LoadReal(EmpVetUnit, h, 3) + r / (0.06 * (1.0 - r)))
+        call BlzSetUnitArmor(u, LoadReal(EmpVetUnit, h, 3) + r / (${real(ARMOR_REDUCTION)} * (1.0 - r)))
     endif
     set v = LoadInteger(EmpVet, t, b + 5)
     if v > 0 then
@@ -317,12 +318,12 @@ function EmpVetApply takes unit u, integer lv returns nothing
     endif
     if LoadBoolean(EmpVet, t, b + 7) then
         // TODO(veterancy): Emperor's self-repair rate is unknown; 1% of max HP per second
-        call BlzSetUnitRealField(u, UNIT_RF_HIT_POINTS_REGENERATION_RATE, BlzGetUnitMaxHP(u) * 0.01)
+        call BlzSetUnitRealField(u, UNIT_RF_HIT_POINTS_REGENERATION_RATE, BlzGetUnitMaxHP(u) * ${real(RT.VET_SELF_REPAIR_RATE)})
     endif
     if LoadBoolean(EmpVet, t, b + 8) then
-        call AddSpecialEffectTarget("Abilities\\\\Spells\\\\Other\\\\GeneralAuraTarget\\\\GeneralAuraTarget.mdl", u, "origin")
+        call AddSpecialEffectTarget(${str(EFFECT.elite)}, u, "origin")
     endif
-    call DestroyEffect(AddSpecialEffectTarget("Abilities\\\\Spells\\\\Other\\\\Levelup\\\\LevelupCaster.mdl", u, "origin"))
+    call DestroyEffect(AddSpecialEffectTarget(${str(EFFECT.levelUp)}, u, "origin"))
 endfunction
 
 function EmpOnKill takes nothing returns nothing
@@ -352,7 +353,7 @@ function EmpOnKill takes nothing returns nothing
     set n = LoadInteger(EmpVet, t, 1)
     loop
         exitwhen lv >= n
-        exitwhen LoadInteger(EmpVet, t, (lv + 1) * 16 + 1) > s
+        exitwhen LoadInteger(EmpVet, t, (lv + 1) * ${RT.VET_SLOT_STRIDE} + 1) > s
         set lv = lv + 1
         call EmpVetApply(k, lv)
     endloop
@@ -369,18 +370,18 @@ ${p.kind === 'tutorial' ? `    // the tutorial is a standalone mission (own camp
     return` : ''}
 ${p.kind === 'start' ? `    // the house start mission is opened from the campaign screen: always part of the campaign
     set EmpInCampaign = true
-    set EmpPhase = 0
-    set EmpTechLevel = 2
+    set EmpPhase = ${START_MISSION_PHASE}
+    set EmpTechLevel = ${START_MISSION_TECH}
     return` : ''}
-    if GetStoredInteger(EmpCache, "emp", "incampaign") == 1 then
+    if GetStoredInteger(EmpCache, ${CAT}, ${K.inCampaign}) == 1 then
         set EmpInCampaign = true
-        set EmpPhase = GetStoredInteger(EmpCache, "emp", "phase")
-        set EmpTechLevel = GetStoredInteger(EmpCache, "emp", "tech")
-        set EmpEnemyHouse = GetStoredInteger(EmpCache, "emp", "pendenemy")
-        set EmpTerritory = GetStoredInteger(EmpCache, "emp", "pendterr")
-        set EmpPlayerTerritory = GetStoredInteger(EmpCache, "emp", "pendfrom")
+        set EmpPhase = GetStoredInteger(EmpCache, ${CAT}, ${K.phase})
+        set EmpTechLevel = GetStoredInteger(EmpCache, ${CAT}, ${K.tech})
+        set EmpEnemyHouse = GetStoredInteger(EmpCache, ${CAT}, ${K.pendingEnemy})
+        set EmpTerritory = GetStoredInteger(EmpCache, ${CAT}, ${K.pendingTerritory})
+        set EmpPlayerTerritory = GetStoredInteger(EmpCache, ${CAT}, ${K.pendingFrom})
         // consumed: a later standalone test run must not think it is inside the campaign
-        call StoreInteger(EmpCache, "emp", "incampaign", 0)
+        call StoreInteger(EmpCache, ${CAT}, ${K.inCampaign}, 0)
         call SaveGameCache(EmpCache)
     endif
 ${p.kind === 'defend'
@@ -401,18 +402,18 @@ function EmpCampaignResult takes boolean win returns nothing
         endif
         return
     endif
-    call StoreInteger(EmpCache, "emp", "incampaign", 1)
-    call StoreInteger(EmpCache, "emp", "result", EF_B2I(win))
-    call StoreInteger(EmpCache, "emp", "outcome", EmpOutcome)
-    call StoreInteger(EmpCache, "emp", "resultterr", EmpTerritory)
-    call StoreInteger(EmpCache, "emp", "resultkind", ${KIND_ID[p.kind || 'attack']})
+    call StoreInteger(EmpCache, ${CAT}, ${K.inCampaign}, 1)
+    call StoreInteger(EmpCache, ${CAT}, ${K.result}, EF_B2I(win))
+    call StoreInteger(EmpCache, ${CAT}, ${K.outcome}, EmpOutcome)
+    call StoreInteger(EmpCache, ${CAT}, ${K.resultTerritory}, EmpTerritory)
+    call StoreInteger(EmpCache, ${CAT}, ${K.resultKind}, ${KIND_ID[p.kind || 'attack']})
     call SaveGameCache(EmpCache)
     if win then
         call EmpShow("Победа! Возвращение на карту Арракиса...")
     else
         call EmpShow("Поражение. Возвращение на карту Арракиса...")
     endif
-    call TimerStart(CreateTimer(), 4.0, false, function EmpReturnToHub)
+    call TimerStart(CreateTimer(), ${real(RT.RETURN_TO_HUB_DELAY)}, false, function EmpReturnToHub)
 endfunction`,
     p.extraFunctions || '',
     `function EmpTickRun takes nothing returns nothing
@@ -426,20 +427,20 @@ endfunction`,
     call EmpMissionTick()
     set EmpTick = EmpTick + 1
 endfunction`,
-    // Debug report for unattended tests: CustomMapData\DuneTest\<name>.pld every 10 s.
+    // Debug report for unattended tests: CustomMapData\<DEBUG_REPORT_DIR>\<name>.pld every DEBUG_REPORT_PERIOD s.
     `function EmpDebugReport takes nothing returns nothing
     local string s = "t=" + I2S(EmpTick) + " phase=" + I2S(EmpPhase) + " tech=" + I2S(EmpTechLevel) + " enemy=" + I2S(EmpEnemyHouse) + " camp=" + I2S(EF_B2I(EmpInCampaign))
     local integer i = 0
     loop
-        exitwhen i > 4
+        exitwhen i > ${RT.DEBUG_REPORT_SIDES}
         set s = s + " s" + I2S(i) + "=" + I2S(EmpCount(i, 1)) + "u/" + I2S(EmpCount(i, 2)) + "b"
         set i = i + 1
     endloop
-    set s = s + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " mines=" + I2S(EmpCount(12, 0)) + " ended=" + I2S(EF_B2I(EmpEnded)) + " speech=" + I2S(EmpSpeechHead) + "/" + I2S(EmpSpeechTail) + " ms=" + I2S(EmpSpeechLastMs)
+    set s = s + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " mines=" + I2S(EmpCount(${RT.NEUTRAL_SIDE}, 0)) + " ended=" + I2S(EF_B2I(EmpEnded)) + " speech=" + I2S(EmpSpeechHead) + "/" + I2S(EmpSpeechTail) + " ms=" + I2S(EmpSpeechLastMs)
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(s)
-    call PreloadGenEnd(${str(`DuneTest\\${p.debugName || 'mission'}.pld`)})
+    call PreloadGenEnd(${str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`)})
 endfunction`,
     // Emperor starts the main camera on the player's forces; story scripts only pan the PIP
     // window. Unless a script or the battle setup placed the camera, centre it on Player(0)'s
@@ -481,22 +482,22 @@ endfunction`,
     call EmpPlaced()
     call EmpVetData()
 ${pickScript}
-${p.briefing ? `    call CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, ${str(p.name)}, ${str(p.briefing)}, "ReplaceableTextures\\\\CommandButtons\\\\BTNSpell_Holy_SealOfMight.blp")
-    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, 25.0, "|cffffcc00" + ${str(p.name)} + "|r|n" + ${str(p.briefing)})` : ''}
+${p.briefing ? `    call CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, ${str(p.name)}, ${str(p.briefing)}, ${str(ICON.briefingQuest)})
+    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, ${real(RT.BRIEFING_SECONDS)}, "|cffffcc00" + ${str(p.name)} + "|r|n" + ${str(p.briefing)})` : ''}
     call SetPlayerColorBJ(Player(0), ConvertPlayerColor(${HOUSE_COLOR[playerHouseId]}), true)
-    if EmpEnemyHouse == 0 then
-        call SetPlayerColorBJ(Player(1), ConvertPlayerColor(1), true)
-    elseif EmpEnemyHouse == 1 then
-        call SetPlayerColorBJ(Player(1), ConvertPlayerColor(0), true)
+    if EmpEnemyHouse == ${HOUSE_ID.Atreides} then
+        call SetPlayerColorBJ(Player(1), ConvertPlayerColor(${HOUSE_COLOR[HOUSE_ID.Atreides]}), true)
+    elseif EmpEnemyHouse == ${HOUSE_ID.Harkonnen} then
+        call SetPlayerColorBJ(Player(1), ConvertPlayerColor(${HOUSE_COLOR[HOUSE_ID.Harkonnen]}), true)
     else
-        call SetPlayerColorBJ(Player(1), ConvertPlayerColor(6), true)
+        call SetPlayerColorBJ(Player(1), ConvertPlayerColor(${OTHER_ENEMY_COLOR}), true)
     endif
-    call TimerStart(CreateTimer(), 10.0, true, function EmpDebugReport)
-    call SetTimeOfDay(12.0)
+    call TimerStart(CreateTimer(), ${real(RT.DEBUG_REPORT_PERIOD)}, true, function EmpDebugReport)
+    call SetTimeOfDay(${real(RT.TIME_OF_DAY)})
     call SuspendTimeOfDay(true)
     set tr = CreateTrigger()
     loop
-        exitwhen i > 11
+        exitwhen i > ${RT.MAX_SIDE}
         call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_ATTACKED, null)
         set i = i + 1
     endloop
@@ -504,7 +505,7 @@ ${p.briefing ? `    call CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, ${str(p.name
     set tr = CreateTrigger()
     set i = 0
     loop
-        exitwhen i > 11
+        exitwhen i > ${RT.MAX_SIDE}
         call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_CONSTRUCT_FINISH, null)
         set i = i + 1
     endloop
@@ -512,27 +513,27 @@ ${p.briefing ? `    call CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, ${str(p.name
     set tr = CreateTrigger()
     set i = 0
     loop
-        exitwhen i > 11
+        exitwhen i > ${RT.MAX_SIDE}
         call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_DEATH, null)
         set i = i + 1
     endloop
     call TriggerAddAction(tr, function EmpOnKill)
 ${battle.init}
-    call TimerStart(CreateTimer(), ${real(TICK)}, true, function EmpTickRun)
-    call TimerStart(CreateTimer(), 2.0, true, function EmpAITick)
-    call TimerStart(CreateTimer(), 1.0, true, function EmpNormalCheck)
-    call TimerStart(CreateTimer(), ${real(0.5)}, false, function EmpInitialCamera)
-    call TimerStart(CreateTimer(), ${real(0.5)}, true, function EmpCrateTick)
+    call TimerStart(CreateTimer(), ${real(TICK_SECONDS)}, true, function EmpTickRun)
+    call TimerStart(CreateTimer(), ${real(RT.AI_TICK)}, true, function EmpAITick)
+    call TimerStart(CreateTimer(), ${real(RT.NORMAL_CHECK_PERIOD)}, true, function EmpNormalCheck)
+    call TimerStart(CreateTimer(), ${real(RT.INITIAL_CAMERA_DELAY)}, false, function EmpInitialCamera)
+    call TimerStart(CreateTimer(), ${real(RT.CRATE_TICK)}, true, function EmpCrateTick)
     set tr = null
 endfunction`,
   ].join('\n\n');
 
   // players: 0 user + 1..11 computer (sides); all on their own team
   const [mapW, mapH] = p.meta.mapSize as [number, number]; // buildTerrain has checked it
-  const b0 = bases[0] || { x: mapW * 16, y: mapH * 16 };
+  const b0 = bases[0] || { x: mapW * EMPEROR_TILE / 2, y: mapH * EMPEROR_TILE / 2 };
   const [sx, sy] = t.toWorld(b0.x, b0.y);
-  const players: ScriptPlayer[] = [{ id: 0, control: 'user', race: 'human', team: 0, x: sx, y: sy, name: 'Командор' }];
-  for (let i = 1; i <= 11; i++) players.push({ id: i, control: 'computer', race: 'orc', team: i, x: sx, y: sy, name: `Сторона ${i}` });
+  const players: ScriptPlayer[] = [{ id: 0, control: 'user', race: 'human', team: 0, x: sx, y: sy, name: RT.PLAYER_NAME }];
+  for (let i = 1; i <= RT.MAX_SIDE; i++) players.push({ id: i, control: 'computer', race: 'orc', team: i, x: sx, y: sy, name: `${RT.SIDE_NAME_PREFIX}${i}` });
 
   const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports };
   const m = buildMap({
@@ -546,4 +547,4 @@ endfunction`,
   return { buffer: m.buffer, script: m.script, stubbed: rt.stubbed, used, imports };
 }
 
-export { buildMission, CACHE_FILE, HOUSE_ID };
+export { buildMission };

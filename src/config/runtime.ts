@@ -67,3 +67,15 @@ export const VET_SELF_REPAIR_RATE = 0.01;
 export const TIME_OF_DAY = 12;
 /** Briefing text on mission start stays this long. */
 export const BRIEFING_SECONDS = 25;
+
+/** Veterancy hashtable: level L of a unit type is stored at children L * VET_SLOT_STRIDE + 1..8. */
+export const VET_SLOT_STRIDE = 16;
+
+/** Debug report for unattended tests: sides 0..DEBUG_REPORT_SIDES, written to
+ * CustomMapData\<DEBUG_REPORT_DIR>\<map>.pld every DEBUG_REPORT_PERIOD seconds. */
+export const DEBUG_REPORT_SIDES = 4;
+export const DEBUG_REPORT_DIR = 'DuneTest';
+
+/** Players of a mission map: the user and the computer sides 1..MAX_SIDE. */
+export const PLAYER_NAME = 'Командор';
+export const SIDE_NAME_PREFIX = 'Сторона ';

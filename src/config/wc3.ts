@@ -100,6 +100,12 @@ export const EFFECT = {
   wormStrike: 'Objects\\Spawnmodels\\Undead\\ImpaleTargetDust\\ImpaleTargetDust.mdl',
 } as const;
 
+/** Icons (JASS paths, through str()). */
+export const ICON = {
+  /** the mission's briefing quest */
+  briefingQuest: 'ReplaceableTextures\\CommandButtons\\BTNSpell_Holy_SealOfMight.blp',
+} as const;
+
 /** Barrens terrain: tileset, ground tiles (index = w3e texture slot) and cliff tile. */
 export const TERRAIN = {
   tileset: 'B',
