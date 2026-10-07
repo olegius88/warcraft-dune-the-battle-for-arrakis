@@ -1,11 +1,12 @@
 // How Emperor quantities become WC3 ones. Emperor values come from Rules.txt and the map files.
 
-/** Emperor script/game ticks per second. TODO(tick-rate): the sources disagree. For 25: ATP1D18GN
- * says "Sardaukar attack in 3/2/1 minutes" (ATSATimer3..1) at v1, v1+1500, v1+3000, attack at
- * v1+4500. For 20: Rules.txt comments "6600 = 5.5 minutes" (TicksBetweenReinforcements) and
- * "3000 = 2.5 minutes" (crate Lifespan). Message gaps against the spoken line lengths (47 pairs,
- * 2026-10-07) do not decide it, and no external source was found. 25 is kept because the mission
- * scripts, which use the tick most, state it in their own text. */
+/** Emperor script/game ticks per second: 25. For 25: ATP1D18GN says "Sardaukar attack in 3/2/1
+ * minutes" (ATSATimer3..1) at v1, v1+1500, v1+3000, attack at v1+4500; ai_difficulty.ini comments
+ * "UnitDelay=875 // 35 seconds", 650 // 26, 525 // 21, 425 // 17, 300 // 12 and "3000=2 mins"
+ * (found 2026-10-08). For 20 only two Rules.txt comments: "6600 = 5.5 minutes"
+ * (TicksBetweenReinforcements), "3000 = 2.5 minutes" (crate Lifespan); one ai_difficulty comment
+ * fits neither ("100 // 7 seconds"). The Rules.txt comments are taken as left from an older tick rate:
+ * the AI and mission files, which use the tick most, agree on 25. */
 export const TICKS_PER_SECOND = 25;
 export const TICK_SECONDS = 1 / TICKS_PER_SECOND;
 

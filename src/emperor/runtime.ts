@@ -5,7 +5,7 @@
 // Model: an Emperor "side" is an integer 0..11 mapped to Player(side); side 0 is the human
 // player, side 1 the main enemy house (GetEnemySide), CreateSide() hands out 2..11, the neutral
 // side is 12 -> Player(PLAYER_NEUTRAL_PASSIVE). Points come from the map's GameElements tree.
-// One Emperor tick = 1/25 s (TODO(tick-rate)).
+// One Emperor tick = 1/25 s (sources in src/config/scale.ts TICKS_PER_SECOND).
 
 import { RETURN_OVERRIDE, SYNTAX_TOKENS } from './translate.ts';
 import type { TokenTable } from './tok.ts';
