@@ -23,6 +23,7 @@ import * as RT from '../config/runtime.ts';
 import { TICK_SECONDS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
 import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON } from '../config/wc3.ts';
 import * as SC from '../config/scenery.ts';
+import { SHUFFLE_BATTLE_MUSIC } from '../config/music.ts';
 
 export type { MissionKind };
 const FACING = real(RT.DEFAULT_FACING);
@@ -67,6 +68,8 @@ export interface MissionParams {
   extraFunctions?: string;
   /** automatic flow test: win the mission after this many seconds (config AUTOTEST_WIN_SECONDS) */
   autoWinSeconds?: number;
+  /** music playlist: archive paths of tracks stored in the campaign (src/emperor/music.ts) */
+  music?: string[];
 }
 
 export interface BuiltMission {
@@ -186,6 +189,9 @@ function buildMission(p: MissionParams): BuiltMission {
   const pickScript = scripts.length
     ? `    // pick the script of the current campaign phase (fallback: the first one)\n    set EmpScriptIndex = 0\n${scripts.map((s, i) => `    if EmpPhase == ${s.phase} then\n        set EmpScriptIndex = ${i}\n    endif`).join('\n')}`
     : '';
+
+  // music: a JASS string literal of the ";"-separated playlist, or '' for none
+  const musicList = p.music && p.music.length ? str(p.music.join(';')) : '';
 
   const glueGlobals = `
     gamecache EmpCache = null
@@ -438,7 +444,7 @@ endfunction`,
         set s = s + " s" + I2S(i) + "=" + I2S(EmpCount(i, 1)) + "u/" + I2S(EmpCount(i, 2)) + "b"
         set i = i + 1
     endloop
-    set s = s + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " mines=" + I2S(EmpCount(${RT.NEUTRAL_SIDE}, 0)) + " ended=" + I2S(EF_B2I(EmpEnded)) + " speech=" + I2S(EmpSpeechHead) + "/" + I2S(EmpSpeechTail) + " ms=" + I2S(EmpSpeechLastMs)
+    set s = s + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " mines=" + I2S(EmpCount(${RT.NEUTRAL_SIDE}, 0)) + " ended=" + I2S(EF_B2I(EmpEnded)) + " speech=" + I2S(EmpSpeechHead) + "/" + I2S(EmpSpeechTail) + " ms=" + I2S(EmpSpeechLastMs)${musicList ? ` + " music=" + I2S(GetSoundFileDuration(${str(p.music?.[0] ?? '')}))` : ''}
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(s)
@@ -503,7 +509,10 @@ ${p.briefing ? `    call CreateQuestBJ(bj_QUESTTYPE_REQ_DISCOVERED, ${str(p.name
     endif
     call TimerStart(CreateTimer(), ${real(RT.DEBUG_REPORT_PERIOD)}, true, function EmpDebugReport)
     call SetTimeOfDay(${real(RT.TIME_OF_DAY)})
-    call SuspendTimeOfDay(true)
+    call SuspendTimeOfDay(true)${musicList ? `
+    call ClearMapMusic()
+    call SetMapMusic(${musicList}, ${SHUFFLE_BATTLE_MUSIC}, 0)
+    call PlayMusic(${musicList})` : ''}
     set tr = CreateTrigger()
     loop
         exitwhen i > ${RT.MAX_SIDE}

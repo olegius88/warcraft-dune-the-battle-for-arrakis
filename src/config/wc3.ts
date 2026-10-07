@@ -100,6 +100,9 @@ export const EFFECT = {
   wormStrike: 'Objects\\Spawnmodels\\Undead\\ImpaleTargetDust\\ImpaleTargetDust.mdl',
 } as const;
 
+/** Already compressed media: stored in the MPQ without zlib (it would only cost build time). */
+export const STORED_UNCOMPRESSED = /\.(bik|mp3|ogg|flac|blp|dds)$/i;
+
 /** Folders for files imported into a map. */
 export const IMPORT_DIR = {
   speech: 'war3mapImported\\speech\\',

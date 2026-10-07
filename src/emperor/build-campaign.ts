@@ -28,6 +28,7 @@ import type { StoryMaps } from './hub.ts';
 import { ensureMap } from './preview-map.ts';
 import { loadAll } from './build-mission.ts';
 import { buildCampaign } from '../wc3/map.ts';
+import { loadMusic } from './music.ts';
 
 import { RAW_DIR, CAMPAIGN_OUT, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
 
@@ -41,6 +42,16 @@ const [tFrom = 1, tTo = CP.TERRITORY_COUNT] = opt('--territories', `1-${CP.TERRI
 const out = opt('--out', CAMPAIGN_OUT);
 
 const all = loadAll();
+// music lives once in the campaign archive; maps get playlists of archive paths
+const music = loadMusic();
+const campaignImports: Record<string, Buffer> = {};
+const useMusic = (paths: string[]): string[] => {
+  for (const p of paths) {
+    const t = music && [...music.tracks.values()].find((x) => x.path === p);
+    if (t) campaignImports[p] = t.data;
+  }
+  return paths;
+};
 const folders = [...new Set(['MAPS0001', 'MAPS0002'].flatMap((a) => readIndex(gameData(`${a}.RFH`)).map((e) => e.name.split('/')[0] as string)))];
 const camp = loadCampaign(RAW_DIR, folders);
 const tok = (name: string): Buffer => fs.readFileSync(path.join(RAW_DIR, `${name}.tok`));
@@ -100,7 +111,8 @@ for (const h of houses) {
       scripts: scripts.map((s) => ({ tok: tok(s.name), phase: s.phase, name: s.name })),
       meta: metaOf(mapNeedle), ...all, name: title, playerHouse: player, kind, hubMap: hub,
       territoryBattle: kind === 'attack' || kind === 'defend', briefing: scripts[0] ? briefing(scripts[0].name) : '',
-      debugName: fileName.replace(/\.w3x$/, ''), ...(autoTest ? { autoWinSeconds: CP.AUTOTEST_WIN_SECONDS } : {}), ...extra,
+      debugName: fileName.replace(/\.w3x$/, ''), ...(autoTest ? { autoWinSeconds: CP.AUTOTEST_WIN_SECONDS } : {}),
+      music: useMusic(music ? music.battle(h) : []), ...extra,
     });
     add(fileName, m.buffer, title, '', false, m.script);
     return fileName;
@@ -150,7 +162,7 @@ for (const h of houses) {
   storyMission('end', 'End', story.end, `${HOUSE_RU[h]}: Последняя битва`);
 
   const hubMap = buildHub({
-    house: h, campaign: camp, units: all.units, autoTest,
+    house: h, campaign: camp, units: all.units, autoTest, music: useMusic(music ? music.hub(h) : []),
     battleMap: (kind, n) => battleFile[`${kind}:${n}`] || null,
     storyMap: { heighliner: storyFile.heighliner, homeDefence: storyFile.homeDefence, homeAttack: storyFile.homeAttack, end: storyFile.end },
   });
@@ -160,7 +172,8 @@ for (const h of houses) {
 // tutorial (standalone: ends with the normal victory dialog)
 {
   const m = buildMission({ scripts: [{ tok: tok(TUTORIAL_SCRIPT), phase: 0, name: TUTORIAL_SCRIPT }], meta: metaOf(TUTORIAL_MAP), ...all,
-    name: CP.TUTORIAL_TITLE, playerHouse: 'Atreides', kind: 'tutorial', territoryBattle: false, briefing: briefing(TUTORIAL_SCRIPT), debugName: 'Tutorial' });
+    name: CP.TUTORIAL_TITLE, playerHouse: 'Atreides', kind: 'tutorial', territoryBattle: false, briefing: briefing(TUTORIAL_SCRIPT), debugName: 'Tutorial',
+    music: useMusic(music ? music.battle('AT') : []) });
   add(CP.MAP_FILE.tutorial, m.buffer, CP.TUTORIAL_TITLE, '', false, m.script);
 }
 
@@ -172,6 +185,7 @@ const w3n = buildCampaign({
   name: campaignName, author: CP.CAMPAIGN_AUTHOR, difficulty: CP.CAMPAIGN_DIFFICULTY,
   description: CP.CAMPAIGN_DESCRIPTION,
   maps: order.map((m) => ({ file: m.file, buffer: m.buffer, title: m.title, chapter: m.chapter, visible: m.visible, button: m.visible })),
+  imports: campaignImports,
 });
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, w3n);

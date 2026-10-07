@@ -4,6 +4,7 @@ import * as F from './formats.ts';
 import { MpqWriter } from './mpq.ts';
 import { buildScript } from './jass.ts';
 import { writeBlpPaletted } from './blp.ts';
+import { STORED_UNCOMPRESSED } from '../config/wc3.ts';
 
 import type { Rgb } from './blp.ts';
 import type { ScriptPlayer } from './jass.ts';
@@ -101,7 +102,7 @@ function buildMap(m: MapSpec): BuiltMap {
     if (!(m.imports && m.imports[`war3map.${ext}`])) mpq.add(`war3map.${ext}`, F.writeObjectsEmpty());
   }
   for (const [path, data] of Object.entries(m.imports || {})) {
-    mpq.add(path, data, { compress: !/\.(bik|mp3|ogg|flac|blp|dds)$/i.test(path) });
+    mpq.add(path, data, { compress: !STORED_UNCOMPRESSED.test(path) });
   }
   return { buffer: mpq.toBuffer(), script };
 }
@@ -146,7 +147,7 @@ function buildCampaign(c: CampaignSpec): Buffer {
     mpq.add(`war3campaign.${ext}`, (c.objects && c.objects[ext]) || F.writeObjectsEmpty());
   }
   for (const m of c.maps) mpq.add(m.file, m.buffer, { compress: false }); // embedded maps are stored plainly
-  for (const [path, data] of Object.entries(c.imports || {})) mpq.add(path, data);
+  for (const [path, data] of Object.entries(c.imports || {})) mpq.add(path, data, { compress: !STORED_UNCOMPRESSED.test(path) });
   return mpq.toBuffer();
 }
 

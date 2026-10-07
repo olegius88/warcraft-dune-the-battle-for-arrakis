@@ -43,6 +43,8 @@ export interface HubOptions {
   units: UnitData;
   /** automatic flow test (config/campaign.ts AUTOTEST_*): report every visit, attack once */
   autoTest?: boolean;
+  /** music playlist: archive paths of tracks stored in the campaign (src/emperor/music.ts) */
+  music?: string[];
 }
 
 type Vec2 = [number, number];
@@ -105,6 +107,8 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
     lines.push(`    set EmpMapA[${t.n}] = ${str(o.battleMap('attack', t.n) || '')}`, `    set EmpMapD[${t.n}] = ${str(o.battleMap('defend', t.n) || '')}`);
   }
   const story = o.storyMap;
+  // music: a JASS string literal of the ";"-separated playlist, or '' for none
+  const musicList = o.music && o.music.length ? str(o.music.join(';')) : '';
   // automatic flow test: one report line per hub visit; on the first visit attack the first
   // reachable territory that has a battle map (enemy capitals stay closed before the last war phase)
   const autoTestFunctions = `function EmpAutoAttack takes nothing returns nothing
@@ -134,7 +138,7 @@ function EmpAutoReport takes nothing returns nothing
     call SaveGameCache(EmpCache)
     call PreloadGenClear()
     call PreloadGenStart()
-    call Preload("visit=" + I2S(v) + " phase=" + I2S(EmpPhase) + " tech=" + I2S(EmpTech) + " captured=" + I2S(EmpCaptured) + " owned=" + I2S(EmpCount(${me})))
+    call Preload("visit=" + I2S(v) + " phase=" + I2S(EmpPhase) + " tech=" + I2S(EmpTech) + " captured=" + I2S(EmpCaptured) + " owned=" + I2S(EmpCount(${me}))${musicList ? ` + " music=" + I2S(GetSoundFileDuration(${str(o.music?.[0] ?? '')}))` : ''})
     call PreloadGenEnd(${str(`${DEBUG_REPORT_DIR}\\${HOUSES[me]}_Hub_`)} + I2S(v) + ".pld")
     if v == 1 then
         call TimerStart(CreateTimer(), ${real(AUTOTEST_HUB_DELAY)}, false, function EmpAutoAttack)
@@ -529,7 +533,10 @@ ${o.autoTest ? autoTestFunctions : ''}function EmpHubStart takes nothing returns
     call SetPlayerColorBJ(Player(1), ConvertPlayerColor(${COLOR[(me + 1) % 3]}), true)
     call SetPlayerColorBJ(Player(2), ConvertPlayerColor(${COLOR[(me + 2) % 3]}), true)
     call SetTimeOfDay(${real(TIME_OF_DAY)})
-    call SuspendTimeOfDay(true)
+    call SuspendTimeOfDay(true)${musicList ? `
+    call ClearMapMusic()
+    call SetMapMusic(${musicList}, false, 0)
+    call PlayMusic(${musicList})` : ''}
     call FogEnable(false)
     call FogMaskEnable(false)
     call EmpData()
