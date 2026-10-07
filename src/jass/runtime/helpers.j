@@ -176,7 +176,7 @@ endfunction
 
 // super weapon strike (Death Hand / SideNuke): the model comes from a stock ability (config ART_ABILITY)
 function EmpNukeAt takes real x, real y returns nothing
-    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.nuke}}', EFFECT_TYPE_TARGET, 0), x, y))
+    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.nuke.id}}', {{ART_ABILITY.nuke.type}}, 0), x, y))
     call EmpDamageArea(x, y, {{real RT.NUKE_RADIUS}}, {{real RT.NUKE_DAMAGE}})
 endfunction
 
@@ -201,7 +201,7 @@ function EmpStealthAround takes unit taker returns nothing
             call GroupAddUnit(EmpStealthGroup, u)
         endif
     endloop
-    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.stealth}}', EFFECT_TYPE_CASTER, 0), GetUnitX(taker), GetUnitY(taker)))
+    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.stealth.id}}', {{ART_ABILITY.stealth.type}}, 0), GetUnitX(taker), GetUnitY(taker)))
     set EmpStealthEnd = EmpTick + R2I({{real RT.CRATE_STEALTH_SECONDS}} * {{TPS}})
     call DestroyGroup(g)
     set g = null

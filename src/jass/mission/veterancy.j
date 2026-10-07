@@ -1,7 +1,7 @@
 // Veterancy (Rules.txt): the killer gets the victim's Score (assumed: Emperor's own docs are not
 // available; thresholds such as ATKindjal 2/10/20 against Score = 1..2 per kill fit it).
 // EmpVet[type]: child 0 = Score, 1 = level count, level L at L*VET_SLOT_STRIDE + 1..8.
-// EmpVetUnit[handle id]: 0 = score so far, 1 = level, 2..4 = original damage/armour/range.
+// EmpVetUnit[handle id]: 0 = score so far, 1 = level, 2..3 = original damage/armour.
 // Regression/feature test: test/emperor-mission.test.ts.
 function EmpVetLevel takes integer t, integer lv, integer score, integer hp, integer dmg, integer arm, integer rng, integer spd, boolean repair, boolean elite returns nothing
     local integer b = lv * {{RT.VET_SLOT_STRIDE}}
@@ -34,7 +34,6 @@ function EmpVetApply takes unit u, integer lv returns nothing
     if not LoadBoolean(EmpVetUnit, h, 5) then
         call SaveInteger(EmpVetUnit, h, 2, BlzGetUnitBaseDamage(u, 0))
         call SaveReal(EmpVetUnit, h, 3, BlzGetUnitArmor(u))
-        call SaveReal(EmpVetUnit, h, 4, BlzGetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_RANGE, 0))
         call SaveBoolean(EmpVetUnit, h, 5, true)
     endif
     set v = LoadInteger(EmpVet, t, b + 2)
@@ -53,11 +52,10 @@ function EmpVetApply takes unit u, integer lv returns nothing
         set r = v / 100.0
         call BlzSetUnitArmor(u, LoadReal(EmpVetUnit, h, 3) + r / ({{real ARMOR_REDUCTION}} * (1.0 - r)))
     endif
-    set v = LoadInteger(EmpVet, t, b + 5)
-    if v > 0 then
-        // TODO(veterancy): weapon index base (0 or 1) of BlzSetUnitWeaponRealField in 1.31 not verified in game
-        call BlzSetUnitWeaponRealField(u, UNIT_WEAPON_RF_ATTACK_RANGE, 0, LoadReal(EmpVetUnit, h, 4) * (100 + v) / 100.0)
-    endif
+    // TODO(veterancy): ExtraRange (8 levels in Rules.txt, +25..50 %) is not applied. In 1.31.1
+    // BlzGet/SetUnitWeaponRealField(ATTACK_RANGE) read 0 and do not change the range at index 0 or 1
+    // (in-game probe src/smoke/build-probe.ts, 2026-10-07); swapping in a veteran unit type would break
+    // the scripts' references to the unit. Needs a per-unit range bonus ability (none verified yet).
     set v = LoadInteger(EmpVet, t, b + 6)
     if v > 0 then
         call SetUnitMoveSpeed(u, v)

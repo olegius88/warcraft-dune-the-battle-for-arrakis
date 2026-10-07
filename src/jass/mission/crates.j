@@ -30,7 +30,7 @@ function EmpCrateTick takes nothing returns nothing
                 if EmpCrateGift[i] > 0 then
                     call CreateUnit(who, EmpCrateGift[i], GetUnitX(taker), GetUnitY(taker), {{FACING}})
                 elseif EmpCrateGift[i] == {{RT.CRATE_KIND.bomb}} then
-                    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.bomb}}', EFFECT_TYPE_TARGET, 0), GetUnitX(taker), GetUnitY(taker)))
+                    call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.bomb.id}}', {{ART_ABILITY.bomb.type}}, 0), GetUnitX(taker), GetUnitY(taker)))
                     call EmpDamageArea(GetUnitX(taker), GetUnitY(taker), {{real RT.CRATE_BOMB_RADIUS}}, {{real RT.CRATE_BOMB_DAMAGE}})
                 elseif EmpCrateGift[i] == {{RT.CRATE_KIND.stealth}} then
                     call EmpStealthAround(taker)

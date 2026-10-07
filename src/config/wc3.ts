@@ -53,19 +53,22 @@ export const ABILITY = {
   build: 'AHbu',
   returnResources: 'Argd',
   invulnerable: 'Avul',
-  /** permanent invisibility (rawcode not in common.ai; EmpStealth checks UnitAddAbility's result) */
+  /** permanent invisibility (not in common.ai; UnitAddAbility('Apiv') succeeded in game, probe 2026-10-07) */
   invisibility: 'Apiv',
 } as const;
 
 /** Stock abilities whose art (GetAbilityEffectById, common.j) is used for effects, so the model
- * paths come from the game's own data. Codes: data/wc3/common.ai. */
+ * paths come from the game's own data. Codes: data/wc3/common.ai; the effect type that holds a
+ * model was read in game by src/smoke/build-probe.ts (2026-10-07, 1.31.1): AUin EFFECT =
+ * InfernalBirth.mdl, AHfs EFFECT = FlameStrikeTarget.mdl, AOws CASTER = WarStompCaster.mdl
+ * (TARGET of AUin / AHfs is empty). */
 export const ART_ABILITY = {
   /** super weapon strike */
-  nuke: 'AUin',
+  nuke: { id: 'AUin', type: 'EFFECT_TYPE_EFFECT' },
   /** bomb crate */
-  bomb: 'AHfs',
+  bomb: { id: 'AHfs', type: 'EFFECT_TYPE_EFFECT' },
   /** stealth crate */
-  stealth: 'AOws',
+  stealth: { id: 'AOws', type: 'EFFECT_TYPE_CASTER' },
 } as const;
 
 /** Stock units used as helpers. */
