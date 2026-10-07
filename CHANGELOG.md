@@ -62,6 +62,10 @@
 - 2026-10-07 Ящики дают подарок из `Rules.txt` (`CrateGiftObject`: сардаукары, инфильтраторы, лич,
   контаминатор, `CASH2000`) юниту, который к ним подъехал ([src/emperor/rules.js](src/emperor/rules.js),
   [src/emperor/mission.js](src/emperor/mission.js), тест [test/emperor-mission.test.js](test/emperor-mission.test.js)).
+- 2026-10-07 Ветеранство из `Rules.txt`: убийца получает `Score` жертвы, на порогах `VeterancyLevel`
+  юнит получает здоровье, урон, броню, дальность, скорость, саморемонт, знак элиты
+  ([src/emperor/rules.js](src/emperor/rules.js), [src/emperor/mission.js](src/emperor/mission.js)).
+  В игре ещё не проверялось.
 - 2026-10-07 Тестовые прогоны пишут JPEG и GIF игрового окна для показа в чате
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.js](tools/make-gif.js); devDependencies `gifenc`, `pngjs`).
 
