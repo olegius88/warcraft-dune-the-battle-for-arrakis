@@ -111,3 +111,9 @@
     integer EmpReinfMessage = 0
     integer EmpReinfInitial = 0
     integer EmpReinfSubsequent = 0
+    integer array EmpTplType
+    integer array EmpTplDx
+    integer array EmpTplDy
+    integer array EmpTplCount
+    unit array EmpTplUnit
+    hashtable EmpWaveTab = null

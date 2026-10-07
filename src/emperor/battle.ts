@@ -6,10 +6,12 @@
 //
 // From Rules.txt: starting armies (UnitValueAttacker / UnitValueDefender, sets of the house's units by
 // ReinforcementValue), credits (CampaignAttackMoney / CampaignDefendMoney), reinforcement sets, unit
-// costs the enemy pays for its production.
-// Simplifications (TODO(ai)): the enemy base is a fixed template instead of Emperor's
-// position-scored AI builder (ai.ini), the enemy does not rebuild or expand it, and its army
-// attacks the player's base point every ENEMY_WAVE_PERIOD instead of Emperor's AI tactics.
+// costs the enemy pays for its production. From ai.ini: the Foot / Tank mix of its production, the
+// share of its units that stays at its base, the money it keeps before rebuilding destroyed template
+// buildings, the chance that an attack wave falls back.
+// Simplifications (TODO(ai)): the enemy base is a fixed template (rebuilt, not expanded) instead of
+// Emperor's position-scored AI builder (ai.ini PositionAlgorithmRatios), and its waves attack the
+// player's base point every ENEMY_WAVE_PERIOD instead of Emperor's scouting / staging tactics.
 
 import { real } from '../wc3/jass.ts';
 import { renderFile } from '../wc3/template.ts';
@@ -20,6 +22,7 @@ import { EMPEROR_TILE, TICKS_PER_SECOND } from '../config/scale.ts';
 import { TERRAIN } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules } from './rules.ts';
+import type { AiRules } from './ai-rules.ts';
 import { MAX_SIDE, DEFAULT_FACING } from '../config/runtime.ts';
 import * as C from '../config/battle.ts';
 import type { MapMeta } from './mapxbf.ts';
@@ -49,6 +52,8 @@ export interface BattleOptions {
   worms?: WormRules;
   /** Rules.txt: armies (UnitValue*), credits (Campaign*Money), unit costs */
   rules?: Rules;
+  /** ai.ini: unit mix, defence share, rebuild money, retreat chance (src/emperor/ai-rules.ts) */
+  ai?: AiRules;
 }
 
 export interface BattleSetup {
@@ -166,7 +171,17 @@ endfunction`;
   const vehBy = PREFIXES.map((h) => C.ENEMY_VEHICLES.map((s) => rc(h + s)).filter(isId));
   fns.push(pickFn('EmpEnemyInf', infBy));
   fns.push(pickFn('EmpEnemyVeh', vehBy));
-  const enemyBase = PREFIXES.map((h) => C.BASE_TEMPLATE.map(([sfx, dx, dy]) => (rc(h + sfx) ? `        call CreateUnit(Player(1), '${rc(h + sfx)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), ${FACING})` : '')).filter(Boolean).join('\n'));
+  // enemy base template per house (index = house id) as data, so destroyed buildings can be rebuilt
+  const templateLines: string[] = [];
+  PREFIXES.forEach((h, hi) => {
+    const entries = C.BASE_TEMPLATE.filter(([sfx]) => rc(h + sfx));
+    if (entries.length > C.TEMPLATE_SLOTS) throw new Error(`base template of ${entries.length} > TEMPLATE_SLOTS`);
+    entries.forEach(([sfx, dx, dy], k) => {
+      const i = hi * C.TEMPLATE_SLOTS + k;
+      templateLines.push(`    set EmpTplType[${i}] = '${rc(h + sfx)}'`, `    set EmpTplDx[${i}] = ${dx}`, `    set EmpTplDy[${i}] = ${dy}`);
+    });
+    templateLines.push(`    set EmpTplCount[${hi}] = ${entries.length}`);
+  });
   // the player's own base for defence battles (own house template at the player's base point)
   const playerBase = C.BASE_TEMPLATE.map(([sfx, dx, dy]) => (rc(P + sfx) ? `    call CreateUnit(Player(0), '${rc(P + sfx)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), ${FACING})` : '')).filter(Boolean).join('\n');
   const barracksOf = PREFIXES.map((h) => rc(`${h}Barracks`));
@@ -181,7 +196,8 @@ endfunction`;
     harvester, playerBase,
     vehMax: C.ENEMY_VEHICLES.length - 1, infMax: C.ENEMY_INFANTRY.length - 1,
     supportLines: support.map((id) => `    call CreateUnit(Player(0), '${id}', GetLocationX(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), GetLocationY(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), ${FACING})`).join('\n'),
-    enemyBaseByHouse: byHouse(enemyBase),
+    templateLines: templateLines.join('\n'),
+    ai: o.ai ?? { foot: 50, tank: 50, defencePercent: 0, minMoneyToBuild: 0, retreatChance: 0 },
     isBarracks: barracksOf.map((id) => `t == '${id}'`).join(' or '),
     isFactory: factoryOf.map((id) => `t == '${id}'`).join(' or '),
     costLines: produced.map((id) => `    call SaveInteger(EmpCostTab, '${id}', 0, ${costOf(id)})`).join('\n'),

@@ -58,3 +58,6 @@ export const LOW_POWER_MESSAGE = 'Ментат: Недостаточно эне�
 export const WORM_CHECK_PERIOD = 1;
 export const WORM_SURFACE_OFFSET_TILES = 8;
 export const SURFACE_WORM = 'SurfaceWorm';
+
+/** Enemy base template entries per house in the runtime table (EmpTpl*). */
+export const TEMPLATE_SLOTS = 16;

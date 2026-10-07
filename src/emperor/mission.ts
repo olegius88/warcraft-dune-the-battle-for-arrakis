@@ -18,6 +18,7 @@ import type { MissionContext } from './context.ts';
 import type { UnitData } from './units.ts';
 import type { Rules } from './rules.ts';
 import type { Speech } from './speech.ts';
+import type { AiRules } from './ai-rules.ts';
 import { HOUSE_ID, HOUSES, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_BY_CODE } from '../config/houses.ts';
 import { CACHE_FILE, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
@@ -50,6 +51,8 @@ export interface MissionParams {
   rules?: Rules;
   /** original speech of messages; null/absent = text only */
   speech?: Speech | null;
+  /** ai.ini values of the territory battle AI */
+  ai?: AiRules;
   /** map title */
   name: string;
   playerHouse: House;
@@ -103,7 +106,7 @@ function buildMission(p: MissionParams): BuiltMission {
   const tooltips = new Set<number>();
   for (const s of scripts) { s.tr.used.forEach((x) => used.add(x)); s.tr.messages.forEach((x) => messages.add(x)); s.tr.tooltips.forEach((x) => tooltips.add(x)); }
 
-  const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend', worms: p.rules?.worms, rules: p.rules });
+  const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend', worms: p.rules?.worms, rules: p.rules, ...(p.ai ? { ai: p.ai } : {}) });
   const deployMap: Record<string, string> = { [String(p.units.rawcode.get('MCV'))]: String(p.units.rawcode.get(`${CODE_BY_HOUSE[p.playerHouse]}ConYard`)) };
   const rt = buildRuntime(p.table, { deployMap });
 

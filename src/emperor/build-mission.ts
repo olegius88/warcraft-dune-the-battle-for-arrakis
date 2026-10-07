@@ -7,6 +7,8 @@ import { loadContext } from './context.ts';
 import { loadRules } from './rules.ts';
 import { loadArtIni } from './artini.ts';
 import { buildIcons } from './icons.ts';
+import { loadAiRules } from './ai-rules.ts';
+import type { AiRules } from './ai-rules.ts';
 import { buildUnitData } from './units.ts';
 import { readMeta } from './mapxbf.ts';
 import { buildMission } from './mission.ts';
@@ -30,6 +32,7 @@ export interface EmperorData {
   units: UnitData;
   table: TokenTable;
   speech: Speech | null;
+  ai?: AiRules;
 }
 
 function loadAll(): EmperorData {
@@ -41,7 +44,9 @@ function loadAll(): EmperorData {
   const units = buildUnitData(rules, (n) => tooltipName.get(n.toLowerCase()) || n, icons);
   const table = loadTokenTable(GAME_EXE);
   const speech = loadSpeech(GAME_DIR);
-  return { ctx, rules, units, table, speech };
+  const aiIni = path.join(RAW_DIR, 'ai.ini');
+  const ai = fs.existsSync(aiIni) ? loadAiRules(aiIni) : undefined;
+  return { ctx, rules, units, table, speech, ...(ai ? { ai } : {}) };
 }
 
 const asHouse = (s: string | null | undefined): House | undefined => (isHouse(s) ? s : undefined);

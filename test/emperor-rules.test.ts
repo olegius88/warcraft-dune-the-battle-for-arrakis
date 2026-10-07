@@ -64,3 +64,13 @@ test('reinforcement values of units and the [General] reinforcement / campaign m
     assert.strictEqual(rules.objects.get('ATScout')?.reinforcementValue, 0);
   });
 });
+
+test('ai.ini: unit mix, defence share, rebuild money, retreat chance (first [Strategy] value wins)', async () => {
+  const { parseAiRules } = await import('../src/emperor/ai-rules.ts');
+  const ai = parseAiRules([
+    '[UnitConstructionRatios]', 'Foot=20 // foot soldiers', 'Tank=80',
+    '[Strategy]', 'PercentageOfUnitsForDefence=24\t// c', 'MinMoneyToConstructBuildings=600', 'ChanceOfRetreating=50, // campaign',
+    '[Strategy]', 'ExtraPower=20',
+  ].join('\r\n'));
+  assert.deepStrictEqual(ai, { foot: 20, tank: 80, defencePercent: 24, minMoneyToBuild: 600, retreatChance: 50 });
+});

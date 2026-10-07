@@ -273,6 +273,21 @@ test('territory battle armies, credits and paid enemy production follow Rules.tx
   assert.ok(defend.script.includes('call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, 2500)'));
 });
 
+// The enemy AI followed no data (TODO(ai)): free production of every building each period, the whole
+// army in every wave, no rebuilding. It now uses ai.ini.
+test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat chance', opts, () => {
+  const all = loadAll();
+  assert.deepStrictEqual(all.ai, { foot: 20, tank: 80, defencePercent: 24, minMoneyToBuild: 600, retreatChance: 50 });
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes('local boolean veh = GetRandomInt(1, 20 + 80) > 20'), 'Foot / Tank mix');
+  assert.ok(m.script.includes('GetRandomInt(1, 100) > 24 then'), 'defence share stays home');
+  assert.ok(m.script.includes('local boolean stay = GetRandomInt(1, 100) > 50'), 'retreat chance');
+  assert.ok(m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'rebuild money');
+  const yard = all.units.rawcode.get('HKConYard');
+  assert.ok(m.script.includes(`set EmpTplType[16] = '${yard}'`), 'house 1 template starts with its construction yard');
+});
+
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines
 // (ATP1D19GN -> KK-M024, KK-M026). They were not played: only the text was shown.
 test('mission start plays the spoken briefing of the chosen script', opts, () => {
