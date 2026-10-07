@@ -25,6 +25,10 @@ export const RAW_DIR = path.join(DATA_DIR, 'emperor', 'raw');
 /** Loose DATA files copied next to the archives (localised strings, dialog tables). */
 export const LOOSE_DIR = path.join(RAW_DIR, 'loose');
 export const LOCAL_STRINGS_DIR = path.join(LOOSE_DIR, 'strings');
+/** Movie subtitles: en/<movie>.json transcribed by whisper.cpp, ru/<movie>.json translated (src/emperor/subtitles.ts). */
+export const SUBTITLES_DIR = path.join(DATA_DIR, 'emperor', 'subtitles');
+/** whisper.cpp model for the transcription (downloaded once, not in git). */
+export const WHISPER_MODEL = path.join(DATA_DIR, 'whisper', 'ggml-large-v3.bin');
 /** Map folders unpacked on demand from MAPS0001/0002. */
 export const MAPS_DIR = path.join(DATA_DIR, 'emperor', 'maps');
 /** Decompiled mission scripts (decompile-all.ts). */

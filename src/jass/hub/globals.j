@@ -26,19 +26,4 @@
     button EmpBtnNo = null
     integer EmpDialogMode = 0
     boolean EmpBusy = false
-    // movie slide shows (hub/movie.j)
-    hashtable EmpMovieTab = null
-    string EmpMovieQueue = ""
-    string EmpMovieName = ""
-    integer EmpMovieFrame = 0
-    integer EmpMovieFrames = 0
-    framehandle EmpMovieView = null
-    framehandle EmpMovieBlack = null
-    timer EmpMovieTimer = null
-    sound EmpMovieSound = null
-    trigger EmpMovieAfter = null
-    trigger EmpMovieEsc = null
-    boolean EmpMoviePlaying = false
     integer EmpEnding = 0
-    string EmpMovieLogText = ""
-    timer EmpMovieClock = null

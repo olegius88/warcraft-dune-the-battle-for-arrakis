@@ -1,13 +1,13 @@
 // MOVIES.TXT (data/emperor/raw): which movie Emperor plays at which campaign event.
 //   #define <name> <number>                      contexts (Generic, PhaseStartAT, ...) and flags
 //   Movie ("<event>", <context>, "<file>", <chained>, <cd>);
-// A chained movie is followed by the event of the same context named <event> + "e" or, when there
-// is none, <event> with its last letter replaced by "e" (Phase1a -> Phase1e, Phase13a -> Phase13ae,
-// HK Phase3a -> Phase3ae -> Phase3aee). The CD flag only says which disc held the file.
+// A chained movie is followed by the next Movie line of the same context (Phase1a -> Phase1e,
+// Phase13a -> Phase13ae, IntroPrologue -> IntroAnimation -> LandsraadCounsel). The CD flag only says
+// which disc held the file.
 
 import fs from 'node:fs';
 import type { HouseCode } from '../config/houses.ts';
-import { MOVIE_EVENTS, MOVIE_SKIP } from '../config/movies.ts';
+import { MOVIE_EVENTS, MOVIE_SKIP, MOVIE_INTRO } from '../config/movies.ts';
 import type { MovieEventKind } from '../config/movies.ts';
 
 export interface MovieEntry {
@@ -41,16 +41,17 @@ function parseMovies(text: string): MovieEntry[] {
 
 /** Movie files of an event and the events chained after it. */
 function movieChain(entries: MovieEntry[], event: string, context: string): string[] {
-  const find = (ev: string): MovieEntry | undefined => entries.find((e) => e.event === ev && e.context === context);
-  let e = find(event);
-  if (!e) throw new Error(`MOVIES.TXT: no movie for ${event} in ${context}`);
+  // Was: the event named <event> + "e" or <event> with its last letter replaced by "e"; that is
+  // IntroPrologue itself, an endless chain (regression test in test/movies.test.ts).
+  let i = entries.findIndex((e) => e.event === event && e.context === context);
+  if (i < 0) throw new Error(`MOVIES.TXT: no movie for ${event} in ${context}`);
   const files: string[] = [];
-  while (e) {
+  for (;;) {
+    const e = entries[i] as MovieEntry;
     files.push(e.file);
     if (!e.chained) break;
-    const ev: string = e.event;
-    e = find(`${ev}e`) ?? find(`${ev.slice(0, -1)}e`);
-    if (!e) throw new Error(`MOVIES.TXT: chained ${ev} in ${context} has no next movie`);
+    i = entries.findIndex((n, k) => k > i && n.context === context);
+    if (i < 0) throw new Error(`MOVIES.TXT: chained ${e.event} in ${context} has no next movie`);
   }
   return files.filter((f) => !MOVIE_SKIP.has(f));
 }
@@ -59,6 +60,7 @@ const CONTEXT: Readonly<Record<MovieEventKind, (h: HouseCode) => string>> = {
   start: (h) => `PhaseStart${h}`,
   failed: (h) => `PhaseFailed${h}`,
   house: (h) => `Generic${h}`,
+  generic: () => 'Generic',
 };
 
 /** Every campaign event of a house -> its movie files (the keys of MOVIE_EVENTS). */
@@ -68,8 +70,13 @@ function houseMovies(entries: MovieEntry[], house: HouseCode): Record<string, st
   return out;
 }
 
+/** Movie files of the generic intro (MOVIE_INTRO events in the Generic context). */
+function introMovies(entries: MovieEntry[]): string[] {
+  return MOVIE_INTRO.flatMap((ev) => movieChain(entries, ev, CONTEXT.generic('AT')));
+}
+
 function loadMovies(file: string): MovieEntry[] {
   return parseMovies(fs.readFileSync(file, 'latin1'));
 }
 
-export { parseMovies, movieChain, houseMovies, loadMovies };
+export { parseMovies, movieChain, houseMovies, introMovies, loadMovies };

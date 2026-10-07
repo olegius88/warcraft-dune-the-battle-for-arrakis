@@ -89,6 +89,10 @@ export const CAMPAIGN_DIFFICULTY = 'Нормальная';
 export const CAMPAIGN_DESCRIPTION = 'Кампании трёх Великих Домов за Арракис. Собрано из вашей копии Emperor: Battle for Dune.';
 export const CAMPAIGN_CHAPTER = 'Emperor: Битва за Дюну';
 export const TUTORIAL_TITLE = 'Обучение';
+/** Button of the generic intro movies (map MAP_FILE.intro). */
+export const INTRO_TITLE = 'Вступление';
+/** Intro maps (src/emperor/intro.ts): only a movie player; tiles a side, seconds before it starts. */
+export const INTRO_MAP = { size: 32, startDelay: 0.1 } as const;
 
 /** Map file names inside the campaign. */
 export const MAP_FILE = {
@@ -98,6 +102,9 @@ export const MAP_FILE = {
   story: (h: HouseCode, key: string): string => `${h}_S_${key}.w3x`,
   homeAttack: (h: HouseCode, foe: HouseCode): string => `${h}_S_Home${foe}.w3x`,
   tutorial: 'Tutorial.w3x',
+  intro: 'Intro.w3x',
+  /** house selection movie + Phase0a, then the start mission */
+  houseIntro: (h: HouseCode): string => `${h}_Intro.w3x`,
 } as const;
 
 /** Enemy of a house when the map/cache does not say (standalone runs, own territories). */

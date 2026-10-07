@@ -11,3 +11,6 @@ export const isBattleTrack = (name: string, h: HouseCode): boolean => name.start
 export const hubTrack = (h: HouseCode): string => `${h}_Map1`;
 /** Battle music plays shuffled. */
 export const SHUFFLE_BATTLE_MUSIC = true;
+/** The campaign screen (war3campaign.w3f ambient sound): Emperor's main menu theme (CommonMusic.txt
+ * [INMenu] Data = IN_Menu, Loop = Yes). */
+export const MENU_TRACK = 'IN_Menu';

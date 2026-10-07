@@ -25,7 +25,8 @@ import type { PhaseRules } from './phase-rules.ts';
 import { DEFAULT_FACING, TIME_OF_DAY, DEBUG_REPORT_DIR } from '../config/runtime.ts';
 import { CUSTOM_ID, TERRAIN } from '../config/wc3.ts';
 import * as V from '../config/hub.ts';
-import { MOVIE_DIR, MOVIE_PATH, MOVIE_AREA, MOVIE_BLACK_AREA, MOVIE_VOLUME, MOVIE_FRAME_DIGITS, MOVIE_FPS, MOVIE_CLOCK_SPAN } from '../config/movies.ts';
+import { moviePlayer } from './movie-player.ts';
+import type { PlayerMovies } from './movie-player.ts';
 import type { UnitData } from './units.ts';
 
 /** Map file names of the story missions of one house. */
@@ -58,28 +59,25 @@ export interface HubOptions {
 }
 
 export interface HubMovies {
+  /** hub event -> movie names (src/emperor/movies.ts houseMovies) */
   events: Record<string, string[]>;
-  frames: Map<string, number>;
-  files: Record<string, Buffer>;
+  /** what the player knows about each movie */
+  player: PlayerMovies;
 }
 
-/** Template values of the movie player (src/jass/hub/movie.j) and the movie of every hub event
- * (`mv`: a JASS string of the ";"-separated movie names, "" when the event has none). */
-function movieJass(movies: HubMovies | undefined, foes: HouseCode[], house: HouseCode = 'AT'): { movieFunctions: string; mv: Record<string, string> } {
+/** The movie player of the hub (src/jass/movie/player.j) and the movie of every hub event (`mv`:
+ * a JASS string of the ";"-separated movie names, "" when the event has none or no movie of it was
+ * converted). */
+function movieJass(movies: HubMovies | undefined, foes: HouseCode[], house: HouseCode = 'AT'): { movieFunctions: string; movieGlobals: string; mv: Record<string, string> } {
   const events = movies?.events ?? {};
-  const chain = (key: string): string => str((events[key] ?? []).filter((m) => (movies?.frames.get(m) ?? 0) > 0).join(';'));
+  const chain = (key: string): string => str((events[key] ?? []).filter((m) => (movies?.player.info.get(m)?.frames ?? 0) > 0).join(';'));
   const keys = ['start', 'phase2', 'phase3', 'heighliner', 'homeDefence', 'civilWar', 'won', 'warning', 'lost', 'failedHeighliner', 'failedHomeDefence', 'failedCivilWar'];
   const mv: Record<string, string> = Object.fromEntries(keys.map((k) => [k, chain(k)]));
   foes.forEach((f, i) => {
     for (const k of ['homeAttack', 'final', 'failedHomeAttack', 'failedFinal']) mv[`${k}${i}`] = chain(`${k}${f}`);
   });
-  const movieFunctions = renderFile(jassFile('hub/movie'), {
-    MOVIE_DIR, MOVIE_PATH, MOVIE_AREA, MOVIE_BLACK_AREA, MOVIE_VOLUME, MOVIE_CLOCK_SPAN,
-    movieReport: `${DEBUG_REPORT_DIR}\\${house}_Movies.pld`,
-    frameBase: 10 ** MOVIE_FRAME_DIGITS, frameDigitsEnd: MOVIE_FRAME_DIGITS + 1, moviePeriod: 1 / MOVIE_FPS,
-    movieDataLines: [...(movies?.frames ?? [])].map(([m, n]) => `    call SaveInteger(EmpMovieTab, 0, StringHash(${str(m)}), ${n})`).join('\n'),
-  });
-  return { movieFunctions, mv };
+  const player = moviePlayer(movies?.player, `${DEBUG_REPORT_DIR}\\${house}_Movies.pld`);
+  return { movieFunctions: player.functions, movieGlobals: player.globals, mv };
 }
 
 /** JASS of the PhaseRules.txt parts the hub uses (the EmpPhaseTech / EmpCaptureTech /
@@ -180,12 +178,13 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
     jReportPrefix: str(`${DEBUG_REPORT_DIR}\\${HOUSES[me]}_Hub_`),
   });
 
-  const globals = renderFile(jassFile('hub/globals'), { PHASE, START_TECH });
+  const movie = movieJass(o.movies, foes.map((f) => HOUSES[f] as HouseCode), o.house);
+  const globals = renderFile(jassFile('hub/globals'), { PHASE, START_TECH }) + movie.movieGlobals;
 
   const functions = renderFile(jassFile('hub/functions'), {
     ADJ_STRIDE, CACHE_FILE, CAT, DEFAULT_FACING, K, KIND_ID, PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, ...phaseJass(o.phaseRules),
     TERRITORY_COUNT, TIME_OF_DAY, V, foes, markerId, me, musicList, o, story,
-    ...movieJass(o.movies, foes.map((f) => HOUSES[f] as HouseCode), o.house),
+    movieFunctions: movie.movieFunctions, mv: movie.mv,
     autoTestFunctions: o.autoTest ? autoTestFunctions : '',
     dataLines: lines.join('\n'),
     linkColor: V.LINK_COLOR.map((c) => real(c)).join(', '),
@@ -218,7 +217,7 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
     corner: (x: number, y: number) => ({ texture: (x * 7 + y * 3) % V.HUB_DIRT_EVERY === 0 ? 1 : 0, boundary: x < V.HUB_BOUNDARY_SIDE || x > W - V.HUB_BOUNDARY_SIDE || y < V.HUB_BOUNDARY_BOTTOM || y > H - V.HUB_BOUNDARY_TOP }),
     players, globals, functions: fixed,
     init: `    call TimerStart( CreateTimer(), ${real(V.HUB_START_DELAY)}, false, function EmpHubStart )`,
-    imports: { 'war3map.w3u': o.units.w3u, 'war3map.w3a': o.units.w3a, ...o.movies?.files },
+    imports: { 'war3map.w3u': o.units.w3u, 'war3map.w3a': o.units.w3a },
     minimapColor: () => [...V.HUB_MINIMAP_COLOR],
   });
   return { buffer: m.buffer, script: m.script };

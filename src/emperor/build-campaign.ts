@@ -32,11 +32,17 @@ import { buildCampaign } from '../wc3/map.ts';
 import { loadMusic } from './music.ts';
 
 import { loadPhaseRules } from './phase-rules.ts';
-import { loadMovies, houseMovies } from './movies.ts';
-import { convertMovie, blackTexture } from './fmv.ts';
-import type { MovieFiles } from './fmv.ts';
+import { loadMovies, houseMovies, introMovies } from './movies.ts';
+import { convertMovies, installBlack } from './fmv.ts';
+import type { MovieInfo } from './fmv.ts';
 import type { HubMovies } from './hub.ts';
-import { MOVIE_PATH } from '../config/movies.ts';
+import { loadSubtitles, loadCaptions } from './subtitles.ts';
+import type { TimedText } from './subtitles.ts';
+import type { PlayerMovies } from './movie-player.ts';
+import { buildIntro } from './intro.ts';
+import { buildMenuScene } from './menu-scene.ts';
+import { MENU_MODEL } from '../config/menu.ts';
+import { MENU_TRACK } from '../config/music.ts';
 import { RAW_DIR, CAMPAIGN_OUT, PJASS_OUT_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
 
 const args = process.argv.slice(2);
@@ -84,22 +90,34 @@ interface BuiltEntry {
 const maps: BuiltEntry[] = [];
 const check = args.includes('--check');
 const autoTest = args.includes('--autotest');
-// movies: converted once (ffmpeg), imported into the hub of each house that shows them
+// movies: converted once (ffmpeg) into the Warcraft III folder (loose files, src/emperor/fmv.ts);
+// each map that shows movies gets their frame counts, rates, subtitles and place captions
 const withMovies = args.includes('--movies') || (!autoTest && !args.includes('--no-movies'));
 const movieEntries = withMovies ? loadMovies(path.join(RAW_DIR, 'MOVIES.TXT')) : [];
-const converted = new Map<string, MovieFiles>();
+const houseEvents = new Map(houses.map((h) => [h, withMovies ? houseMovies(movieEntries, h) : {}]));
+const introList = withMovies ? introMovies(movieEntries) : [];
+const movieInfo: Map<string, MovieInfo> = withMovies ? await convertMovies([...introList, ...[...houseEvents.values()].flatMap((e) => Object.values(e).flat())]) : new Map();
+if (withMovies) installBlack();
+const captions = withMovies ? loadCaptions() : new Map<string, TimedText[]>();
+const untranslated: string[] = [];
+const playerFor = (names: Iterable<string>): PlayerMovies => {
+  const info = new Map<string, MovieInfo>();
+  const subtitles = new Map<string, TimedText[]>();
+  for (const n of names) {
+    const i = movieInfo.get(n);
+    if (!i) continue;
+    info.set(n, i);
+    const sub = loadSubtitles(n.toUpperCase());
+    if (sub.language === 'en' && !untranslated.includes(n)) untranslated.push(n);
+    subtitles.set(n, sub.lines);
+  }
+  const caps = new Map([...info.keys()].map((n) => [n, captions.get(n.toUpperCase()) ?? []]));
+  return { info, subtitles, captions: caps };
+};
 const hubMovies = (h: HouseCode): HubMovies | undefined => {
   if (!withMovies) return undefined;
-  const events = houseMovies(movieEntries, h);
-  const frames = new Map<string, number>();
-  const files: Record<string, Buffer> = { [MOVIE_PATH.black]: blackTexture() };
-  for (const name of new Set(Object.values(events).flat())) {
-    let m = converted.get(name);
-    if (!m) { m = convertMovie(name); converted.set(name, m); }
-    frames.set(name, m.frames);
-    Object.assign(files, m.files);
-  }
-  return { events, frames, files };
+  const { houseIntro: _intro, ...events } = houseEvents.get(h) ?? {};
+  return { events, player: playerFor(Object.values(events).flat()) };
 };
 const campaignName = opt('--name', (autoTest ? CP.AUTOTEST_NAME_PREFIX : '') + CP.CAMPAIGN_NAME);
 let pjassFailures = 0;
@@ -205,13 +223,33 @@ for (const h of houses) {
   add(CP.MAP_FILE.tutorial, m.buffer, CP.TUTORIAL_TITLE, '', false, m.script);
 }
 
-// campaign screen: four visible buttons, the rest hidden
-// (autotest: the house start missions only, so the first button starts the chain)
-const visible: Array<[string, string]> = [...(autoTest ? [] : [[CP.MAP_FILE.tutorial, CP.TUTORIAL_TITLE] as [string, string]]), ...houses.map((h): [string, string] => [CP.MAP_FILE.start(h), HOUSE_RU[h]])];
+// intro maps: the generic intro (its own button) and, per house, the house selection movie and
+// Phase0a before the start mission (the house buttons open these)
+{
+  const m = buildIntro({ name: 'Intro', movies: introList, player: playerFor(introList), report: autoTest ? 'Intro.pld' : undefined });
+  add(CP.MAP_FILE.intro, m.buffer, CP.INTRO_TITLE, '', false, m.script);
+  for (const h of houses) {
+    const list = (houseEvents.get(h) ?? {}).houseIntro ?? [];
+    const hi = buildIntro({ name: `${h}_Intro`, movies: list, player: playerFor(list), next: CP.MAP_FILE.start(h), report: autoTest ? `${h}_Intro.pld` : undefined });
+    add(CP.MAP_FILE.houseIntro(h), hi.buffer, HOUSE_RU[h], '', false, hi.script);
+  }
+}
+if (untranslated.length) console.log(`subtitles in English (no Russian translation yet): ${untranslated.join(', ')}`);
+
+// campaign screen: the intro, the tutorial and the houses (their intro maps lead to the start
+// missions); the rest hidden. Autotest: the house buttons only, so the first button starts the chain.
+const visible: Array<[string, string]> = [...(autoTest ? [] : [[CP.MAP_FILE.intro, CP.INTRO_TITLE], [CP.MAP_FILE.tutorial, CP.TUTORIAL_TITLE]] as Array<[string, string]>), ...houses.map((h): [string, string] => [CP.MAP_FILE.houseIntro(h), HOUSE_RU[h]])];
 const order: BuiltEntry[] = [...visible.map(([file, title]) => ({ ...(maps.find((m) => m.file === file) as BuiltEntry), title, chapter: CP.CAMPAIGN_CHAPTER, visible: true })),
   ...maps.filter((m) => !visible.some(([f]) => f === m.file))];
+// campaign screen: Emperor's main menu scene and theme (war3campaign.w3f: -1 = imported model /
+// sound, mdx-m3-viewer parsers/w3x/w3f)
+Object.assign(campaignImports, buildMenuScene());
+const menuTrack = music?.tracks.get(MENU_TRACK);
+if (menuTrack) campaignImports[menuTrack.path] = menuTrack.data;
 const w3n = buildCampaign({
   name: campaignName, author: CP.CAMPAIGN_AUTHOR, difficulty: CP.CAMPAIGN_DIFFICULTY,
+  backgroundScreen: -1, backgroundPath: MENU_MODEL.field,
+  ...(menuTrack ? { ambientSound: -1, ambientPath: menuTrack.path } : {}),
   description: CP.CAMPAIGN_DESCRIPTION,
   maps: order.map((m) => ({ file: m.file, buffer: m.buffer, title: m.title, chapter: m.chapter, visible: m.visible, button: m.visible })),
   imports: campaignImports,
