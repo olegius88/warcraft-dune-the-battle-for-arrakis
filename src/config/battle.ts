@@ -49,3 +49,8 @@ export const DEFEND_WAVE_MESSAGE_SECONDS = 8;
 export const DEFEND_WAVE_MESSAGE = 'Ментат: Враг атакует! Осталось волн: ';
 /** Random picks of an enemy unit allowed at the current tech level before falling back. */
 export const ENEMY_PICK_TRIES = 20;
+
+/** Power (Rules.txt PowerGenerated / PowerUsed / DisableWithLowPower): balance check period, the
+ * player's balance shown in the (unused) lumber field, warning when the player runs short. */
+export const POWER_CHECK_PERIOD = 2;
+export const LOW_POWER_MESSAGE = 'Ментат: Недостаточно энергии! Турели отключены — постройте ветряные ловушки.';

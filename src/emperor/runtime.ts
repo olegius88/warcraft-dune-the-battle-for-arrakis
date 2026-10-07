@@ -91,6 +91,8 @@ const HEADER_GLOBALS = `
     boolean EmpDefendMode = false
     integer EmpWavesLeft = 0
     boolean EmpEndWin = false
+    hashtable EmpPowerTab = null
+    boolean array EmpLowPower
     boolean EmpResultSent = false
     timer EmpTimer = null
     timerdialog EmpTimerWindow = null`;

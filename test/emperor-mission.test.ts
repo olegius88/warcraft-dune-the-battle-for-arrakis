@@ -136,3 +136,21 @@ test('money crates give the credits of CrateGiftObject CASH<n>', opts, () => {
   assert.ok(placedBody.includes(', 0, 2000)'), 'money crate registered with 2000 credits');
   assert.ok(!placedBody.includes(', 0, 500)'), 'no 500-credit fallback for a CASH crate');
 });
+
+// Power (Rules.txt): windtraps generate PowerGenerated, buildings use PowerUsed; turrets with
+// DisableWithLowPower stop while their side uses more than it generates. Was TODO(power).
+test('power: per-type balance table and low-power turret switch in mission maps', opts, () => {
+  const all = loadAll();
+  const trap = all.rules.objects.get('HKSmWindtrap');
+  const turret = all.rules.objects.get('HKGunTurret');
+  assert.ok(trap && turret);
+  assert.ok(trap.power > 0, 'windtrap generates power');
+  assert.strictEqual(turret.disableWithLowPower, true);
+  const meta = readMeta(path.join(ensureMap('#H3 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'power', playerHouse: 'Harkonnen', kind: 'story', hubMap: 'HK_Hub.w3x' });
+  const trapId = all.units.rawcode.get('HKSmWindtrap');
+  const turretId = all.units.rawcode.get('HKGunTurret');
+  assert.ok(m.script.includes(`call EmpPowerType('${trapId}', ${trap.power}, false)`), 'windtrap in the power table');
+  assert.ok(m.script.includes(`call EmpPowerType('${turretId}', ${turret.power}, true)`), 'turret in the power table, disabled on low power');
+  assert.ok(m.script.includes('function EmpPowerTick takes nothing returns nothing'));
+});

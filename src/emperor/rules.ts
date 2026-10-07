@@ -86,6 +86,8 @@ export interface RulesObject {
   conYard: boolean;
   /** generated minus used */
   power: number;
+  /** turret that stops while its side lacks power */
+  disableWithLowPower: boolean;
   size: number;
   /** [width, height] in tiles from the Occupy rows */
   footprint: [number, number] | null;
@@ -229,7 +231,7 @@ function loadRules(rulesPath: string): Rules {
       secondaryBuilding: (v.SecondaryBuilding || '').split(',').map((x) => x.trim()).filter(Boolean),
       unitWhenBuilt: (v.GetUnitWhenBuilt || '').trim(), spiceCapacity: num(v.SpiceCapacity),
       infantry: bool(v.Infantry), canFly: bool(v.CanFly) || bool(v.Aircraft), harvester: bool(v.Harvester),
-      conYard: bool(v.ConYard), power: num(v.PowerGenerated) - num(v.PowerUsed), size: num(v.Size, 1),
+      conYard: bool(v.ConYard), power: num(v.PowerGenerated) - num(v.PowerUsed), disableWithLowPower: bool(v.DisableWithLowPower), size: num(v.Size, 1),
       footprint: occupy.length ? [Math.max(...occupy.map((r) => r.length)), occupy.length] : null,
       turrets, raw: v,
     });
