@@ -12,27 +12,29 @@ import path from 'node:path';
 import { buildMap, buildCampaign } from '../wc3/map.ts';
 import { PATH } from '../wc3/formats.ts';
 import { str } from '../wc3/jass.ts';
+import type { ScriptPlayer } from '../wc3/jass.ts';
+import type { Boundary, Corner } from '../wc3/formats.ts';
 
 const args = process.argv.slice(2);
-const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
+const opt = <D extends string | null>(name: string, def: D): string | D => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] as string : def; };
 const outDir = opt('--out', path.join(import.meta.dirname, '..', '..', 'build', 'smoke'));
 const bikPath = opt('--bik', null);
 
 const W = 64, H = 64;
-const BOUNDARY = [6, 6, 4, 8];
-const inBoundary = (x, y) => x < BOUNDARY[0] || x > W - BOUNDARY[1] || y < BOUNDARY[2] || y > H - BOUNDARY[3];
+const BOUNDARY: Boundary = [6, 6, 4, 8];
+const inBoundary = (x: number, y: number): boolean => x < BOUNDARY[0] || x > W - BOUNDARY[1] || y < BOUNDARY[2] || y > H - BOUNDARY[3];
 // Plateau (cliff layer 3) occupying corners 40..50 x 40..50.
-const onPlateau = (x, y) => x >= 40 && x <= 50 && y >= 40 && y <= 50;
+const onPlateau = (x: number, y: number): boolean => x >= 40 && x <= 50 && y >= 40 && y <= 50;
 
 const GROUND = ['Bdsr', 'Bdsd', 'Bflr', 'Bdrh'];
-function corner(x, y) {
-  const c = { texture: 0, layer: 2, cliff: 0, boundary: inBoundary(x, y) };
+function corner(x: number, y: number): Corner {
+  const c: Corner = { texture: 0, layer: 2, cliff: 0, boundary: inBoundary(x, y) };
   if (onPlateau(x, y)) { c.layer = 3; c.texture = 2; }
   else if ((x * 7 + y * 13) % 11 === 0) c.texture = 1;
   if (x >= 20 && x <= 28 && y >= 20 && y <= 28) c.texture = 3;
   return c;
 }
-function pathing(px, py) {
+function pathing(px: number, py: number): number {
   const cx = px / 4, cy = py / 4;
   if (cx < BOUNDARY[0] || cx >= W - BOUNDARY[1] || cy < BOUNDARY[2] || cy >= H - BOUNDARY[3]) {
     return PATH.UNKNOWN | PATH.NO_WATER | PATH.NO_BUILD | PATH.NO_FLY | PATH.NO_WALK;
@@ -45,11 +47,11 @@ function pathing(px, py) {
 }
 
 // Run a function 0.5 s after the game starts (sleeps are not allowed during map init).
-const startAfter = (fn) => `    set udg_t = CreateTrigger()
+const startAfter = (fn: string): string => `    set udg_t = CreateTrigger()
     call TriggerRegisterTimerEventSingle( udg_t, 0.50 )
     call TriggerAddAction( udg_t, function ${fn} )`;
 
-const players = [{ id: 0, control: 'user', race: 'human', team: 0, x: -1024, y: -1024, name: 'Atreides' }];
+const players: ScriptPlayer[] = [{ id: 0, control: 'user', race: 'human', team: 0, x: -1024, y: -1024, name: 'Atreides' }];
 
 // Preload-based file output: PreloadGenEnd writes CustomMapData\<file>.
 const logFn = `
@@ -62,7 +64,7 @@ endfunction
 `;
 
 // nextLevel: inside the campaign the embedded name; standalone a path under Documents\Warcraft III.
-const makeMap1 = (nextLevel) => buildMap({
+const makeMap1 = (nextLevel: string) => buildMap({
   name: 'Dune Smoke 1', description: 'Generated smoke test map 1', width: W, height: H, boundary: BOUNDARY,
   globals: '    trigger udg_t = null',
   tileset: 'B', ground: GROUND, cliffs: ['CBde'], corner, pathing, players, tilesetDnc: 'Lordaeron',

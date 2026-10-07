@@ -1,5 +1,5 @@
 // Bisect helper: take a real editor-saved map, replace selected files with ours, repack.
-// Usage: node src/smoke/build-hybrid.js <real.w3x | real.w3n:inner.w3x> <ours.w3x> <out.w3x> <file> [<file>...]
+// Usage: node src/smoke/build-hybrid.ts <real.w3x | real.w3n:inner.w3x> <ours.w3x> <out.w3x> <file> [<file>...]
 //   copies <file>s from ours into the real map (e.g. war3map.j).
 
 import fs from 'node:fs';
@@ -8,11 +8,18 @@ import mpqArchiveModule from 'mdx-m3-viewer/dist/cjs/parsers/mpq/archive.js';
 const MpqArchive = mpqArchiveModule.default;
 
 const [src, ours, out, ...take] = process.argv.slice(2);
-const open = (buf) => { const a = new MpqArchive(); a.load(new Uint8Array(buf), true); return a; };
-let realBuf;
+if (!src || !ours || !out) throw new Error('usage: build-hybrid.ts <real.w3x | real.w3n:inner.w3x> <ours.w3x> <out.w3x> <file>...');
+type Archive = InstanceType<typeof MpqArchive>;
+const open = (buf: Buffer | Uint8Array): Archive => { const a = new MpqArchive(); a.load(new Uint8Array(buf), true); return a; };
+const fileBytes = (a: Archive, name: string): Uint8Array => {
+  const b = a.get(name)?.bytes();
+  if (!b) throw new Error(`${name}: not in archive`);
+  return b;
+};
+let realBuf: Buffer;
 if (src.includes('.w3n:')) {
   const [camp, inner] = src.split('.w3n:');
-  realBuf = Buffer.from(open(fs.readFileSync(camp + '.w3n')).get(inner).bytes());
+  realBuf = Buffer.from(fileBytes(open(fs.readFileSync(camp + '.w3n')), inner as string));
 } else realBuf = fs.readFileSync(src);
 const real = open(realBuf);
 const mine = open(fs.readFileSync(ours));
@@ -24,6 +31,6 @@ for (const n of real.getFileNames()) {
   try { b = f && f.bytes(); } catch { b = null; }
   if (b) w.add(n, Buffer.from(b));
 }
-for (const n of take) w.add(n, Buffer.from(mine.get(n).bytes()));
+for (const n of take) w.add(n, Buffer.from(fileBytes(mine, n)));
 fs.writeFileSync(out, w.toBuffer());
 console.log('hybrid written', out, 'took', take.join(','));

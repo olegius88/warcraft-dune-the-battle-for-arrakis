@@ -8,7 +8,13 @@ import { PNG } from 'pngjs';
 import gifenc from 'gifenc';
 const { GIFEncoder, quantize, applyPalette } = gifenc;
 
-function downscale(png, width) {
+interface Rgba {
+  w: number;
+  h: number;
+  data: Uint8Array;
+}
+
+function downscale(png: PNG, width: number): Rgba {
   const scale = png.width / width;
   const w = Math.min(width, png.width);
   const h = Math.max(1, Math.round(png.height / scale));
@@ -21,7 +27,7 @@ function downscale(png, width) {
       for (let sy = y0; sy < y1 && sy < png.height; sy++) {
         for (let sx = x0; sx < x1 && sx < png.width; sx++) {
           const i = (sy * png.width + sx) * 4;
-          r += png.data[i]; g += png.data[i + 1]; b += png.data[i + 2]; n++;
+          r += png.data[i] as number; g += png.data[i + 1] as number; b += png.data[i + 2] as number; n++;
         }
       }
       const o = (y * w + x) * 4;
@@ -31,13 +37,13 @@ function downscale(png, width) {
   return { w, h, data: out };
 }
 
-function makeGif(prefix, out, width = 800, delay = 700) {
+function makeGif(prefix: string, out: string, width = 800, delay = 700): number {
   const dir = path.dirname(prefix);
   const base = path.basename(prefix);
   const files = fs.readdirSync(dir).filter((f) => f.startsWith(base) && /^\d+\.png$/.test(f.slice(base.length))).sort();
   if (!files.length) throw new Error(`no frames ${prefix}*.png`);
   const gif = GIFEncoder();
-  let size = null;
+  let size: [number, number] | null = null;
   for (const f of files) {
     const png = PNG.sync.read(fs.readFileSync(path.join(dir, f)));
     const { w, h, data } = downscale(png, width);
@@ -53,6 +59,7 @@ function makeGif(prefix, out, width = 800, delay = 700) {
 
 if (import.meta.main) {
   const [dir, out, width, delay] = process.argv.slice(2);
+  if (!dir || !out) throw new Error('usage: make-gif.ts <framesPrefix> <out.gif> [width] [delayMs]');
   const n = makeGif(dir, out, Number(width) || 800, Number(delay) || 700);
   console.log(`${out}: ${n} frames`);
 }

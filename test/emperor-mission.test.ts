@@ -65,7 +65,7 @@ test('crates give their Rules.txt gift to the unit that reaches them', opts, () 
   assert.strictEqual(all.rules.crates.get('SardaukarCrate'), 'IMSardaukar');
   assert.strictEqual(all.rules.crates.get('MoneyCrate'), 'CASH2000');
   const meta = readMeta(path.join(ensureMap('#H1 ')[0], 'test.xbf'));
-  assert.ok(meta.buildings.some((b) => b.name === 'SardaukarCrate'), '#H1 has a Sardaukar crate');
+  assert.ok(meta.buildings?.some((b) => b.name === 'SardaukarCrate'), '#H1 has a Sardaukar crate');
   const m = buildMission({
     scripts: [{ tok: fs.readFileSync(path.join(RAW, 'Atreides Heighliner Mission.tok')), phase: 1, name: 'Atreides Heighliner Mission' }],
     meta, ...all, name: 'AT_S_Heighliner', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x',
@@ -82,6 +82,7 @@ test('crates give their Rules.txt gift to the unit that reaches them', opts, () 
 test('veterancy levels are parsed from Rules.txt and wired into missions', opts, () => {
   const all = loadAll();
   const k = all.rules.objects.get('ATKindjal');
+  assert.ok(k, 'ATKindjal in Rules.txt');
   assert.strictEqual(k.score, 2);
   assert.strictEqual(k.health, 600, 'base health is not overwritten by veterancy blocks');
   assert.deepStrictEqual(k.veterancy.map((l) => l.score), [2, 10, 20]);
