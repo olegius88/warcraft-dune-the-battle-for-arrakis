@@ -19,9 +19,20 @@
   ([src/smoke/build-superweapon-mission.ts](src/smoke/build-superweapon-mission.ts)).
 - 2026-10-08 Starport продаёт `Starportable` юниты своего дома и общие (Harvester, MCV, Carryall).
   Колебания цен и доставка фрегатом не сделаны (`TODO(starport)`).
-- 2026-10-08 Союзы с субдомами ([src/config/campaign.ts](src/config/campaign.ts) `SUBHOUSE_TAGS`):
-  победа в атаке с тегом субдома даёт союз, Икс и Тлейлаксу исключают друг друга; здания союзников строит
-  третий строитель. Вывод из скриптов, не из кода игры; у гильдии атак с тегом нет (`TODO(subhouse)`).
+- 2026-10-08 Союзы с субдомами ([src/config/campaign.ts](src/config/campaign.ts) `ALLYGAIN_TAGS`):
+  38 скриптов произносят «<дом>allygain<n>», когда цель выполнена («Фримены хотят обсудить с нами
+  союз»); выигранная миссия, где она прозвучала, даёт союз (1 фримены, 2 сардукары, 3 Икс,
+  4 Тлейлаксу), Икс и Тлейлаксу исключают друг друга. Здания союзников строит третий строитель.
+  Первая версия брала союз по тегу в имени скрипта, это было неверно (ATP3M5TL — против Тлейлаксу;
+  нашёл второй аудит). У гильдии реплики нет (`TODO(subhouse)`).
+- 2026-10-08 Особые способности ([src/emperor/specials.ts](src/emperor/specials.ts),
+  [src/jass/mission/specials.j](src/jass/mission/specials.j)): Девиатор (`DeviateDuration`,
+  `CanBeDeviated`), Лич и Заразитель (`Leech_B`/`Contaminator_B`), инженер (`CanBeEngineered`), диверсант
+  (`SaboteurBomb`), давка (`Crushes`/`Crushable`), ремонтник (`RepairTileRange`, `RepairRate`). В игре
+  проверены Девиатор, Заразитель и Лич ([src/smoke/build-specials-mission.ts](src/smoke/build-specials-mission.ts)).
+- 2026-10-08 Темп ИИ по `ai_difficulty.ini` для тех-уровня (`UnitDelay`, `BuildingDelay`, `MaxAiUnits`,
+  `NumBuildings`, `MaxTurretsAllowed`, `FirstAttackDelay`, `GapBetweenNewScripts`, пределы обороны) вместо
+  выдуманных периодов; на своей столице ИИ следует `ai_<дом>_t<N>.ini` (без обороны).
 - 2026-10-08 Варианты обороны `*Fail`/`*Win` (64 скрипта): играются по итогу атаки на ту же территорию в
   той же фазе ([src/emperor/campaign-data.ts](src/emperor/campaign-data.ts) `defendVariant`; вывод из
   содержимого скриптов).
@@ -273,6 +284,12 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-08 Строители появлялись только у построенной игроком стройплощадки; у готовых баз (оборона,
+  сюжетные карты, скрипты) игрок не мог строить. Теперь их получает любая стройплощадка игрока.
+- 2026-10-08 Оборона HK_D01 всегда шла в варианте Fail: её пара — атака на собственную столицу, которая
+  не играется. Такие пары больше не выбирают вариант.
+- 2026-10-08 Юниты в бешенстве или переманенные не считались за свою сторону, и при последних таких
+  юнитах засчитывалось поражение; счётчик хранит сторону и при удалении юнита.
 - 2026-10-08 Кнопки найма, исследования и стройки брали ячейку у стандартной базы и перекрывали друг
   друга; теперь у каждой своя ячейка, точка сбора (3,1) свободна (проба
   [src/smoke/build-button-probe.ts](src/smoke/build-button-probe.ts)). 12 зданий дома не помещались в одно
