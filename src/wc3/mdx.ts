@@ -54,7 +54,8 @@ export interface Geoset {
 }
 
 /** Keyframe track: frame -> value; interpolation 1 = linear (default), 0 = none (steps). */
-export interface Track { frames: number[]; values: number[][]; interpolation?: 0 | 1 }
+/** Keys of an animated value; with globalSequenceId the track loops on its own (GLBS duration). */
+export interface Track { frames: number[]; values: number[][]; interpolation?: 0 | 1; globalSequenceId?: number }
 
 export interface GeosetAnimation { geosetId: number; alpha?: Track; staticAlpha?: number }
 
@@ -66,6 +67,11 @@ export interface Bone {
   rotation?: Track;
   scaling?: Track;
 }
+
+/** Camera (glue screens and portraits view the model through its first camera). Field of view in
+ * radians; position / target in model space. Layout: mdx-m3-viewer parsers/mdlx/camera (size, name
+ * [80], position, field of view, far clip, near clip, target, then KCTR / KCRL / KTTR tracks). */
+export interface Camera { name: string; position: V3; fieldOfView: number; farClip: number; nearClip: number; target: V3 }
 
 /** Attachment point (effects attach to it by name: "origin", "overhead", "chest", "weapon"). */
 export interface Attachment { name: string; parentId: number; attachmentId: number }
@@ -83,6 +89,9 @@ export interface MdxModel {
   attachments?: Attachment[];
   /** one pivot per object (bones first: object id = bone index, then the attachments) */
   pivots: V3[];
+  /** durations (ms) of the global sequences tracks refer to */
+  globalSequences?: number[];
+  cameras?: Camera[];
 }
 
 class Out {
@@ -103,10 +112,10 @@ class Out {
 
 function extent(o: Out, e: Extent): void { o.f32(e.radius); o.f32s(e.min); o.f32s(e.max); }
 
-/** Track bytes: tag, count, interpolation (0 none / 1 linear), global sequence -1, frames with values. */
+/** Track bytes: tag, count, interpolation (0 none / 1 linear), global sequence (-1 none), frames with values. */
 function trackBytes(tag: string, t: Track, size: number): Buffer {
   const o = new Out();
-  o.tag(tag); o.u32(t.frames.length); o.u32(t.interpolation ?? 1); o.i32(-1);
+  o.tag(tag); o.u32(t.frames.length); o.u32(t.interpolation ?? 1); o.i32(t.globalSequenceId ?? -1);
   t.frames.forEach((f, i) => {
     const v = t.values[i] as number[];
     if (v.length !== size) throw new Error(`${tag}: value of ${v.length} numbers, expected ${size}`);
@@ -129,6 +138,7 @@ function writeMdx(m: MdxModel): Buffer {
     }
     chunk(o, 'SEQS', c.buffer());
   }
+  if (m.globalSequences?.length) { const c = new Out(); m.globalSequences.forEach((d) => c.u32(d)); chunk(o, 'GLBS', c.buffer()); }
   if (m.materials.length) {
     const c = new Out();
     for (const mat of m.materials) {
@@ -196,6 +206,11 @@ function writeMdx(m: MdxModel): Buffer {
     chunk(o, 'ATCH', c.buffer());
   }
   if (m.pivots.length) { const c = new Out(); m.pivots.forEach((p) => c.f32s(p)); chunk(o, 'PIVT', c.buffer()); }
+  if (m.cameras?.length) {
+    const c = new Out();
+    for (const cam of m.cameras) { c.u32(120); c.str(cam.name, 80); c.f32s(cam.position); c.f32(cam.fieldOfView); c.f32(cam.farClip); c.f32(cam.nearClip); c.f32s(cam.target); }
+    chunk(o, 'CAMS', c.buffer());
+  }
   return o.buffer();
 }
 

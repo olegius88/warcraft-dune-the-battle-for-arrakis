@@ -188,8 +188,24 @@ function extentOf(points: V3[]): Extent {
  * Convert one XBF scene. `texture(file)` says where the converted texture of an Emperor texture file
  * is (null: missing; the faces are still drawn with an untextured layer).
  */
-function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRange[]>, texture: (file: string) => TextureRef | null): ConvertedModel {
-  const flat = flatten(scene.nodes);
+/** Options for whole scenes (the main menu backdrop, src/emperor/menu-scene.ts) rather than units. */
+export interface SceneOptions {
+  /** top-level nodes kept (with their subtrees); default all */
+  keepRoot?: (name: string) => boolean;
+  /** layer filter mode of a texture; null leaves its faces out (default: effect textures left out,
+   * the rest opaque or, with alpha, transparent) */
+  blend?: (file: string) => number | null;
+  /** each animated node loops on its own (global sequences over its key frames) and one looping
+   * Stand sequence of this many ms holds the model; the SEQUENCE_MAP ranges are not used */
+  ownLoops?: number;
+}
+
+function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRange[]>, texture: (file: string) => TextureRef | null, opts: SceneOptions = {}): ConvertedModel {
+  const all0 = flatten(scene.nodes);
+  // nodes outside the kept top-level subtrees are dropped (their indices stay for the parent chain)
+  const rootOf = (i: number): number => { let r = i; while ((all0[r] as Flat).parent >= 0) r = (all0[r] as Flat).parent; return r; };
+  const kept = (i: number): boolean => !opts.keepRoot || opts.keepRoot((all0[rootOf(i)] as Flat).node.name);
+  const flat = all0;
   const bind = worldAt(flat, null);
   const textures: Texture[] = [];
   const materials: Material[] = [];
@@ -205,7 +221,11 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     if (t) usedFiles.push(file);
     id = materials.length;
     const flags = M.TWO_SIDED ? LAYER_FLAG.twoSided : 0;
-    if (t?.teamColour) {
+    const sceneBlend = opts.blend ? opts.blend(raw) : null;
+    if (sceneBlend !== null && sceneBlend !== undefined) {
+      // scene layers: glows and sky are self-lit
+      materials.push({ layers: [{ filterMode: sceneBlend, flags: sceneBlend === FILTER.none ? flags : flags | LAYER_FLAG.unshaded, textureId: texId }] });
+    } else if (t?.teamColour) {
       // WC3 team colour under the texture (replaceable id 1), the texture blended over it
       let team = textures.findIndex((x) => x.replaceableId === 1);
       if (team < 0) { team = textures.length; textures.push({ path: '', replaceableId: 1 }); }
@@ -266,13 +286,13 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   interface Morph { node: XbfNode; byTex: Map<number, Faces>; w: Mat; bone: number; staticGeosets: number[]; stored: number[]; poseAt: (frame: number) => { positions: V3[]; normals: V3[] } }
   const morphs: Morph[] = [];
   flat.forEach(({ node }, ni) => {
-    if (M.HIDDEN_NODE(node.name) || !node.faces.length) return;
+    if (M.HIDDEN_NODE(node.name) || !node.faces.length || !kept(ni)) return;
     const w = mul(K, bind[ni] as Mat);
     // faces by texture
     const byTex = new Map<number, typeof node.faces>();
     for (const f of node.faces) {
       const raw = textureOf(f.texture);
-      if (M.EFFECT_TEXTURE(raw)) continue;
+      if (opts.blend ? opts.blend(raw) === null : M.EFFECT_TEXTURE(raw)) continue;
       const list = byTex.get(f.texture) ?? [];
       list.push(f);
       byTex.set(f.texture, list);
@@ -315,7 +335,35 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     t.frames.push(at); t.values.push(v);
   };
   let time = 0;
-  for (const [emperorName, wc3Name, looping] of M.SEQUENCE_MAP) {
+  const globalSequences: number[] = [];
+  if (opts.ownLoops) {
+    // every animated node: its key frames as a track looping on its own
+    for (const [ni, b] of boneOfNode) {
+      const frames = (flat[ni] as Flat).node.keyAnimation?.frameCount ?? 0;
+      let anyParent = false;
+      for (let p = (flat[ni] as Flat).parent; p >= 0; p = (flat[p] as Flat).parent) if ((flat[p] as Flat).node.keyAnimation) anyParent = true;
+      if (frames < 1 && !anyParent) continue;
+      const span = Math.max(frames, 1);
+      const gs = globalSequences.length;
+      const rec = tracks.get(b) as { t: Track; r: Track; moved: boolean };
+      rec.t.globalSequenceId = gs; rec.r.globalSequenceId = gs;
+      for (let f = 0; f <= span; f++) {
+        const world = worldAt(flat, f);
+        const d = mul(mul(K, mul(world[ni] as Mat, bindInv.get(ni) as Mat)), K_INV);
+        const p = pivots[b] as V3;
+        const moved = apply(d, p);
+        const tr = [moved[0] - p[0], moved[1] - p[1], moved[2] - p[2]];
+        const q = quat(d);
+        const at = f * M.MS_PER_FRAME;
+        if (f === 0 || f === span) { rec.t.frames.push(at); rec.t.values.push(tr); rec.r.frames.push(at); rec.r.values.push(q); }
+        else { key(rec.t, at, tr); key(rec.r, at, q); }
+        if (Math.hypot(...tr) > 0.01 || Math.abs(Math.abs(q[3] as number) - 1) > 1e-5) rec.moved = true;
+      }
+      globalSequences.push(span * M.MS_PER_FRAME);
+    }
+    sequences.push({ name: 'Stand', start: 0, end: opts.ownLoops, extent });
+  }
+  for (const [emperorName, wc3Name, looping] of opts.ownLoops ? [] : M.SEQUENCE_MAP) {
     const range = anims.get(emperorName)?.[0];
     if (!range || used.has(wc3Name)) continue;
     const first = Math.min(range.start, range.end), last = Math.max(range.start, range.end);
@@ -388,9 +436,9 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   attach('Overhead Ref', [0, 0, top + M.OVERHEAD_GAP]);
   if (fire >= 0) attach('Weapon Ref', apply(mul(K, bind[fire] as Mat), [0, 0, 0]));
   return {
-    model: { name, extent, sequences, textures, materials, geosets, geosetAnimations, bones, attachments, pivots },
+    model: { name, extent, sequences, textures, materials, geosets, geosetAnimations, bones, attachments, pivots, ...(globalSequences.length ? { globalSequences } : {}) },
     textures: usedFiles,
   };
 }
 
-export { xbfToMdx };
+export { xbfToMdx, K as AXES };

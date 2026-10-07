@@ -39,7 +39,24 @@ test('MDX: an independent reader loads our model and writes the same bytes back'
   assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf, 'byte-exact round trip');
 });
 
-const archive = (await import('../src/config/paths.ts')).gameData('3DDATA0001');
+// Glue-screen models (the campaign background, src/emperor/menu-scene.ts) need a camera and tracks
+// that loop on their own (global sequences).
+test('MDX: global sequences and a camera, read back by the independent reader', () => {
+  const bone = { ...(tiny.bones[0] as MdxModel['bones'][number]), rotation: { frames: [0, 500], values: [[0, 0, 0, 1], [0, 0, 1, 0]], globalSequenceId: 0 } };
+  const buf = writeMdx({ ...tiny, bones: [bone], globalSequences: [1000], cameras: [{ name: 'Camera01', position: [0, 0, 0], fieldOfView: 1.08, farClip: 20000, nearClip: 10, target: [-1000, 0, 0] }] });
+  assert.deepStrictEqual([...readMdxChunks(buf).keys()], ['VERS', 'MODL', 'SEQS', 'GLBS', 'MTLS', 'TEXS', 'GEOS', 'GEOA', 'BONE', 'PIVT', 'CAMS']);
+  const m = new MdlxModel();
+  m.load(new Uint8Array(buf));
+  assert.deepStrictEqual([...m.globalSequences], [1000]);
+  assert.strictEqual(m.cameras.length, 1);
+  assert.strictEqual(m.cameras[0].name, 'Camera01');
+  assert.ok(Math.abs(m.cameras[0].fieldOfView - 1.08) < 1e-6);
+  assert.deepStrictEqual([...m.cameras[0].targetPosition], [-1000, 0, 0]);
+  assert.strictEqual(m.bones[0].animations.find((a: { name: string }) => a.name === 'KGRT')?.globalSequenceId, 0);
+  assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf, 'byte-exact round trip');
+});
+
+const archive =(await import('../src/config/paths.ts')).gameData('3DDATA0001');
 test('XBF -> MDX: AT_Trike_H0 converts, loads in the independent reader, has Stand/Walk/Attack/Death', { skip: fs.existsSync(archive + '.RFH') ? false : 'Emperor not installed' }, async () => {
   const { readArchive } = await import('../src/emperor/rfh.ts');
   const { readXbf, readAnimations } = await import('../src/emperor/xbf.ts');
