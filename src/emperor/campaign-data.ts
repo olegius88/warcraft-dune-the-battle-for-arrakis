@@ -63,8 +63,8 @@ function loadCampaign(rawDir, mapFolders) {
     if (!o.neighbours.includes(t.n)) o.neighbours.push(t.n);
   }
   // initial owners: multi-source BFS from the jump points (Emperor: 11 territories per house in rings)
-  const owner = new Array(34).fill(null);
-  const dist = new Array(34).fill(Infinity);
+  const owner = Array.from({ length: 34 }, () => null);
+  const dist = Array.from({ length: 34 }, () => Infinity);
   const queue = [];
   for (const [h, jp] of Object.entries(JUMP_POINT)) { owner[jp] = h; dist[jp] = 0; queue.push(jp); }
   while (queue.length) {

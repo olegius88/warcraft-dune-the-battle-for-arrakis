@@ -1,14 +1,14 @@
 #!/bin/sh
-# Project rule: every commit goes through `eslint --fix` (see CLAUDE.md, eslint.config.ts).
+# Project rule: every commit goes through `oxlint --fix` (see CLAUDE.md, .oxlintrc.json).
 # Fixes the staged .ts files, re-stages them and blocks the commit if errors remain.
 # Enabled by `npm install` (script "prepare": git config core.hooksPath .githooks).
 # Note: re-staging takes the whole file, so partially staged .ts files are committed whole.
 files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts')
 [ -z "$files" ] && exit 0
-echo "pre-commit: eslint --fix on staged .ts files"
+echo "pre-commit: oxlint --fix on staged .ts files"
 # shellcheck disable=SC2086 # file names in this repo have no spaces
-npx eslint --flag unstable_native_nodejs_ts_config --fix $files || {
-  echo "pre-commit: ESLint errors left - fix them (npm run lint) and commit again"
+npx oxlint --fix $files || {
+  echo "pre-commit: lint errors left - fix them (npm run lint) and commit again"
   exit 1
 }
 git add $files
