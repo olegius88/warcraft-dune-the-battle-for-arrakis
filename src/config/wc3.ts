@@ -40,6 +40,8 @@ export const UNIT_FIELD = {
   /** Art - Icon - Game Interface (command card; code from memory, checked in game by
    * src/smoke/build-icon-probe.ts) */
   icon: 'uico',
+  /** Art - Model File (code from memory, checked in game by src/smoke/build-model-probe.ts) */
+  model: 'umdl',
 } as const;
 
 /** Ability object data fields (war3map.w3a). */

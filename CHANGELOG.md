@@ -5,6 +5,16 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-07 Модели Emperor для WC3:
+  - [src/emperor/xbf.ts](src/emperor/xbf.ts) читает XBF (порт xanlib, MIT);
+  - [src/wc3/mdx.ts](src/wc3/mdx.ts) пишет MDX v800 — независимый читатель mdx-m3-viewer пересохраняет
+    его байт в байт;
+  - [src/emperor/model.ts](src/emperor/model.ts) конвертирует XBF → MDX: геометрия, оси и масштаб
+    WC3, кости с анимацией узлов, последовательности Stand/Walk/Attack/Death/Birth;
+  - [src/emperor/models.ts](src/emperor/models.ts) конвертирует модели всех объектов по `ArtIni.txt`
+    вместе с текстурами: 235 моделей, 226 текстур, около 12 МБ.
+  Карта-проба [src/smoke/build-model-probe.ts](src/smoke/build-model-probe.ts) ждёт запуска в
+  игре; в данные юнитов модели войдут после неё.
 - 2026-10-07 Иконки Emperor на командной карте ([src/emperor/icons.ts](src/emperor/icons.ts)):
   `ArtIni.txt` `Icon`/`IconGrey` → `Textures/*.tga` из 3DDATA0001 → BLP1 64×64. Цветные идут в
   `BTN…`, серые в `DISBTN…`; 105 объектов, 210 файлов. В кампании они лежат один раз в архиве
