@@ -6,13 +6,11 @@
 const BLP1_MAGIC = 0x31504c42; // "BLP1"
 const CONTENT_PALETTE = 1;
 
-/**
- * @param {number} width
- * @param {number} height
- * @param {(x:number,y:number)=>[number,number,number]} rgbAt  y=0 is the TOP row
- */
-function writeBlpPaletted(width, height, rgbAt) {
-  const palette = new Map(); // 0xRRGGBB -> index
+export type Rgb = [number, number, number];
+
+/** rgbAt: colour of a pixel, y=0 is the TOP row. */
+function writeBlpPaletted(width: number, height: number, rgbAt: (x: number, y: number) => Rgb): Buffer {
+  const palette = new Map<number, number>(); // 0xRRGGBB -> index
   const indices = Buffer.alloc(width * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {

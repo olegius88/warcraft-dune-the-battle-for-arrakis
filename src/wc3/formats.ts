@@ -4,7 +4,7 @@
 // https://github.com/ChiefOfGxBxL/WC3MapSpecification (Info/0-33.md, Terrain/12.md
 // with the v11 differences it lists, Doodads/8_11.md, Units/8_11.md) and the
 // mdx-m3-viewer readers, which round-trip real v31/v25 files byte-exactly
-// (see test/formats.test.js).
+// (see test/wc3-formats.test.ts).
 
 import { BinaryWriter } from './binary.ts';
 
@@ -12,21 +12,61 @@ const CELL = 128; // world units per terrain cell
 
 // ---------------------------------------------------------------- w3i ----
 
-/**
- * @param {object} o
- * @param {number} o.width   playable+boundary cells (the w3e has width+1 corners)
- * @param {number} o.height
- * @param {object[]} o.players [{id, type: 1 human|2 computer|3 neutral|4 rescuable, race: 1 hu|2 orc|3 ud|4 ne, name, x, y, fixed}]
- * @param {object[]} o.forces  [{flags, playerMask, name}]
- */
 // w3i format targets, from real maps: 1.31.1 classic writes v28 / editor 6072 / build 1.31.1.12164;
 // the 1.32+ editor writes v31 / 6108 / 1.32.3.14883. Reforged loads both.
-const W3I_TARGETS = {
+export type W3iVersion = 28 | 31;
+const W3I_TARGETS: Record<W3iVersion, { editor: number; build: number[] }> = {
   28: { editor: 6072, build: [1, 31, 1, 12164] },
   31: { editor: 6108, build: [1, 32, 3, 14883] },
 };
 
-function writeW3i(o) {
+/** Map boundary cells: left, right, bottom, top. */
+export type Boundary = [number, number, number, number];
+
+export interface W3iPlayer {
+  id: number;
+  /** 1 human, 2 computer, 3 neutral, 4 rescuable */
+  type: number;
+  /** 1 human, 2 orc, 3 undead, 4 night elf */
+  race?: number;
+  name?: string;
+  x?: number;
+  y?: number;
+  fixed?: boolean;
+}
+
+export interface W3iForce {
+  flags?: number;
+  playerMask: number;
+  name?: string;
+}
+
+export interface W3iInfo {
+  version?: W3iVersion;
+  saves?: number;
+  name?: string;
+  author?: string;
+  description?: string;
+  recommendedPlayers?: string;
+  /** playable+boundary cells (the w3e has width+1 corners) */
+  width: number;
+  height: number;
+  boundary?: Boundary;
+  flags?: number;
+  tileset?: string;
+  campaignBackground?: number;
+  loadingScreenModel?: string;
+  loadingText?: string;
+  loadingTitle?: string;
+  loadingSubtitle?: string;
+  prologueText?: string;
+  prologueTitle?: string;
+  prologueSubtitle?: string;
+  players?: W3iPlayer[];
+  forces?: W3iForce[];
+}
+
+function writeW3i(o: W3iInfo): Buffer {
   const w = new BinaryWriter();
   const version = o.version || 28;
   const target = W3I_TARGETS[version];
@@ -79,7 +119,7 @@ function writeW3i(o) {
   w.uint32(0); // script language: 0 = JASS
   // Supported graphics modes bitmask (1 = SD, 2 = HD), value of real 1.32+ maps.
   // (First suspected for the 3.0 browser crash; the bisect showed the real cause was the
-  // missing war3mapMap.blp, see src/wc3/map.js. Kept at the editor's value anyway.)
+  // missing war3mapMap.blp, see src/wc3/map.ts. Kept at the editor's value anyway.)
   if (version >= 31) {
     w.uint32(3);
     w.uint32(2); // game data version, value written by the 1.32+ editor (observed in real maps)
@@ -113,18 +153,39 @@ function writeW3i(o) {
 
 // ---------------------------------------------------------------- w3e ----
 
-/**
- * Terrain v11.
- * @param {object} t
- * @param {string} t.tileset         main tileset char, e.g. 'B'
- * @param {string[]} t.ground        up to 16 ground tile ids, e.g. ['Bdsr','Bflr']
- * @param {string[]} t.cliffs        cliff tile ids, e.g. ['CBde']
- * @param {number} t.width           cells
- * @param {number} t.height          cells
- * @param {(x:number,y:number)=>{texture?:number,height?:number,layer?:number,cliff?:number,variation?:number,water?:boolean,ramp?:boolean,blight?:boolean,boundary?:boolean}} t.corner
- *   called for every corner (0..width, 0..height); y=0 is the bottom row.
- */
-function writeW3e(t) {
+/** One terrain corner of the w3e grid. */
+export interface Corner {
+  texture?: number;
+  height?: number;
+  waterHeight?: number;
+  layer?: number;
+  cliff?: number;
+  variation?: number;
+  cliffVariation?: number;
+  water?: boolean;
+  ramp?: boolean;
+  blight?: boolean;
+  /** boundary via the 0x4000 bit of the water height (what the editor writes) */
+  boundary?: boolean;
+  /** the 0x80 flag bit; the editor does not use it for boundaries */
+  boundaryFlag?: boolean;
+}
+
+export interface Terrain {
+  /** main tileset char, e.g. 'B' */
+  tileset: string;
+  /** up to 16 ground tile ids, e.g. ['Bdsr','Bflr'] */
+  ground: string[];
+  /** cliff tile ids, e.g. ['CBde'] */
+  cliffs: string[];
+  width: number;
+  height: number;
+  /** called for every corner (0..width, 0..height); y=0 is the bottom row */
+  corner: (x: number, y: number) => Corner | null | undefined;
+}
+
+/** Terrain v11. */
+function writeW3e(t: Terrain): Buffer {
   if (t.ground.length > 16) throw new Error('w3e v11 supports at most 16 ground tiles');
   const w = new BinaryWriter(64 + (t.width + 1) * (t.height + 1) * 7);
   w.chars('W3E!');
@@ -141,7 +202,7 @@ function writeW3e(t) {
   w.float32(-t.height * CELL / 2);
   for (let y = 0; y <= t.height; y++) {
     for (let x = 0; x <= t.width; x++) {
-      const c = t.corner(x, y) || {};
+      const c: Corner = t.corner(x, y) || {};
       const groundHeight = Math.round((c.height || 0) * 512 + 8192); // fine height, 512 per layer
       const waterHeight = Math.round((c.waterHeight != null ? c.waterHeight : -1) * 512 + 8192);
       w.int16(groundHeight);
@@ -164,8 +225,8 @@ function writeW3e(t) {
 // Pathing flags (one byte per 32x32 pathing cell, 4x4 per terrain cell).
 const PATH = { NO_WALK: 0x02, NO_FLY: 0x04, NO_BUILD: 0x08, BLIGHT: 0x20, NO_WATER: 0x40, UNKNOWN: 0x80 };
 
-/** @param {(px:number,py:number)=>number} [flagAt] pathing byte for pathing cell (py=0 bottom) */
-function writeWpm(width, height, flagAt) {
+/** flagAt: pathing byte for pathing cell (py=0 bottom) */
+function writeWpm(width: number, height: number, flagAt?: ((px: number, py: number) => number) | null): Buffer {
   const pw = width * 4;
   const ph = height * 4;
   const w = new BinaryWriter(16 + pw * ph);
@@ -180,7 +241,7 @@ function writeWpm(width, height, flagAt) {
 }
 
 /** Static shadow map: 4x4 bytes per cell, 0 = no shadow. */
-function writeShd(width, height) {
+function writeShd(width: number, height: number): Buffer {
   return Buffer.alloc(width * 4 * height * 4);
 }
 
@@ -219,8 +280,7 @@ function writeMmpEmpty() {
 
 // ---------------------------------------------------------------- wts ----
 
-/** @param {Map<number,string>|Object<number,string>} strings */
-function writeWts(strings) {
+function writeWts(strings: Map<number, string> | Record<number, string>): Buffer {
   const entries = strings instanceof Map ? [...strings.entries()] : Object.entries(strings);
   let out = '﻿';
   for (const [id, text] of entries) out += `STRING ${id}\r\n{\r\n${text}\r\n}\r\n\r\n`;
@@ -232,10 +292,35 @@ function writeWts(strings) {
 /**
  * Campaign info, format v1 (as written by the 1.x editors; v1 and v2 campaigns load in 3.0).
  * Layout from War3Net CampaignInfo.cs and mdx-m3-viewer w3f/file.ts, verified by parsing
- * real campaigns (see docs/research.md).
- * @param {object} c {name, difficulty, author, description, maps:[{chapter,title,file,visible}]}
+ * real campaigns.
  */
-function writeW3f(c) {
+export interface CampaignMapEntry {
+  file: string;
+  chapter?: string;
+  title?: string;
+  visible?: boolean;
+  /** false: only in the order list, no button on the campaign screen */
+  button?: boolean;
+}
+
+export interface CampaignInfo {
+  name: string;
+  campaignVersion?: number;
+  editorVersion?: number;
+  difficulty?: string;
+  author?: string;
+  description?: string;
+  flags?: number;
+  backgroundScreen?: number;
+  backgroundPath?: string;
+  minimapPath?: string;
+  ambientSound?: number;
+  ambientPath?: string;
+  race?: number;
+  maps: CampaignMapEntry[];
+}
+
+function writeW3f(c: CampaignInfo): Buffer {
   const w = new BinaryWriter();
   w.int32(1); // format version
   w.int32(c.campaignVersion || 1);
@@ -273,7 +358,7 @@ function writeW3f(c) {
 }
 
 /** 512-byte HM3W block that precedes the MPQ in classic maps (optional for w3i >= 28). */
-function hm3wHeader(name, flags, maxPlayers) {
+function hm3wHeader(name: string, flags: number, maxPlayers: number): Buffer {
   const b = Buffer.alloc(512);
   b.write('HM3W', 0, 'latin1');
   const w = new BinaryWriter();

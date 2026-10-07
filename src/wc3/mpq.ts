@@ -3,7 +3,7 @@
 // Layout and algorithms follow StormLib (https://github.com/ladislav-zezula/StormLib,
 // src/SBaseCommon.cpp: PrepareStormBuffer / HashString / EncryptMpqBlock) and were
 // cross-checked against the reader in mdx-m3-viewer (src/parsers/mpq/crypto.ts).
-// Tests in test/mpq.test.js read our output back with that independent reader.
+// Tests in test/wc3-formats.test.ts read our output back with that independent reader.
 
 import zlib from 'node:zlib';
 
@@ -28,7 +28,7 @@ const cryptTable = (() => {
 })();
 
 /** MPQ string hash. type: 0 = table index, 1 = name A, 2 = name B, 3 = file key. */
-function hashString(name, type) {
+function hashString(name: string, type: number): number {
   let seed1 = 0x7FED7FED;
   let seed2 = 0xEEEEEEEE;
   // StormLib upper-cases ASCII and maps '/' to '\' before hashing.
@@ -41,7 +41,7 @@ function hashString(name, type) {
   return seed1 >>> 0;
 }
 
-function encryptBlock(buf, key) {
+function encryptBlock(buf: Buffer, key: number): Buffer {
   let seed1 = key >>> 0;
   let seed2 = 0xEEEEEEEE;
   for (let i = 0; i + 4 <= buf.length; i += 4) {
@@ -54,9 +54,9 @@ function encryptBlock(buf, key) {
   return buf;
 }
 
-function compressSectors(data) {
+function compressSectors(data: Buffer): Buffer {
   const count = Math.ceil(data.length / SECTOR_SIZE);
-  const parts = [];
+  const parts: Buffer[] = [];
   const offsets = new Uint32Array(count + 1);
   let pos = (count + 1) * 4;
   for (let i = 0; i < count; i++) {
@@ -74,26 +74,32 @@ function compressSectors(data) {
   return Buffer.concat([table, ...parts]);
 }
 
-class MpqWriter {
-  constructor() {
-    this.files = new Map(); // name -> { data, compress }
-  }
+interface MpqFile { data: Buffer; compress: boolean }
 
-  /**
-   * @param {string} name archive path, backslash separated (e.g. "war3map.j")
-   * @param {Buffer|string} data
-   * @param {{compress?: boolean}} opts compress=false stores the file plainly (flags 0x80000000),
-   *   which is how campaigns embed their .w3x maps.
-   */
-  add(name, data, opts = {}) {
+export interface MpqAddOptions {
+  /** false stores the file plainly (flags 0x80000000), which is how campaigns embed their .w3x maps */
+  compress?: boolean;
+}
+
+export interface MpqBuildOptions {
+  listfile?: boolean;
+  /** written before the MPQ, e.g. the 512-byte HM3W block of a map */
+  preHeader?: Buffer | null;
+}
+
+class MpqWriter {
+  files: Map<string, MpqFile> = new Map();
+
+  /** name: archive path, backslash separated (e.g. "war3map.j") */
+  add(name: string, data: Buffer | string, opts: MpqAddOptions = {}): this {
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
     this.files.set(name.replace(/\//g, '\\'), { data: buf, compress: opts.compress !== false });
     return this;
   }
 
   /** Build the archive. preHeader (e.g. a 512-byte HM3W block) is written before the MPQ. */
-  toBuffer({ listfile = true, preHeader = null } = {}) {
-    const entries = [...this.files.entries()].map(([name, f]) => ({ name, ...f }));
+  toBuffer({ listfile = true, preHeader = null }: MpqBuildOptions = {}): Buffer {
+    const entries: Array<MpqFile & { name: string }> = [...this.files.entries()].map(([name, f]) => ({ name, ...f }));
     if (listfile) {
       const names = entries.map((e) => e.name).concat(['(listfile)']);
       entries.push({ name: '(listfile)', data: Buffer.from(names.join('\r\n') + '\r\n', 'latin1'), compress: true });
@@ -102,8 +108,8 @@ class MpqWriter {
     let hashSize = 16;
     while (hashSize < entries.length * 2) hashSize *= 2;
 
-    const bodies = [];
-    const blocks = [];
+    const bodies: Buffer[] = [];
+    const blocks: Array<{ offset: number; csize: number; size: number; flags: number }> = [];
     let offset = 32;
     for (const e of entries) {
       let stored = e.data;

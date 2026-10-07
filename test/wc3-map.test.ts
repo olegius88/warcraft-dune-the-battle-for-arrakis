@@ -31,6 +31,7 @@ test('buildMap always emits a readable 256x256 war3mapMap.blp', () => {
   assert.strictEqual(blp.height, 256);
   assert.strictEqual(blp.content, 1);
   assert.strictEqual(blp.mipmapSizes[0], 256 * 256);
+  assert.ok(blp.uint8array, 'BLP data loaded');
   const pixels = blp.uint8array.subarray(blp.mipmapOffsets[0], blp.mipmapOffsets[0] + 256 * 256);
   // left half (texture 0) and right half (texture 1) must use different palette entries
   assert.notStrictEqual(pixels[128 * 256 + 10], pixels[128 * 256 + 250]);

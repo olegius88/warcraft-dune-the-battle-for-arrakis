@@ -26,10 +26,17 @@ test('MPQ: files written by MpqWriter are readable by an independent reader', ()
   archive.load(new Uint8Array(mpq.toBuffer()), true); // fresh ArrayBuffer: the reader ignores byteOffset
   assert.deepStrictEqual(new Set(archive.getFileNames()),
     new Set(['war3map.j', 'war3mapImported\\a.bin', 'plain.w3x', 'tiny.bin', 'empty.txt', '(listfile)']));
-  assert.strictEqual(Buffer.from(archive.get('war3map.j').bytes()).toString(), 'function main takes nothing returns nothing\r\nendfunction\r\n');
-  assert.ok(Buffer.from(archive.get('war3mapImported\\a.bin').bytes()).equals(big));
-  assert.ok(Buffer.from(archive.get('plain.w3x').bytes()).equals(big));
-  assert.ok(Buffer.from(archive.get('tiny.bin').bytes()).equals(rnd));
+  const bytes = (name: string): Buffer => {
+    const f = archive.get(name);
+    assert.ok(f, `${name} in archive`);
+    const b = f.bytes();
+    assert.ok(b, `${name} readable`);
+    return Buffer.from(b);
+  };
+  assert.strictEqual(bytes('war3map.j').toString(), 'function main takes nothing returns nothing\r\nendfunction\r\n');
+  assert.ok(bytes('war3mapImported\\a.bin').equals(big));
+  assert.ok(bytes('plain.w3x').equals(big));
+  assert.ok(bytes('tiny.bin').equals(rnd));
 });
 
 test('w3i v31: independent reader parses our fields and consumes the whole file', () => {
@@ -129,5 +136,5 @@ test('w3u v2: custom unit modifications parse with an independent reader', () =>
   const c = f.customTable.objects[0];
   assert.strictEqual(c.newId, 'h000');
   assert.strictEqual(c.modifications[0].value, 'Пехота');
-  assert.ok(Math.abs(c.modifications[1].value - 1.5) < 1e-6);
+  assert.ok(Math.abs(Number(c.modifications[1].value) - 1.5) < 1e-6);
 });
