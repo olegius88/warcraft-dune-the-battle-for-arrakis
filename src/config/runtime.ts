@@ -62,3 +62,8 @@ export const CRATE_DEFAULT_CASH = 500;
 
 /** Veterancy self-repair: share of max HP per second (TODO(veterancy): Emperor's rate unknown). */
 export const VET_SELF_REPAIR_RATE = 0.01;
+
+/** Time of day on every map (frozen): noon. */
+export const TIME_OF_DAY = 12;
+/** Briefing text on mission start stays this long. */
+export const BRIEFING_SECONDS = 25;
