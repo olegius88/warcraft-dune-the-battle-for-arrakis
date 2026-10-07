@@ -58,3 +58,30 @@ test('XBF -> MDX: AT_Trike_H0 converts, loads in the independent reader, has Sta
   assert.ok(len > 300 && len < 360, `length ${len}`);
   assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf);
 });
+
+// Infantry are vertex (morph) animated; the conversion drew only the bind pose (TODO(models)).
+test('XBF -> MDX: infantry vertex animation becomes per-frame geosets with step alpha tracks', { skip: fs.existsSync(archive + '.RFH') ? false : 'Emperor not installed' }, async () => {
+  const { readArchive } = await import('../src/emperor/rfh.ts');
+  const { readXbf, readAnimations, allNodes } = await import('../src/emperor/xbf.ts');
+  const { xbfToMdx } = await import('../src/emperor/model.ts');
+  const f = [...readArchive(archive, (n) => /^Units\/AT_inf_H0\.xbf$/i.test(n))][0];
+  assert.ok(f);
+  const scene = readXbf(f.data);
+  // the first stored pose is the bind pose: int16 / 2^(scale & 0xff)
+  const body = [...allNodes(scene.nodes)].find((n) => n.vertexAnimation);
+  const va = body?.vertexAnimation;
+  assert.ok(body && va && va.scale !== null);
+  const div = 2 ** (va.scale & 0xff);
+  const p0 = va.frames[0]?.[0]?.position;
+  assert.ok(p0);
+  for (let i = 0; i < 3; i++) assert.ok(Math.abs((p0[i] as number) / div - (body.vertices[0]?.position[i] as number)) < 0.01);
+  const { model } = xbfToMdx('AT_inf', scene, readAnimations(f.data), (file) => ({ path: `Emperor\\Textures\\${file}.blp`, alpha: false }));
+  const steps = model.geosetAnimations.filter((a) => a.alpha?.interpolation === 0);
+  assert.ok(steps.length > 50, `${steps.length} frame geosets`);
+  assert.ok(model.geosetAnimations.some((a) => a.staticAlpha === 0), 'bind-pose geoset hidden');
+  const buf = writeMdx(model);
+  const m = new MdlxModel();
+  m.load(new Uint8Array(buf));
+  assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf);
+  assert.ok(buf.length < 3_000_000, `${buf.length} bytes`);
+});

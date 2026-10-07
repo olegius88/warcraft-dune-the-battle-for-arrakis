@@ -10,11 +10,11 @@
 // the shipped units and buildings; the rest start in an animated pose); -1 holds uninitialised
 // memory (0xCDCDCDCD) and is ignored; sparse keys (none in the shipped units) are not used.
 // Sequences: Emperor animation ranges (FX data) named per config SEQUENCE_MAP, laid out one after
-// the other on the MDX timeline. TODO(models): vertex (morph) animation of infantry is not converted
-// (the bind pose is drawn), and neither are attachment points or particle effects.
+// the other on the MDX timeline. Vertex (morph) animation (infantry): a geoset copy per sampled frame,
+// shown by a step alpha track. TODO(models): attachment points and particle effects are not converted.
 
 import type { XbfScene, XbfNode, AnimationRange } from './xbf.ts';
-import type { MdxModel, Geoset, Bone, Track, Extent, Material, Texture, V3 } from '../wc3/mdx.ts';
+import type { MdxModel, Geoset, GeosetAnimation, Bone, Track, Extent, Material, Texture, V3 } from '../wc3/mdx.ts';
 import { FILTER, LAYER_FLAG } from '../wc3/mdx.ts';
 import * as M from '../config/models.ts';
 
@@ -93,6 +93,55 @@ function localAt(n: XbfNode, frame: number): Mat {
   return [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0, m[9], m[10], m[11], 1] as number[];
 }
 
+/**
+ * Vertex (morph) animation of a node: frame -> pose. Interpolation data has one value per frame:
+ * bit 0 set = the frame shows a stored pose, (value >> 2) / vertex count = its index (frames 0, 2,
+ * 4.. of AT_inf_H0 -> poses 0, 1, 2..; a few frames repeat a pose), 0 = blend the neighbouring
+ * stored frames. Without interpolation data frame
+ * f is pose f. Positions are int16 / 2^(scale & 0xff) (AT_inf: 1782 / 2^9 = 3.48 = the bind vertex),
+ * normals 5-bit signed per axis (xanlib compressed_vertex.py).
+ */
+function morphOf(node: XbfNode): { stored: number[]; poseAt: (frame: number) => { positions: V3[]; normals: V3[] } } | null {
+  const va = node.vertexAnimation;
+  if (!va || !va.frames.length || va.scale === null || va.realCount !== node.vertices.length) return null;
+  const div = 2 ** (va.scale & 0xff);
+  const stored: number[] = [];
+  if (va.interpolation.length) {
+    // (value >> 2) = pose index * vertex count (AT_inf: 241 >> 2 = 60 = pose 1 of 60 vertices);
+    // several frames may show the same pose
+    for (const v of va.interpolation) {
+      const k = v & 1 ? Math.round((v >> 2) / va.realCount) : -1;
+      stored.push(k < va.frames.length ? k : -1);
+    }
+  } else {
+    for (let f = 0; f <= va.frameCount; f++) stored.push(Math.min(f, va.frames.length - 1));
+  }
+  const s5 = (v: number): number => ((v % 32) > 15 ? -1 : 1) * (v % 16);
+  const decode = (j: number): { positions: V3[]; normals: V3[] } => {
+    const frame = va.frames[j] as NonNullable<typeof va.frames[number]>;
+    return {
+      positions: frame.map((c) => [c.position[0] / div, c.position[1] / div, c.position[2] / div] as V3),
+      normals: frame.map((c) => {
+        const n = [s5(c.normalPacked & 31), s5((c.normalPacked >> 5) & 31), s5((c.normalPacked >> 10) & 31)];
+        const l = Math.hypot(...n) || 1;
+        return [n[0] / l, n[1] / l, n[2] / l] as V3;
+      }),
+    };
+  };
+  const poseAt = (frame: number): { positions: V3[]; normals: V3[] } => {
+    const f = Math.max(0, Math.min(stored.length - 1, frame));
+    if ((stored[f] as number) >= 0) return decode(stored[f] as number);
+    let a = f, b = f;
+    while (a > 0 && (stored[a] as number) < 0) a--;
+    while (b < stored.length - 1 && (stored[b] as number) < 0) b++;
+    const pa = decode(Math.max(0, stored[a] as number)), pb = decode(Math.max(0, stored[b] as number));
+    const t = b === a ? 0 : (f - a) / (b - a);
+    const mix = (x: V3, y: V3): V3 => [x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t];
+    return { positions: pa.positions.map((p, i) => mix(p, pb.positions[i] as V3)), normals: pa.normals.map((p, i) => mix(p, pb.normals[i] as V3)) };
+  };
+  return { stored, poseAt };
+}
+
 interface Flat { node: XbfNode; parent: number }
 
 function flatten(nodes: XbfNode[]): Flat[] {
@@ -162,6 +211,46 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   const pivots: V3[] = [];
   const boneOfNode = new Map<number, number>();
   const all: V3[] = [];
+  type Faces = XbfNode['faces'];
+  /**
+   * Geosets (one per texture) of a node with its world matrix w; `pose` replaces the node's own
+   * vertex positions / normals (a frame of its vertex animation). Returns the geoset indices.
+   */
+  const addGeosets = (node: XbfNode, byTex: Map<number, Faces>, w: Mat, bone: number, pose: { positions: V3[]; normals: V3[] } | null): number[] => {
+    const ids: number[] = [];
+    for (const [tex, faces] of byTex) {
+      const vertices: number[] = [], normals: number[] = [], uvs: number[] = [], idx: number[] = [];
+      const seen = new Map<string, number>();
+      const pts: V3[] = [];
+      for (const f of faces) {
+        const corner = (k: number): number => {
+          const vi = f.vertices[k] as number;
+          const [u, v] = f.uv[k] as [number, number];
+          const key = `${vi}:${u}:${v}`;
+          let i = seen.get(key);
+          if (i === undefined) {
+            const vert = node.vertices[vi];
+            if (!vert) throw new Error(`${name}: ${node.name} face vertex ${vi} out of range`);
+            const p = apply(w, pose ? (pose.positions[vi] as V3) : vert.position);
+            const nrm = applyDir(w, pose ? (pose.normals[vi] as V3) : vert.normal);
+            i = vertices.length / 3;
+            vertices.push(...p); normals.push(...nrm); uvs.push(u, v); pts.push(p);
+            seen.set(key, i);
+          }
+          return i;
+        };
+        const a = corner(0), b = corner(1), c = corner(2);
+        // the axis map mirrors: reverse the winding so faces keep pointing outwards
+        idx.push(...(M.MIRROR ? [a, c, b] : [a, b, c]));
+      }
+      if (!pose) all.push(...pts);
+      ids.push(geosets.length);
+      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: material(scene.textures[tex] ?? ''), extent: extentOf(pts), sequenceExtents: [] });
+    }
+    return ids;
+  };
+  interface Morph { node: XbfNode; byTex: Map<number, Faces>; w: Mat; bone: number; staticGeosets: number[]; stored: number[]; poseAt: (frame: number) => { positions: V3[]; normals: V3[] } }
+  const morphs: Morph[] = [];
   flat.forEach(({ node }, ni) => {
     if (M.HIDDEN_NODE(node.name) || !node.faces.length) return;
     const w = mul(K, bind[ni] as Mat);
@@ -180,35 +269,9 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     const pivot = apply(w, [0, 0, 0]);
     pivots.push(pivot);
     bones.push({ name: node.name.slice(0, 79) || `node${ni}`, parentId: -1 });
-    for (const [tex, faces] of byTex) {
-      const vertices: number[] = [], normals: number[] = [], uvs: number[] = [], idx: number[] = [];
-      const seen = new Map<string, number>();
-      const pts: V3[] = [];
-      for (const f of faces) {
-        const corner = (k: number): number => {
-          const vi = f.vertices[k] as number;
-          const [u, v] = f.uv[k] as [number, number];
-          const key = `${vi}:${u}:${v}`;
-          let i = seen.get(key);
-          if (i === undefined) {
-            const vert = node.vertices[vi];
-            if (!vert) throw new Error(`${name}: ${node.name} face vertex ${vi} out of range`);
-            const p = apply(w, vert.position);
-            const nrm = applyDir(w, vert.normal);
-            i = vertices.length / 3;
-            vertices.push(...p); normals.push(...nrm); uvs.push(u, v); pts.push(p);
-            seen.set(key, i);
-          }
-          return i;
-        };
-        const a = corner(0), b = corner(1), c = corner(2);
-        // the axis map mirrors: reverse the winding so faces keep pointing outwards
-        idx.push(...(M.MIRROR ? [a, c, b] : [a, b, c]));
-      }
-      all.push(...pts);
-      const e = extentOf(pts);
-      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: material(scene.textures[tex] ?? ''), extent: e, sequenceExtents: [] });
-    }
+    const ids = addGeosets(node, byTex, w, bone, null);
+    const morph = morphOf(node);
+    if (morph) morphs.push({ node, byTex, w, bone, staticGeosets: ids, ...morph });
   });
 
   // sequences: Emperor ranges laid out one after the other
@@ -220,7 +283,12 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   // the animation table is found by name in the file: ranges beyond the frames the nodes have are
   // not this model's (or not animations at all)
   let maxFrame = 0;
-  for (const { node } of flat) if (node.keyAnimation) maxFrame = Math.max(maxFrame, node.keyAnimation.frameCount);
+  for (const { node } of flat) {
+    if (node.keyAnimation) maxFrame = Math.max(maxFrame, node.keyAnimation.frameCount);
+    if (node.vertexAnimation) maxFrame = Math.max(maxFrame, node.vertexAnimation.frameCount);
+  }
+  const geosetAnimations: GeosetAnimation[] = [];
+  let morphGeosets = 0;
   const bindInv = new Map<number, Mat>();
   for (const ni of boneOfNode.keys()) bindInv.set(ni, invert(bind[ni] as Mat));
   /** append a key unless it repeats the previous value (linear interpolation keeps the shape) */
@@ -254,6 +322,17 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
         else { key(rec.t, at, tr); key(rec.r, at, q); }
         if (Math.hypot(...tr) > 0.01 || Math.abs(Math.abs(q[3] as number) - 1) > 1e-5) rec.moved = true;
       }
+      // vertex animation: a copy of the node's geosets in this frame's pose, visible for its frames only
+      if ((f - first) % M.MORPH_FRAME_STEP === 0) {
+        for (const m of morphs) {
+          for (const id of addGeosets(m.node, m.byTex, m.w, m.bone, m.poseAt(f))) {
+            const until = at + M.MORPH_FRAME_STEP * M.MS_PER_FRAME;
+            const alpha: Track = at === 0 ? { interpolation: 0, frames: [0, until], values: [[1], [0]] } : { interpolation: 0, frames: [0, at, until], values: [[0], [1], [0]] };
+            geosetAnimations.push({ geosetId: id, alpha });
+            morphGeosets++;
+          }
+        }
+      }
     }
     const end = start + (last - first) * M.MS_PER_FRAME;
     sequences.push({ name: wc3Name, start, end: Math.max(end, start + 1), nonLooping: !looping, extent });
@@ -269,9 +348,11 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     bone.translation = rec.t;
     bone.rotation = rec.r;
   }
+  // with frame copies, the bind-pose geosets of morphing nodes are never shown
+  if (morphGeosets) for (const m of morphs) for (const id of m.staticGeosets) geosetAnimations.push({ geosetId: id, staticAlpha: 0 });
   for (const g of geosets) g.sequenceExtents = sequences.map(() => g.extent);
   return {
-    model: { name, extent, sequences, textures, materials, geosets, geosetAnimations: [], bones, pivots },
+    model: { name, extent, sequences, textures, materials, geosets, geosetAnimations, bones, pivots },
     textures: usedFiles,
   };
 }

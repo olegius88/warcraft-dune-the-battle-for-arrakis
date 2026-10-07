@@ -50,3 +50,6 @@ export const MODEL_PATH = {
 
 /** Converted textures are at most this many pixels a side (Emperor's are up to 256). */
 export const MAX_TEXTURE_SIZE = 256;
+
+/** Vertex animation (infantry): one geoset copy per this many frames (stored poses are every 2nd frame). */
+export const MORPH_FRAME_STEP = 2;

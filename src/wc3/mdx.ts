@@ -53,8 +53,8 @@ export interface Geoset {
   sequenceExtents: Extent[];
 }
 
-/** Keyframe track: frame -> value (linear interpolation). */
-export interface Track { frames: number[]; values: number[][] }
+/** Keyframe track: frame -> value; interpolation 1 = linear (default), 0 = none (steps). */
+export interface Track { frames: number[]; values: number[][]; interpolation?: 0 | 1 }
 
 export interface GeosetAnimation { geosetId: number; alpha?: Track; staticAlpha?: number }
 
@@ -98,10 +98,10 @@ class Out {
 
 function extent(o: Out, e: Extent): void { o.f32(e.radius); o.f32s(e.min); o.f32s(e.max); }
 
-/** Track bytes: tag, count, interpolation (1 linear), global sequence -1, frames with values. */
+/** Track bytes: tag, count, interpolation (0 none / 1 linear), global sequence -1, frames with values. */
 function trackBytes(tag: string, t: Track, size: number): Buffer {
   const o = new Out();
-  o.tag(tag); o.u32(t.frames.length); o.u32(1); o.i32(-1);
+  o.tag(tag); o.u32(t.frames.length); o.u32(t.interpolation ?? 1); o.i32(-1);
   t.frames.forEach((f, i) => {
     const v = t.values[i] as number[];
     if (v.length !== size) throw new Error(`${tag}: value of ${v.length} numbers, expected ${size}`);
