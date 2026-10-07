@@ -48,3 +48,5 @@ export const PJASS_EXE = path.join(PROJECT_ROOT, 'tools', 'bin', 'pjass.exe');
 /** JASS templates of the generated maps (src/jass, filled by src/wc3/template.ts). */
 export const JASS_DIR = path.join(PROJECT_ROOT, 'src', 'jass');
 export const jassFile = (name: string): string => path.join(JASS_DIR, `${name}.j`);
+/** Bodies of the Emperor API functions EF_<Name> (one file per function). */
+export const RUNTIME_API_DIR = path.join(JASS_DIR, 'runtime', 'api');

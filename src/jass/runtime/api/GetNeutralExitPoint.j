@@ -1,0 +1,1 @@
+    return EF_GetNeutralEntrancePoint()

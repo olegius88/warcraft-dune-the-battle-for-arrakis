@@ -1,0 +1,1 @@
+    set EmpCamStore = GetCameraTargetPositionLoc()

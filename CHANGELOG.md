@@ -5,6 +5,12 @@
 ## [Unreleased]
 
 ### Changed
+- 2026-10-07 JASS вынесен из строк `.ts` в файлы [src/jass/](src/jass/README.md): хаб
+  (`hub/*.j`) и рантайм API Emperor (`runtime/globals.j`, `runtime/helpers.j`, тело каждой
+  функции `EF_<Name>` в `runtime/api/<Name>.j`). Значения подставляет строгий шаблонизатор
+  [src/wc3/template.ts](src/wc3/template.ts). Код карт не изменился, кроме комментариев к
+  функциям API, которые теперь попадают в скрипт; тест
+  [test/emperor-runtime.test.ts](test/emperor-runtime.test.ts) ловит файлы API с неверным именем.
 - 2026-10-07 Все параметры вынесены в модули констант [src/config/](src/config/README.md): пути,
   дома, масштабы Emperor → WC3, коды WC3, юниты и модели, рельеф, декорации, бой, JASS-рантайм,
   кампания и ключи game cache, сюжет, хаб. Сгенерированные карты побайтно не изменились.
