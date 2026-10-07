@@ -73,3 +73,20 @@ test('JPEG BLP: header before the scan, scan data as level 0; the reader joins t
   const off = r.mipmapOffsets[0] as number, size = r.mipmapSizes[0] as number;
   assert.deepStrictEqual(Buffer.concat([Buffer.from(r.jpgHeader as Uint8Array), blp.subarray(off, off + size)]), j);
 });
+
+// Bug (2026-10-08): at high quality (quantiser steps of 1) an AC coefficient can reach +-1024,
+// size category 11, which the baseline AC table (sizes 1..10) has no code for: the encoder wrote a
+// zero-length code and corrupted the rest of the scan. The 1.31.1 client froze on such a frame of
+// I00_F01E (640x480 at quality 95), 98 s into the movie. AC values are now kept to +-1023.
+test('JPEG: extreme contrast at quality 100 still decodes (no AC size category 11)', () => {
+  const w = 16, h = 16;
+  const rgba = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = (x + y) % 2 ? 255 : 0;
+    const i = (y * w + x) * 4;
+    rgba[i] = v; rgba[i + 1] = 255 - v; rgba[i + 2] = v; rgba[i + 3] = 255;
+  }
+  const img = { width: w, height: h, rgba };
+  const out = read(writeBlpJpeg(img, 100)).getMipmap(0) as unknown as FakeImageData;
+  for (const c of [0, 1, 2]) assert.ok(psnr(img.rgba, out.data, c) > 30, `channel ${c}: ${psnr(img.rgba, out.data, c).toFixed(1)} dB`);
+});

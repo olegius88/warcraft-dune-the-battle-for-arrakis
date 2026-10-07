@@ -135,6 +135,7 @@ function encodeJpeg(width: number, height: number, planes: Uint8Array[], quality
         const diff = (coef[0] as number) - (pred[c] as number);
         pred[c] = coef[0] as number;
         const [ds, dv] = category(diff);
+        if (!DC.size[ds]) throw new Error(`JPEG: no DC code for size ${ds} (difference ${diff})`);
         bw.write(DC.code[ds] as number, DC.size[ds] as number);
         if (ds) bw.write(dv, ds);
         // AC run-length
@@ -145,6 +146,7 @@ function encodeJpeg(width: number, height: number, planes: Uint8Array[], quality
           while (run > 15) { bw.write(AC.code[0xf0] as number, AC.size[0xf0] as number); run -= 16; }
           const [s, bits] = category(v);
           const sym = (run << 4) | s;
+          if (!AC.size[sym]) throw new Error(`JPEG: no AC code for run ${run} size ${s} (value ${v})`);
           bw.write(AC.code[sym] as number, AC.size[sym] as number);
           bw.write(bits, s);
           run = 0;
