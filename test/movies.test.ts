@@ -86,3 +86,20 @@ test('the hub fills the movie frame table before it queues movies', { skip: fs.e
   assert.ok(body.indexOf('call EmpMovieData()') < body.indexOf('call EmpLoad()'), 'before EmpLoad (it queues the start movies)');
   assert.ok(hub.script.includes('call EmpMovieAdd("H01_F00E")'));
 });
+
+// Bug (2026-10-07, BLP probe src/smoke/build-blp-probe.ts): movie frames were ffmpeg's YCbCr JPEGs;
+// the game reads the JPEG of a BLP as B, G, R, A planes, so every YCbCr frame (4:2:0 or 4:4:4,
+// 256 or 512) was drawn grey with vertical stripes at 3/4 of its width. A first probe seemed to
+// show them right, but its capture had caught the next (4-plane) frames. Now: 4-plane frames.
+test('movie frames are 4-plane (B, G, R, A) JPEG BLPs', { skip: fs.existsSync(gameData('MOVIES', 'A01_F00E.BIK')) ? false : 'game data not found' }, async () => {
+  const { convertMovie } = await import('../src/emperor/fmv.ts');
+  const { MOVIE_PATH } = await import('../src/config/movies.ts');
+  const { files, frames } = convertMovie('A01_F00E', 1);
+  assert.ok(frames >= 1);
+  const blp = files[MOVIE_PATH.frame('A01_F00E', 0)] as Buffer;
+  const head = blp.subarray(160, 160 + blp.readInt32LE(156));
+  const sof = head.indexOf(Buffer.from([0xff, 0xc0]));
+  assert.ok(sof > 0, 'baseline SOF');
+  assert.strictEqual(head[sof + 9], 4, 'components');
+  for (let c = 0; c < 4; c++) assert.strictEqual(head[sof + 11 + c * 3], 0x11, `component ${c} not subsampled`);
+});

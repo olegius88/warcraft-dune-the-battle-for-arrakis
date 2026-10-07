@@ -7,18 +7,21 @@
 ### Added
 - 2026-10-07 Ролики Emperor в хабах кампании (слайд-шоу). `PlayCinematic` из карты в 1.31.1 ничего
   не показывает, поэтому:
-  - ffmpeg переводит кадры BIK в JPEG 512×512, 2 кадра/с, а звук — в MP3
+  - ffmpeg декодирует BIK в кадры 512×256, 2 кадра/с, а звук — в MP3
     ([src/emperor/fmv.ts](src/emperor/fmv.ts));
-  - кадры упаковываются в BLP1 с JPEG ([src/wc3/blp.ts](src/wc3/blp.ts) `blpFromJpeg`,
-    [src/wc3/jpeg.ts](src/wc3/jpeg.ts)). Проверено в игре: обычный YCbCr JPEG от ffmpeg
-    показывается с верными цветами;
+  - кадр — BLP1 с JPEG из четырёх плоскостей B, G, R, A без цветового преобразования (свой
+    кодировщик [src/wc3/jpeg.ts](src/wc3/jpeg.ts), `writeBlpJpeg` в [src/wc3/blp.ts](src/wc3/blp.ts)).
+    Проверено в игре пробой [src/smoke/build-blp-probe.ts](src/smoke/build-blp-probe.ts): обычный
+    YCbCr JPEG (от ffmpeg) игра рисует серыми полосами на 3/4 ширины;
+  - на время роликов хаб ставит нормальную скорость игры: кадры переключает игровой таймер, а
+    звук идёт в реальном времени (в кампании ролики шли примерно в 1,25 раза быстрее звука);
   - [src/emperor/movies.ts](src/emperor/movies.ts) читает `MOVIES.TXT` с цепочками роликов;
   - таблица «событие хаба → ролики» для каждого Дома — [src/config/movies.ts](src/config/movies.ts):
     начало кампании, начало фаз, сюжетные миссии, вторжение, финал, провалы, предупреждение и
     поражение без захватов;
   - проигрыватель на UI-фрейме поверх экрана — [src/jass/hub/movie.j](src/jass/hub/movie.j), Esc
     пропускает ролик. Победа и поражение кампании ждут конца роликов;
-  - около 60 МБ на хаб; `--no-movies` собирает без них, `--autotest` — без них по умолчанию;
+  - около 85 МБ на хаб; `--no-movies` собирает без них, `--autotest` — без них по умолчанию;
   - проверочная карта: [src/smoke/build-fmv-probe.ts](src/smoke/build-fmv-probe.ts).
 - 2026-10-07 ИИ битвы за территорию по `ai.ini` ([src/emperor/ai-rules.ts](src/emperor/ai-rules.ts),
   [src/jass/battle/forces.j](src/jass/battle/forces.j)):

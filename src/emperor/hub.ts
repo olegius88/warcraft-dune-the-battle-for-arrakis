@@ -25,7 +25,7 @@ import type { PhaseRules } from './phase-rules.ts';
 import { DEFAULT_FACING, TIME_OF_DAY, DEBUG_REPORT_DIR } from '../config/runtime.ts';
 import { CUSTOM_ID, TERRAIN } from '../config/wc3.ts';
 import * as V from '../config/hub.ts';
-import { MOVIE_DIR, MOVIE_PATH, MOVIE_AREA, MOVIE_BLACK_AREA, MOVIE_VOLUME, MOVIE_FRAME_DIGITS, MOVIE_FPS } from '../config/movies.ts';
+import { MOVIE_DIR, MOVIE_PATH, MOVIE_AREA, MOVIE_BLACK_AREA, MOVIE_VOLUME, MOVIE_FRAME_DIGITS, MOVIE_FPS, MOVIE_CLOCK_SPAN } from '../config/movies.ts';
 import type { UnitData } from './units.ts';
 
 /** Map file names of the story missions of one house. */
@@ -74,7 +74,7 @@ function movieJass(movies: HubMovies | undefined, foes: HouseCode[], house: Hous
     for (const k of ['homeAttack', 'final', 'failedHomeAttack', 'failedFinal']) mv[`${k}${i}`] = chain(`${k}${f}`);
   });
   const movieFunctions = renderFile(jassFile('hub/movie'), {
-    MOVIE_DIR, MOVIE_PATH, MOVIE_AREA, MOVIE_BLACK_AREA, MOVIE_VOLUME,
+    MOVIE_DIR, MOVIE_PATH, MOVIE_AREA, MOVIE_BLACK_AREA, MOVIE_VOLUME, MOVIE_CLOCK_SPAN,
     movieReport: `${DEBUG_REPORT_DIR}\\${house}_Movies.pld`,
     frameBase: 10 ** MOVIE_FRAME_DIGITS, frameDigitsEnd: MOVIE_FRAME_DIGITS + 1, moviePeriod: 1 / MOVIE_FPS,
     movieDataLines: [...(movies?.frames ?? [])].map(([m, n]) => `    call SaveInteger(EmpMovieTab, 0, StringHash(${str(m)}), ${n})`).join('\n'),

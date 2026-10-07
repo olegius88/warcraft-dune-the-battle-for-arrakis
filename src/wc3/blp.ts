@@ -3,7 +3,7 @@
 // Header layout: mdx-m3-viewer src/parsers/blp/image.ts (39 int32: magic, content,
 // alphaBits, width, height, type, hasMipmaps, offsets[16], sizes[16]) + 256 BGRA palette.
 
-import { scanStart } from './jpeg.ts';
+import { encodeJpeg, scanStart } from './jpeg.ts';
 
 const BLP1_MAGIC = 0x31504c42; // "BLP1"
 const CONTENT_PALETTE = 1;
@@ -181,8 +181,8 @@ function writeBlpImage(img: RgbaImage, { alpha = false, mipmaps = true }: { alph
  * BLP1 with JPEG content (content 0) around a whole baseline JPEG: the shared header is everything
  * up to the scan data (size at offset 156, bytes from 160), the single level is the scan data; the
  * reader joins the two (mdx-m3-viewer src/parsers/blp/image.ts getMipmap). No mipmaps: movie
- * frames are UI textures. Blizzard's own JPEG BLPs hold B, G, R, A components without a colour
- * transform; the 1.31.1 client also shows ffmpeg's YCbCr JPEGs right (src/smoke/build-fmv-probe.ts).
+ * frames are UI textures. The game reads the JPEG as B, G, R, A planes (src/wc3/jpeg.ts): write
+ * it with writeBlpJpeg, other JPEGs only for probes.
  */
 function blpFromJpeg(jpeg: Buffer, width: number, height: number): Buffer {
   const split = scanStart(jpeg);
@@ -198,6 +198,17 @@ function blpFromJpeg(jpeg: Buffer, width: number, height: number): Buffer {
   header.writeInt32LE(jpeg.length - split, 92);
   header.writeInt32LE(split, 156);
   return Buffer.concat([header, jpeg]);
+}
+
+/** JPEG BLP1 of a picture: its B, G, R, A planes as one JPEG (no alpha bits: the A plane is kept as given). */
+function writeBlpJpeg(img: RgbaImage, quality: number): Buffer {
+  const n = img.width * img.height;
+  const planes = [2, 1, 0, 3].map((c) => {
+    const p = new Uint8Array(n);
+    for (let i = 0; i < n; i++) p[i] = img.rgba[i * 4 + c] as number;
+    return p;
+  });
+  return blpFromJpeg(encodeJpeg(img.width, img.height, planes, quality), img.width, img.height);
 }
 
 /** Decode one level of a palette BLP1 (tests; the inverse of writeBlpImage). */
@@ -216,4 +227,4 @@ function readBlpPaletted(buf: Buffer, level = 0): RgbaImage {
   return { width, height, rgba };
 }
 
-export { writeBlpPaletted, writeBlpImage, blpFromJpeg, readBlpPaletted, medianCut, resize, pow2Ceil };
+export { writeBlpPaletted, writeBlpImage, blpFromJpeg, writeBlpJpeg, readBlpPaletted, medianCut, resize, pow2Ceil };

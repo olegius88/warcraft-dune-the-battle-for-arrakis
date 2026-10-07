@@ -1,7 +1,7 @@
 // Movie slide-show probe: does the 1.31.1 client show imported JPEG BLP textures on a UI backdrop
 // over the whole screen, switch them in time with the MP3, and restore the interface afterwards?
-// The slide show of {{frames}} frames at {{fps}} per second ({{size}} JPEG BLP, YCbCr from ffmpeg).
-// 2026-10-07: 256x256 frames shown right, both ffmpeg's YCbCr JPEG and a B, G, R, A one.
+// The slide show of {{frames}} frames at {{fps}} per second ({{size}} 4-plane JPEG BLP, src/emperor/fmv.ts).
+// 2026-10-07: 256x256 4-plane frames shown right (a YCbCr JPEG is not: src/smoke/build-blp-probe.ts).
 function FmvProbeLog takes string s returns nothing
     set udg_log = udg_log + s + " @" + R2S(TimerGetElapsed(udg_clock)) + "; "
     call PreloadGenClear()

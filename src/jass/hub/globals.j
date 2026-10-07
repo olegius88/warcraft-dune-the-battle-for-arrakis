@@ -41,3 +41,5 @@
     boolean EmpMoviePlaying = false
     integer EmpEnding = 0
     string EmpMovieLogText = ""
+    timer EmpMovieClock = null
+    gamespeed EmpMovieSpeed = null

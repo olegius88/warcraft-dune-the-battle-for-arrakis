@@ -4,12 +4,14 @@
 // MOVIES.TXT) while the hub works out what happened, then played in order; Esc skips one.
 function EmpMovieData takes nothing returns nothing
     set EmpMovieTab = InitHashtable()
+    set EmpMovieClock = CreateTimer()
+    call TimerStart(EmpMovieClock, {{real MOVIE_CLOCK_SPAN}}, false, null)
 {{movieDataLines}}
 endfunction
 
 // what the player did, for unattended checks: CustomMapData\{{movieReport}}
 function EmpMovieLog takes string s returns nothing
-    set EmpMovieLogText = EmpMovieLogText + s + "; "
+    set EmpMovieLogText = EmpMovieLogText + s + " @" + R2S(TimerGetElapsed(EmpMovieClock)) + "; "
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(EmpMovieLogText)
@@ -74,6 +76,7 @@ function EmpMovieNext takes nothing returns nothing
     endloop
     // the show is over: interface and music back, then what was waiting for it
     call EmpMovieLog("end")
+    call SetGameSpeed(EmpMovieSpeed)
     set EmpMoviePlaying = false
     call BlzFrameSetVisible(EmpMovieView, false)
     call BlzFrameSetVisible(EmpMovieBlack, false)
@@ -115,6 +118,13 @@ function EmpMoviePlay takes code after returns nothing
         set ui = null
     endif
     set EmpMoviePlaying = true
+    // frames are switched by a game timer, the sound plays in real time: the campaign runs at the
+    // player's game speed (2026-10-07: the movies ran about 1.25 times too fast, while timers of a
+    // standalone map at speed 2 run 1:1 with real time - src/smoke/build-speed-probe.ts)
+    set EmpMovieSpeed = GetGameSpeed()
+    call EmpMovieLog("speed " + I2S(GetHandleId(EmpMovieSpeed)))
+    call SetGameSpeed(MAP_SPEED_NORMAL)
+    call EmpMovieLog("speed " + I2S(GetHandleId(GetGameSpeed())))
     call StopMusic(false)
     call BlzHideOriginFrames(true)
     call BlzFrameSetVisible(EmpMovieBlack, true)

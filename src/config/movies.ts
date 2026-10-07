@@ -6,12 +6,13 @@ import type { HouseCode } from './houses.ts';
 
 /** Frames per second of a slide show (the movie has 15). */
 export const MOVIE_FPS = 2;
-/** Frame texture size (powers of two; stretched back to the 4:3 movie area on screen). */
-export const MOVIE_FRAME_SIZE = { width: 512, height: 512 } as const;
-/** ffmpeg JPEG quantiser of the frames (-q:v, 2 best .. 31): 512x512 at 5 is ~16 KB a frame for
- * A01_F00E (256x256: ~6 KB). At 2 frames a second a house's movies are ~45 MB of frames + ~17 MB
- * of sound in its hub map (HK: 22 movies, 24 minutes). */
-export const MOVIE_JPEG_QSCALE = 5;
+/** Frame texture size (powers of two; stretched to the 4:3 movie area on screen). */
+export const MOVIE_FRAME_SIZE = { width: 512, height: 256 } as const;
+/** JPEG quality of the frames (1..100). Frames are 4-plane JPEGs (src/wc3/jpeg.ts: the game draws no
+ * other kind right), without chroma subsampling: 512x256 at 45 is ~25 KB a frame for A01_F00E, so
+ * at 2 frames a second a house's movies are ~70 MB of frames + ~17 MB of sound in its hub map
+ * (HK: 22 movies, 24 minutes; 256x256 at 70 would be ~20 KB a frame). */
+export const MOVIE_JPEG_QUALITY = 45;
 /** MP3 bit rate of the movie sound. */
 export const MOVIE_AUDIO_BITRATE = '96k';
 
@@ -88,3 +89,6 @@ export const MOVIE_EVENTS: Readonly<Record<HouseCode, Readonly<Record<string, re
 
 /** Volume of the movie sound (0..127). */
 export const MOVIE_VOLUME = 127;
+
+/** Span of the game clock of the movie report (src/jass/hub/movie.j), seconds. */
+export const MOVIE_CLOCK_SPAN = 100000;
