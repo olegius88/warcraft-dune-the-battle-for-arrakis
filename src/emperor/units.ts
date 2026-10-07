@@ -39,7 +39,7 @@ const UNIT_BASES = [
   [(o) => /InkVine|Minotaurus|Kobra|Missile|Projector/i.test(o.name), 'ocat', 1.1],
   [(o) => o.armour === 'Heavy', 'hmtt', 1.2],
   [(o) => o.armour === 'Medium', 'hmtt', 0.9],
-  [(o) => true, 'ncgb', 1.3],
+  [() => true, 'ncgb', 1.3],
 ];
 
 // Buildings: [regex on name, {human, orc, undead, neutral}, scale]

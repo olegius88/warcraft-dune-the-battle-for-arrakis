@@ -744,7 +744,7 @@ function buildRuntime(table, { deployMap = {} } = {}) {
     const params = Array.from({ length: n }, (_, i) => `${ARG_J(e.argTypes[i] != null ? e.argTypes[i] : 0)} a${i + 1}`);
     const ret = RET_J[RETURN_OVERRIDE[e.name] != null ? RETURN_OVERRIDE[e.name] : e.returnType] || 'integer';
     let body = IMPL[e.name];
-    if (body == null) { body = DEFAULT[ret]; stubbed.push(e.name); if (ret === 'nothing') body = `// TODO(runtime): ${e.name} not implemented`; else body = `// TODO(runtime): ${e.name} not implemented\n    ${DEFAULT[ret]}`; }
+    if (body == null) { stubbed.push(e.name); if (ret === 'nothing') body = `// TODO(runtime): ${e.name} not implemented`; else body = `// TODO(runtime): ${e.name} not implemented\n    ${DEFAULT[ret]}`; }
     if (ret === 'nothing' && /^\s*return\s+\S/.test(body)) body = body.replace(/^\s*return\s+/, 'call ');
     fns.push(`function EF_${e.name} takes ${params.length ? params.join(', ') : 'nothing'} returns ${ret}\n    ${body}\nendfunction`);
   }

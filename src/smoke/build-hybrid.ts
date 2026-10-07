@@ -20,8 +20,8 @@ const w = new MpqWriter();
 for (const n of real.getFileNames()) {
   if (n === '(listfile)' || n === '(attributes)' || take.includes(n)) continue;
   const f = real.get(n);
-  let b = null;
-  try { b = f && f.bytes(); } catch (e) { b = null; }
+  let b;
+  try { b = f && f.bytes(); } catch { b = null; }
   if (b) w.add(n, Buffer.from(b));
 }
 for (const n of take) w.add(n, Buffer.from(mine.get(n).bytes()));

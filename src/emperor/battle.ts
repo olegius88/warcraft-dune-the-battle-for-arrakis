@@ -61,7 +61,6 @@ function byHouse(lines) {
  */
 function battleSetup(o) {
   const rc = (name) => o.units.rawcode.get(name);
-  const obj = (id) => o.units.objects.find((x) => x.id === id);
   const P = HOUSE_PREFIX[o.playerHouse] || 'AT';
   const lines = [];
   const fns = [];

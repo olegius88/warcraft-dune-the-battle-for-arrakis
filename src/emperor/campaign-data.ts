@@ -48,7 +48,6 @@ function readLines(file) {
  * @param {string[]} mapFolders names of map folders (MAPS0001 index), for territory names
  */
 function loadCampaign(rawDir, mapFolders) {
-  const terrNames = readLines(path.join(rawDir, 'arrakis territories.txt')).filter(Boolean);
   const conn = readLines(path.join(rawDir, 'arrakis connections.txt'));
   const territories = [];
   for (let i = 0; i < 33; i++) {

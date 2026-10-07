@@ -209,7 +209,7 @@ function translateScript(tok, table, ctx, fnName = "EmpMissionTick") {
   let depth = 1;
   lines.forEach((tokens, idx) => {
     let res;
-    try { res = tr.translateLine(tokens); } catch (e) { throw new Error(`line ${idx + 1}: ${e.message}`); }
+    try { res = tr.translateLine(tokens); } catch (e) { throw new Error(`line ${idx + 1}: ${(e as Error).message}`, { cause: e }); }
     if (!res) return;
     if (res.kind === 'endif' || res.kind === 'else') depth--;
     out.push('    '.repeat(depth) + res.code);

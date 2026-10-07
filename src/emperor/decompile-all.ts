@@ -5,7 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadTokenTable, decompile, splitLines, decodeLine } from './tok.ts';
+import { loadTokenTable, decompile } from './tok.ts';
 import { loadContext } from './context.ts';
 
 const args = process.argv.slice(2);

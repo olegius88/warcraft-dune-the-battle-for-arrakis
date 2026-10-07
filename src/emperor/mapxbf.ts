@@ -121,7 +121,7 @@ function parseGameElements(p: Buffer): GameElements {
   const zonesStart = c;
   const node = (): ZoneNode => ({ name: name(), children: list() });
   const list = (): ZoneNode[] => { const n = i32(); if (n < 0 || n > 64) throw new Error('bad zone count'); const a: ZoneNode[] = []; for (let k = 0; k < n; k++) a.push(node()); return a; };
-  let zones: ZoneNode[] | { raw: Buffer } | null = null;
+  let zones: ZoneNode[] | { raw: Buffer };
   try { const all: ZoneNode[] = zones = []; while (c < p.length) all.push(...list()); } catch { zones = { raw: p.subarray(zonesStart) }; }
   Object.defineProperty(groups, '$zones', { value: zones, enumerable: false });
   return groups;

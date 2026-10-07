@@ -80,7 +80,7 @@ test('w3e v11: corners decode to the requested texture/layer/cliff/boundary', ()
 });
 
 test('wpm: header and size match the terrain', () => {
-  const buf = F.writeWpm(8, 4, (x, y) => (x === 0 ? F.PATH.NO_WALK : F.PATH.NO_WATER));
+  const buf = F.writeWpm(8, 4, (x) => (x === 0 ? F.PATH.NO_WALK : F.PATH.NO_WATER));
   const f = new w3x.wpm.File();
   f.load(buf);
   assert.deepStrictEqual([...f.size], [32, 16]);
