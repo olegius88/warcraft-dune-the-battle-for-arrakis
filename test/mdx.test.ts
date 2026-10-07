@@ -47,7 +47,7 @@ test('XBF -> MDX: AT_Trike_H0 converts, loads in the independent reader, has Sta
   const f = [...readArchive(archive, (n) => /^Units\/AT_Trike_H0\.xbf$/i.test(n))][0];
   assert.ok(f);
   const { model, textures } = xbfToMdx('AT_Trike', readXbf(f.data), readAnimations(f.data), (file) => ({ path: `Emperor\\Textures\\${file}.blp`, alpha: false }));
-  assert.ok(textures.includes('At_Hk_patch_high0000_256.tga'));
+  assert.ok(textures.includes('=At_Hk_patch_high0000_256.tga'));
   const buf = writeMdx(model);
   const m = new MdlxModel();
   m.load(new Uint8Array(buf));
@@ -87,4 +87,25 @@ test('XBF -> MDX: infantry vertex animation becomes per-frame geosets with step 
   m.load(new Uint8Array(buf));
   assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf);
   assert.ok(buf.length < 3_000_000, `${buf.length} bytes`);
+});
+
+// Regression: texture names in XBF carry flag characters that are part of the file name
+// (Textures/=At_Hk_patch_high0000_256.tga). The converter cut them off, found no such file, and the
+// models referred to BLPs that were never written: the game drew nothing (in-game probe
+// 2026-10-07: only shadows). Guaranteed now: every texture a converted model refers to is converted.
+test('XBF -> MDX: every texture a converted model refers to is among the converted files', { skip: fs.existsSync(archive + '.RFH') ? false : 'Emperor not installed' }, async () => {
+  const path = await import('node:path');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const { buildModels } = await import('../src/emperor/models.ts');
+  const { RAW_DIR } = await import('../src/config/paths.ts');
+  const set = buildModels(['ATTrike', 'ATInfantry'], loadArtIni(path.join(RAW_DIR, 'ArtIni.txt')));
+  for (const [file, buf] of Object.entries(set.files)) {
+    if (!file.endsWith('.mdx')) continue;
+    const m = new MdlxModel();
+    m.load(new Uint8Array(buf));
+    for (const t of m.textures as Array<{ path: string; replaceableId: number }>) {
+      if (t.replaceableId) continue;
+      assert.ok(set.files[t.path], `${file} refers to ${t.path}, which was not converted`);
+    }
+  }
 });

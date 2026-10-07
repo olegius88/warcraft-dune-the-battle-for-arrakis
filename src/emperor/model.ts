@@ -208,6 +208,9 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   };
 
   const geosets: Geoset[] = [];
+  // faces whose texture index is outside the list (AT_inf_H0) use the first texture that is not an effect's
+  const fallbackTexture = scene.textures.find((t) => !M.EFFECT_TEXTURE(t)) ?? '';
+  const textureOf = (i: number): string => scene.textures[i] ?? fallbackTexture;
   const bones: Bone[] = [];
   const pivots: V3[] = [];
   const boneOfNode = new Map<number, number>();
@@ -246,7 +249,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
       }
       if (!pose) all.push(...pts);
       ids.push(geosets.length);
-      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: material(scene.textures[tex] ?? ''), extent: extentOf(pts), sequenceExtents: [] });
+      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: material(textureOf(tex)), extent: extentOf(pts), sequenceExtents: [] });
     }
     return ids;
   };
@@ -258,7 +261,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     // faces by texture
     const byTex = new Map<number, typeof node.faces>();
     for (const f of node.faces) {
-      const raw = scene.textures[f.texture] ?? '';
+      const raw = textureOf(f.texture);
       if (M.EFFECT_TEXTURE(raw)) continue;
       const list = byTex.get(f.texture) ?? [];
       list.push(f);

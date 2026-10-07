@@ -16,9 +16,12 @@ export const MS_PER_FRAME = 40;
 /** Nodes that are never drawn: shadow plane, leech effect, selection mesh, light / effect helpers. */
 export const HIDDEN_NODE = (name: string): boolean => name === '#^^0' || name.includes('{LEECH}') || name.startsWith('SLCT') || name.startsWith('?');
 
-/** Texture names carry prefix flags (=, !, %, @); textures starting with ! or @ belong to effects. */
+/** Texture names start with flag characters (=, !, %, @) that are part of the file name
+ * (Textures/=At_Hk_patch_high0000_256.tga); textures starting with ! or @ belong to effects.
+ * They used to be cut off: no such file was found and the game drew nothing of the models
+ * (regression test: test/mdx.test.ts, "every texture a converted model refers to"). */
 export const EFFECT_TEXTURE = (name: string): boolean => /^[!@]/.test(name);
-export const TEXTURE_FILE = (name: string): string => name.replace(/^[^A-Za-z0-9_]+/, '');
+export const TEXTURE_FILE = (name: string): string => name;
 
 /** Emperor animation -> WC3 sequence name (first match wins; a WC3 name is used once). */
 export const SEQUENCE_MAP: ReadonlyArray<readonly [string, string, boolean]> = [
@@ -45,7 +48,8 @@ export const TWO_SIDED = true;
 export const MODEL_PATH = {
   model: (name: string): string => `Emperor\\Models\\${name}.mdx`,
   modelField: (name: string): string => `Emperor\\Models\\${name}.mdl`,
-  texture: (file: string): string => `Emperor\\Textures\\${file.replace(/\.tga$/i, '')}.blp`,
+  // flag characters of the file name become _ in the archive path
+  texture: (file: string): string => `Emperor\\Textures\\${file.replace(/\.tga$/i, '').replace(/[^A-Za-z0-9_]/g, '_')}.blp`,
 } as const;
 
 /** Converted textures are at most this many pixels a side (Emperor's are up to 256). */
