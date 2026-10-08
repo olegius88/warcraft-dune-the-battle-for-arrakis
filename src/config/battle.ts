@@ -226,6 +226,24 @@ export const AI_TAB_MANUFACTURING = 6;
 export const AI_TAB_YARD = 7;
 /** EmpAiTab child: the unit type has Rules.txt AiSpecial (AI_SPECIAL_UNIT). */
 export const AI_TAB_SPECIAL = 8;
+/** EmpAiTab child: the unit type has Rules.txt Ornithoptor (Game.exe type kind 5, 0x43ba70). */
+export const AI_TAB_ORNI = 9;
+/** Game.exe 1.09 0x42d7c9, the builder's critical need for refineries (after the MCV, 0x42d6e0): it
+ * wants `level` refineries past `minutes` (0x46c180: minutes x 1500 ticks) plus `latePlus` when the
+ * strength is 0 or the skill under AI_CRITICAL_BARRACKS.skillUnder (0x432800, 0x46c5b0), with a skill
+ * over `skillOver` (-1: any), first match from the top. Fewer refineries (0x44cc40): with none, a
+ * refinery; else a refinery pad (the dock upgrade, 0x438fc0 -> 0x4c21c0), else another refinery.
+ * Only on maps with spice (0x51ed80, Rules.txt DisableIfNoSpiceOnMap). */
+export const AI_CRITICAL_REFINERY = {
+  latePlus: 4,
+  levels: [
+    { minutes: 10, skillOver: 6, level: 6 }, { minutes: 6, skillOver: 6, level: 5 }, { minutes: 3, skillOver: 6, level: 4 },
+    { minutes: 1, skillOver: 5, level: 3 }, { minutes: 1, skillOver: 2, level: 2 }, { minutes: 1, skillOver: -1, level: 1 },
+  ] as ReadonlyArray<{ minutes: number; skillOver: number; level: number }>,
+} as const;
+/** Game.exe 1.09 0x42dae7: with ornithopters (0x465320) and no helipad (type kind 0x21) or more than
+ * `orniPerPad` (0x5d0920: 2.5) per pad, a helipad. */
+export const AI_CRITICAL_HELIPAD = { orniPerPad: 2.5 } as const;
 /** Game.exe 1.09 0x465473: the AI makes a special unit (Rules.txt AiSpecial, left out of its team types
  * at 0x43a5bf) only at tech >= `tech`, past `ticks` (0x46c180: 3 minutes), with `gold` credits
  * (0x439580 >= 800), `units` units (0x44c670 >= 16) and rand % (roll * 10) < skill; a rand % 30 == 0

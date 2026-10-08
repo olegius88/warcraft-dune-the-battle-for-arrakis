@@ -491,6 +491,58 @@ function CriticalProbeRun takes nothing returns nothing
     set g = null
 endfunction`,
   } : {}),
+  // --critneeds: the builder's critical needs (ai.j EmpAiCritical): skill 99, strength 2; the AI report
+  // logs EmpAiCritical() past 1 minute (refineries: want 3 > the template's), with the windtraps gone
+  // (power) and with 3 ornithopters of the enemy house and its helipads gone (helipads)
+  ...(flag('--critneeds') ? {
+    extraStart: 'CritNeedsRun',
+    extraFunctions: `function CritNeedsKill takes nothing returns boolean
+    local integer t = EmpType(GetFilterUnit())
+    if EmpAlive(GetFilterUnit()) and (t == EmpAiPower[EmpEnemyHouse] or t == EmpAiHelipad[EmpEnemyHouse]) then
+        call KillUnit(GetFilterUnit())
+    endif
+    return false
+endfunction
+
+function CritNeedsName takes integer t returns string
+    if t <= 0 then
+        return I2S(t)
+    endif
+    return GetObjectName(t)
+endfunction
+
+function CritNeedsRun takes nothing returns nothing
+    local group g = CreateGroup()
+    local integer i = 0
+    set EmpNormalConditions = false
+    call TriggerSleepAction(2.0)
+    set EmpAiSkill = 99
+    set EmpAiStrength = 2
+    loop
+        exitwhen EmpTick > 1600
+        call TriggerSleepAction(1.0)
+    endloop
+    call EmpAiLog("probe: refineries " + I2S(EmpAiCount(-2)) + " power " + I2S(EmpPowerSum[1]) + " -> " + CritNeedsName(EmpAiCritical()))
+    // enough refineries for the time, so the later needs show
+    loop
+        exitwhen EmpAiCount(-2) >= 3
+        call CreateUnit(Player(1), EmpAiRefinery[EmpEnemyHouse], EmpBaseX[EmpBaseOfSide(1)] + 1200.0 + 600.0 * EmpAiCount(-2), EmpBaseY[EmpBaseOfSide(1)], 270.0)
+    endloop
+    call TriggerSleepAction(2.0)
+    call EmpAiLog("probe: refineries " + I2S(EmpAiCount(-2)) + " power " + I2S(EmpPowerSum[1]) + " -> " + CritNeedsName(EmpAiCritical()))
+    call GroupEnumUnitsOfPlayer(g, Player(1), Condition(function CritNeedsKill))
+    call TriggerSleepAction(2.0)
+    call EmpAiLog("probe: windtraps gone, power " + I2S(EmpPowerSum[1]) + " -> " + CritNeedsName(EmpAiCritical()))
+    loop
+        exitwhen i >= 3
+        call CreateUnit(Player(1), '${all.units.rawcode.get('HKGunship')}', EmpBaseX[EmpBaseOfSide(1)], EmpBaseY[EmpBaseOfSide(1)], 0.0)
+        set i = i + 1
+    endloop
+    call EmpAiLog("probe: 3 gunships, helipad " + CritNeedsName(EmpAiHelipad[EmpEnemyHouse]) + " -> " + CritNeedsName(EmpAiCritical()))
+    call DestroyGroup(g)
+    set g = null
+endfunction`,
+  } : {}),
   // --special: the special units (forces.j EmpAiSpecialTurn): tech 8, skill 99, credits, 16 units of
   // side 1; past 4500 ticks the AI report logs "special unit <name>" (Rules.txt AiSpecial types)
   ...(flag('--special') ? {

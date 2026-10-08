@@ -1,7 +1,8 @@
 // ---- enemy AI of territory battles beyond its base template (src/emperor/battle.ts, ai.ini) ----
 // Base builder: while its construction yard stands and it keeps MinMoneyToConstructBuildings, the AI
 // builds one building at a time, of the [BuildingConstructionRatios] category furthest below its
-// share (a windtrap first when its power runs short), on the free site that scores best by the
+// share (its critical needs first: refineries by time, power, helipads, barracks; EmpAiCritical), on
+// the free site that scores best by the
 // [PositionAlgorithmRatios*] weights; it appears after the building's Rules.txt BuildTime. Turrets
 // keep MinimumGapBetweenTurrets, wait for FirstTechLevelToBuildTurrets and stay within
 // MaxTurretsAtLowTech below tech AI_LOW_TECH_BELOW; refineries stop at MaxRefineries; with
@@ -371,6 +372,65 @@ function EmpAiCriticalBarracks takes nothing returns integer
     return t
 endfunction
 
+// the builder's critical needs (Game.exe 1.09 0x42d6e0, in its order): refineries by time
+// (C.AI_CRITICAL_REFINERY), power (ai.ini ExtraPower), helipads (C.AI_CRITICAL_HELIPAD), barracks;
+// the type to build at once, else 0. The emergency MCV comes first there (no construction yard):
+// this builder stops without a yard (EmpAiBuild).
+function EmpAiCritical takes nothing returns integer
+    local integer late = 0
+    local integer want = 0
+    local integer t
+    local integer orni = 0
+    local integer pads = 0
+    local group g
+    local unit u
+    if EmpAiStrength == 0 or EmpAiSkill < {{C.AI_CRITICAL_BARRACKS.skillUnder}} then
+        set late = {{C.AI_CRITICAL_REFINERY.latePlus}}
+    endif
+{{refineryLevels}}
+    if want > EmpAiCount(-2) then
+        call EmpAiLog("critical: more refineries or refinery pads required")
+        // with refineries Game.exe adds a pad (the dock upgrade, 0x438fc0) where the side may; the
+        // pads are nobody's here, so another refinery, as Game.exe does without one (0x42daa3)
+        // TODO(ai): refinery pads (Rules.txt [<house>RefineryDock], Dockable, UpgradeCost) are not
+        // built by the player or the AI: the converted dock is a building nothing builds and its
+        // upgrade belongs to it (units.ts). Risk: fewer harvesters per refinery than in Emperor.
+        set t = EmpAiRefinery[EmpEnemyHouse]
+        if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
+            return t
+        endif
+    endif
+    // made - used below ExtraPower (0x42d9c2: no money gate)
+    if EmpPowerSum[1] < {{ai.extraPower}} and EmpAiPower[EmpEnemyHouse] != 0 then
+        call EmpAiLog("critical: more power is required")
+        return EmpAiPower[EmpEnemyHouse]
+    endif
+    // ornithopters and helipads (0x465320, type kind 0x21)
+    set t = EmpAiHelipad[EmpEnemyHouse]
+    if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
+        set g = CreateGroup()
+        call GroupEnumUnitsOfPlayer(g, Player(1), null)
+        loop
+            set u = FirstOfGroup(g)
+            exitwhen u == null
+            call GroupRemoveUnit(g, u)
+            if EmpAlive(u) and LoadBoolean(EmpAiTab, EmpType(u), {{C.AI_TAB_ORNI}}) then
+                set orni = orni + 1
+            elseif EmpAlive(u) and EmpType(u) == t then
+                set pads = pads + 1
+            endif
+        endloop
+        call DestroyGroup(g)
+        set g = null
+        if orni > 0 and (pads == 0 or I2R(orni) / pads > {{real C.AI_CRITICAL_HELIPAD.orniPerPad}}) then
+            call EmpAiLog("critical: more helipads required")
+            return t
+        endif
+    endif
+    set t = EmpAiCriticalBarracks()
+    return t
+endfunction
+
 // a building upgrade whose research time has passed (EmpAiUpgrade)
 function EmpAiUpgradeDone takes nothing returns nothing
     local timer tm = GetExpiredTimer()
@@ -521,12 +581,9 @@ function EmpAiBuild takes nothing returns nothing
         set EmpAiMaintaining = true
         call EmpAiLog("maintains")
     endif
-    // the critical needs first (0x42d6e0): barracks
-    set t = EmpAiCriticalBarracks()
-    // short of power: a windtrap first (MinMoneyToBuildMaintenanceBuildings)
-    if t == 0 and EmpPowerSum[1] < 0 and EmpAiPower[EmpEnemyHouse] != 0 and EmpEnemyGold() >= {{ai.minMoneyMaintenance}} then
-        set t = EmpAiPower[EmpEnemyHouse]
-    elseif t == 0 and EmpAiUpgrade() then
+    // the critical needs first (0x42d6e0): refineries, power, helipads, barracks
+    set t = EmpAiCritical()
+    if t == 0 and EmpAiUpgrade() then
         return
     elseif t == 0 then
         set c = 0
@@ -1023,7 +1080,7 @@ endfunction
 
 // Game.exe 1.09 0x430e30, the builder's update every tick: past its first turn, with the credits
 // (0x439890: MinMoneyToConstructBuildings) and no building on its way, on rand % 1000 < skill it asks
-// its critical needs (0x42f570 -> 0x42d6e0: barracks) and builds the one it finds at once
+// its critical needs (0x42f570 -> 0x42d6e0: EmpAiCritical) and builds the one it finds at once
 function EmpAiCriticalTick takes nothing returns nothing
     local integer t
     if EmpAiStartState == 0 or EmpAiPending > 0 or EmpEnemyGold() < {{ai.minMoneyToBuild}} or GetRandomInt(0, {{C.AI_CRITICAL_TICK.rollMax}}) >= EmpAiSkill then
@@ -1032,7 +1089,7 @@ function EmpAiCriticalTick takes nothing returns nothing
     if not EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
         return
     endif
-    set t = EmpAiCriticalBarracks()
+    set t = EmpAiCritical()
     if t == 0 or EmpEnemyGold() < LoadInteger(EmpCostTab, t, 0) or not EmpAiPlace(t) then
         return
     endif

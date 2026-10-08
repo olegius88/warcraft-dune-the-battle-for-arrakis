@@ -245,7 +245,7 @@ test('building upgrades: researched by the building, required by UpgradedPrimary
   // the enemy AI buys the upgrades of its house and produces gated types only after them
   assert.ok(m.script.includes(`'${atUp.id}'`) && /set EmpAiUpg\[\d+\] = '/.test(m.script), 'AI upgrade table');
   assert.ok(m.script.includes(`call SaveInteger(EmpAiTab, '${all.units.rawcode.get('ATKindjal')}', 5, '${atUp.id}')`), 'Kindjal waits for the upgrade');
-  assert.ok(m.script.includes('elseif t == 0 and EmpAiUpgrade() then'), 'builder turn tries upgrades');
+  assert.ok(m.script.includes('if t == 0 and EmpAiUpgrade() then'), 'builder turn tries upgrades');
 });
 
 // The 64 *Fail / *Win variants of defence scripts were parsed and never played. Inferred from their
@@ -1243,11 +1243,11 @@ test('the campaign enemy gets the personality, strength and skill of its phase (
   // the builder's critical needs (0x42d6e0): no barracks past 2 / 6 minutes, rand % 100 < skill
   const crit = body('EmpAiCriticalBarracks');
   assert.ok(crit.includes('if EmpAiStrength == 0 or EmpAiSkill < 4 then') && crit.includes('if EmpTick <= m * 1500 or GetRandomInt(0, 99) >= EmpAiSkill then'), 'barracks roll');
-  assert.ok(body('EmpAiBuild').includes('set t = EmpAiCriticalBarracks()'), 'asked by the builder');
+  assert.ok(body('EmpAiCritical').includes('set t = EmpAiCriticalBarracks()') && body('EmpAiBuild').includes('set t = EmpAiCritical()'), 'asked by the builder');
   // and every builder update (0x430e30: a tick, its state not 0, credits over MinMoneyToConstructBuildings,
   // rand % 1000 < skill: 0x42f570, the [StartScript] too)
   const tick = body('EmpAiCriticalTick');
-  assert.ok(tick.includes('EmpAiStartState == 0') && tick.includes('GetRandomInt(0, 999) >= EmpAiSkill') && tick.includes('set t = EmpAiCriticalBarracks()') && tick.includes('call EmpAiStart(t, EmpAiX, EmpAiY)'), 'per update');
+  assert.ok(tick.includes('EmpAiStartState == 0') && tick.includes('GetRandomInt(0, 999) >= EmpAiSkill') && tick.includes('set t = EmpAiCritical()') && tick.includes('call EmpAiStart(t, EmpAiX, EmpAiY)'), 'per update');
   assert.ok(body('EmpAiHarvTick').includes('call EmpAiCriticalTick()'), 'run each tick');
   assert.ok(t.includes('set EmpAiStrength = strength'), 'strength kept');
   // Game.exe 0x45a8f9: a harvester hit within 16 ticks rolls rand % 10 < skill every AI update (a
@@ -1403,4 +1403,30 @@ test('attacks hit by the Rules.txt warhead percentage of the target armour', opt
   const hit = m.script.slice(m.script.indexOf('function EmpDmgHit takes'), m.script.indexOf('endfunction', m.script.indexOf('function EmpDmgHit takes')));
   assert.ok(hit.includes('BlzSetEventDamage(') && hit.includes('DAMAGE_TYPE_NORMAL'), 'attack damage scaled');
   assert.ok(m.script.includes('EVENT_PLAYER_UNIT_DAMAGING') && m.script.includes('call EmpDmgInit()'), 'registered at the start');
+});
+
+// The builder's critical needs (Game.exe 1.09 0x42d6e0) were barracks only; a windtrap came on a
+// guess (power below 0 and MinMoneyToBuildMaintenanceBuildings). Game.exe asks, in this order:
+// refineries by time (0x42d7c9: 1..6 wanted past 1 / 1 / 1 / 3 / 6 / 10 minutes, 4 later when the
+// strength is 0 or the skill under 4, the higher ones only over skill 2 / 5 / 6 / 6 / 6; with none a
+// refinery, else a refinery pad, else another refinery), power (0x42d973: made - used < ai.ini
+// ExtraPower -> its windtrap, no money gate), helipads (0x42dae7: ornithopters and no pad or over 2.5
+// per pad), barracks (0x42db2d).
+test('the builder\'s critical needs: refineries by time, power by ExtraPower, helipads, barracks (Game.exe)', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'crit', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const crit = body('EmpAiCritical');
+  assert.ok(crit.includes('if EmpAiStrength == 0 or EmpAiSkill < 4 then') && crit.includes('set late = 4'), 'later for weak AIs');
+  assert.ok(crit.includes('if EmpTick > (late + 10) * 1500 and EmpAiSkill > 6 then') && crit.includes('set want = 6'), 'six refineries');
+  assert.ok(crit.includes('elseif EmpTick > (late + 1) * 1500 and EmpAiSkill > 2 then') && crit.includes('elseif EmpTick > (late + 1) * 1500 then'), 'one or two');
+  assert.ok(crit.includes('if want > EmpAiCount(-2) then') && crit.includes('set t = EmpAiRefinery[EmpEnemyHouse]'), 'refinery');
+  assert.ok(crit.includes('if EmpPowerSum[1] < 20 and EmpAiPower[EmpEnemyHouse] != 0 then'), 'ExtraPower');
+  assert.ok(crit.includes('I2R(orni) / pads > 2.5'), 'helipads per ornithopter');
+  assert.ok(crit.includes('set t = EmpAiCriticalBarracks()'), 'barracks last');
+  assert.ok(!body('EmpAiBuild').includes('EmpPowerSum[1] < 0'), 'no guessed windtrap rule');
+  const id = (n: string) => all.units.rawcode.get(n);
+  assert.ok(m.script.includes(`set EmpAiRefinery[0] = '${id('ATRefinery')}'`) && m.script.includes(`set EmpAiHelipad[0] = '${id('ATHelipad')}'`), 'types per house');
+  assert.ok(m.script.includes(`call SaveBoolean(EmpAiTab, '${id('ATOrni')}', 9, true)`) && m.script.includes(`call SaveBoolean(EmpAiTab, '${id('HKGunship')}', 9, true)`), 'ornithopters (Rules.txt Ornithoptor)');
 });

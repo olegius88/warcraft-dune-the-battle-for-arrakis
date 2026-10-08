@@ -183,6 +183,9 @@
     integer array EmpAiBCount
     integer array EmpAiWall
     integer array EmpAiPower
+    // the builder's critical needs (ai.j EmpAiCritical): refinery and helipad type per house
+    integer array EmpAiRefinery
+    integer array EmpAiHelipad
     integer array EmpAiRatio
     integer EmpAiPending = 0
     real array EmpAiPendX

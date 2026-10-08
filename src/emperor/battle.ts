@@ -24,13 +24,17 @@
 // AI_SKILL, forces.j EmpAiCampaignTune).
 // Before them the ai.ini [StartScript] runs (builder states 0 / 1, a tenth of BuildingDelay) unless the
 // base covers its steps (ai.j EmpAiStartStep).
+// No sub-house buildings, as in the campaign of Game.exe 1.09: its maintenance would take one first
+// (0x42fca0: unless rand % 30 < the skill, a group 2 entry of a sub-house type, 0x43c070, "Chosen sub
+// house building"), but a building of a sub-house is available to a side only with that sub-house's
+// byte [side + 8 + k] (0x53d3d0), which the side copies from its player record +0x40 (CSide 0x53b8f0
+// <- 0x47f08b); CreateGame (0x48e990) and SetupMission (0x48f660) set it for the human players from the
+// campaign alliances and clear it for the computer (0x48ef86..0x48ef93, 0x48fa33..0x48fa60): only
+// skirmish lobbies give an AI sub-houses (0x47c1a0 "Changed AI side %d to subhouses %d, %d").
 // TODO(ai): still simplified against Game.exe: a territory battle's enemy starts from a fixed base
 // template whose lost buildings are rebuilt first (BASE_TEMPLATE; Emperor's campaign start base is not
 // traced); sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not
-// turn); maintenance does not try a sub-house building first (0x42fcb3: unless rand % 30 < the skill,
-// a builder list entry of group 2 whose type is of a sub-house, 0x43c070: house +0x80 3..7 / 9,
-// "Chosen sub house building"): the AI here has no sub-house buildings (AI_BUILDING_CATEGORY), and
-// which sub-house buildings an enemy house may build in Emperor's campaign is not traced;
+// turn);
 // builder state 3, Game.exe's defence plan (0x430c90 / 0x42e5d0: with AiBuildsDefences and a tech
 // level over FirstCampaignGameTechLevel + 1, turrets and walls at a building cluster's defence points,
 // walls given up after 10 minutes, "AI has been building walls for %d minutes so aborting"; entered
@@ -339,6 +343,11 @@ endfunction`;
     });
     const wall = rc(h + C.AI_WALL), windtrap = rc(`${h}SmWindtrap`);
     aiLines.push(`    set EmpAiBCount[${hi}] = ${entries.length}`, `    set EmpAiWall[${hi}] = ${wall ? `'${wall}'` : 0}`, `    set EmpAiPower[${hi}] = ${windtrap ? `'${windtrap}'` : 0}`);
+    // the critical needs (ai.j EmpAiCritical): the house's refinery, its helipad (Rules.txt Helipad)
+    const refinery = rc(`${h}Refinery`);
+    const helipad = [...(o.rules?.objects.values() ?? [])].find((r) => r.name.startsWith(h) && /^true$/i.test((r.raw.Helipad ?? '').trim()));
+    const pad = helipad ? rc(helipad.name) : undefined;
+    aiLines.push(`    set EmpAiRefinery[${hi}] = ${refinery ? `'${refinery}'` : 0}`, `    set EmpAiHelipad[${hi}] = ${pad ? `'${pad}'` : 0}`);
     // the buildings the AI builds or rebuilds pay their Rules.txt Cost too
     for (const sfx of new Set([...C.AI_BUILDING_CATEGORY.map(([x]) => x), ...C.BASE_TEMPLATE.map(([x]) => x), C.AI_WALL])) {
       const id = rc(h + sfx);
@@ -377,6 +386,7 @@ endfunction`;
     const id = rc(r.name);
     if (id && /^true$/i.test((r.raw.AiManufacturing ?? '').trim())) aiLines.push(`    call SaveBoolean(EmpAiTab, '${id}', ${C.AI_TAB_MANUFACTURING}, true)`);
     if (id && r.conYard) aiLines.push(`    call SaveBoolean(EmpAiTab, '${id}', ${C.AI_TAB_YARD}, true)`);
+    if (id && /^true$/i.test((r.raw.Ornithoptor ?? '').trim())) aiLines.push(`    call SaveBoolean(EmpAiTab, '${id}', ${C.AI_TAB_ORNI}, true)`);
   }
   aiLines.push(`    set EmpAiMcv = ${mcv ? `'${mcv}'` : 0}`, `    set EmpAiMcvCost = ${o.rules?.objects.get('MCV')?.cost ?? 0}`);
   // the ai.ini values SideAIBehaviour* re-tunes (forces.j EmpAiBehave)
@@ -402,6 +412,8 @@ endfunction`;
     harvFlightTech: ai.firstCampaignTech + 1,
     // the enemy house's barracks type (Game.exe 0x43b920: by the side's house)
     barracksPick: barracksOf.map((id, h) => `    if EmpEnemyHouse == ${h} then\n        set t = '${id}'\n    endif`).join('\n'),
+    // the refineries wanted by time and skill (AI_CRITICAL_REFINERY, first match from the top)
+    refineryLevels: C.AI_CRITICAL_REFINERY.levels.map((l, i) => `    ${i === 0 ? 'if' : 'elseif'} EmpTick > (late + ${l.minutes}) * ${C.AI_CRITICAL_BARRACKS.ticksPerMinute}${l.skillOver >= 0 ? ` and EmpAiSkill > ${l.skillOver}` : ''} then\n        set want = ${l.level}`).join('\n') + '\n    endif',
     aiReport: o.aiReport ?? '',
     dataFunction: `function EmpAiData takes nothing returns nothing\n${aiLines.join('\n')}\nendfunction\n`,
   });
