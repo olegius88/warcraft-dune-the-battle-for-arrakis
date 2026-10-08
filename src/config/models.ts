@@ -78,9 +78,7 @@ export const EFFECT_SHOWN = { layerAlpha: 1 } as const;
  * The MASTER events keep their frames and the emitters emit from their start to their stop event
  * (Game.exe 1.09, effects.ts fxTrack); FXData of version 2 is not read, as Game.exe refuses it
  * ("Version 2 of FX Data not supported!", 0x4b2213).
- * TODO(models): some FXData emitter fields are still guessed from their values (FX_PARTICLE: the
- * direction modes of +0x3c, +0x34, +0x40, +0x50, +0x60, +0x68, the size scale, the growth). Risk:
- * particles fly and grow somewhat differently from Emperor's. */
+ * The particles' fields: FX_PARTICLE. */
 export const EFFECT_PLAYED: readonly [boolean, boolean, boolean] = [true, true, true];
 /** Effects are shown at most this radius (WC3 units) [death, muzzle, hit]. TODO(models): an
  * approximation: converted,
@@ -96,12 +94,15 @@ export const EFFECT_MAX_GEOSETS = 64;
 /** FXData particle emitters as particle emitters 2 (src/emperor/effects.ts fxEmitters). From Game.exe
  * 1.09 (0x4b0000): an emitter started by its MASTER event makes `count` particles every tick until its
  * stop event, each living `life` + rand(0..lifeRandom) ticks (at least minLifeFrames here, the mean
- * used: WC3 has one life span), flying at `speed` Emperor units a tick, in the record's colour.
- * Guessed from the values (TODO(models)): the direction (`latitude` degrees of up; Game.exe picks it
- * by the record's +0x3c: 0 any way, other values modes not traced), `size` wide (x sizeFactor model
- * units), the per-tick colour step and growth factor, the texture frames (prefix0..N, atlasColumns to a
- * row) played over the life. */
-export const FX_PARTICLE = { minLifeFrames: 3, latitude: 90, sizeFactor: 4, atlasColumns: 8, areaShare: 0.5, flags: 0x8000, maxSize: 256, alphas: [255, 220, 0] as [number, number, number] } as const;
+ * used: WC3 has one life span), flying at `speed` Emperor units a tick, falling by `gravity` (+0x14) a
+ * tick², `size` (+0x18) Emperor units wide; after +0x50 ticks their colour moves by its step a tick,
+ * after +0x68 ticks their size by its factor a tick; a texture frame lasts +0x34 + 1 ticks, the frames
+ * (prefix0..N, atlasColumns to a row) looping (0x4b0b10). Direction (+0x3c, 0x4b04e1): 0 any way
+ * (`sphere` degrees of up), > 0 within that many degrees, < 0 a ring (here `latitude` degrees of up).
+ * TODO(models): not reproduced: a ring's plane (+0x3c < 0 picks one of three, by axis), the slowing
+ * along the start direction (+0x40 / 127 a tick), +0x60 (the alpha's step?), the alpha over the life
+ * (`alphas` here). Risk: rings and slowing particles look somewhat different from Emperor's. */
+export const FX_PARTICLE = { minLifeFrames: 3, sphere: 180, latitude: 90, atlasColumns: 8, areaShare: 0.5, flags: 0x8000, maxSize: 256, alphas: [255, 220, 0] as [number, number, number] } as const;
 /** Particle filter by the texture flag: @ (an alpha of its own) blend 0, else (! glows on black) additive
  * 1; unshaded (FX_PARTICLE.flags 0x8000): blended by their light they were near invisible (probe
  * 2026-10-08). */

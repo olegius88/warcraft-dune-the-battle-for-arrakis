@@ -131,8 +131,19 @@ function nodeTextures(fx: Buffer): Map<string, Array<{ texture: string; frame: n
 /** An FXData particle emitter record (config FX_PARTICLE: how it is shown). */
 export interface FxEmitter {
   id: string; kind: number; count: number; life: number; lifeRandom: number;
-  speed: number; spread: number; size: number; rgb: V3; vec: V3;
-  frames: number; texture: string; delta: V3; grow: number;
+  /** Emperor units a tick; gravity: fall speed added a tick (y down); drag: speed lost a tick */
+  speed: number; gravity: number; drag: number;
+  /** Emperor units (a square that wide) */
+  size: number; rgb: V3;
+  /** ticks a texture frame lasts beyond one (frames loop) */
+  frameTicks: number;
+  /** 0: any way, > 0: within that many degrees of the node's direction, < 0: a ring */
+  direction: number;
+  frames: number; texture: string;
+  /** colour step a tick after colourDelay ticks (-1: never) */
+  delta: V3; colourDelay: number;
+  /** size factor a tick after growDelay ticks (-1: never) */
+  grow: number; growDelay: number;
 }
 
 /** Where and when an emitter emits: its node, from its start event's frame to its stop event's. */
@@ -168,17 +179,18 @@ function fxEmitters(fx: Buffer): { emitters: FxEmitter[]; windows: FxWindow[] } 
       F(); // +0x14, read again below (Game.exe keeps the second)
       const size = F();
       const rgb: V3 = [I(), I(), I()];
-      I();
+      const frameTicks = I();
       const vec: V3 = [F(), F(), F()];
-      const spread = F();
+      const gravity = F();
       const frames = I();
       const texture = S();
       I();
       const delta: V3 = [I(), I(), I()];
-      I(); I(); I();
+      I();
+      const colourDelay = I(), growDelay = I();
       const grow = F();
       if (!/^[ -~]+$/.test(texture) || frames < 1 || frames > 64) break;
-      emitters.push({ id, kind, count: n, life, lifeRandom: Math.max(0, lifeRandom), speed, spread, size, rgb, vec, frames, texture, delta, grow });
+      emitters.push({ id, kind, count: n, life, lifeRandom: Math.max(0, lifeRandom), speed, gravity, size, rgb, frameTicks: Math.max(0, frameTicks), direction: vec[1], drag: vec[2], frames, texture, delta, colourDelay, grow, growDelay });
     }
   } catch {
     // a record of another layout ends the list (the files with another header variant)
@@ -231,24 +243,36 @@ function addParticles(model: MdxModel, fx: ReturnType<typeof fxEmitters>, pivots
     const textureId = model.textures.length;
     model.textures.push({ path: atlasPath(e.texture) });
     const [columns, rows] = atlasGrid(e.frames);
+    // Game.exe 1.09 (0x4b03ba, 0x4b0b10): life + rand(0..lifeRandom) ticks (WC3 has one life: the mean)
     const life = Math.max(FX_PARTICLE.minLifeFrames, e.life + e.lifeRandom / 2);
-    const c0 = e.rgb.map(unit) as V3;
-    const c2 = e.rgb.map((v, i) => unit(v + (e.delta[i] as number) * life)) as V3;
+    // colour: + delta a tick once colourDelay ticks passed; size: x grow a tick once growDelay passed
+    const colourAt = (t: number): V3 => e.rgb.map((v, i) => unit(v + (e.colourDelay < 0 ? 0 : (e.delta[i] as number) * Math.max(0, t - e.colourDelay)))) as V3;
     const grow = e.grow > 0 ? e.grow : 1;
-    const scale = (f: number): number => Math.max(0.05, Math.min(10, grow ** f));
-    const half = Math.max(1, Math.ceil(e.frames / 2));
+    const scale = (t: number): number => Math.max(0.05, Math.min(10, e.growDelay < 0 ? 1 : grow ** Math.max(0, t - e.growDelay)));
     const speed = e.speed * MODEL_SCALE / sec;
-    const width = Math.max(1, e.size * FX_PARTICLE.sizeFactor);
+    // a square `size` Emperor units wide (0x4b0488: half of it each way)
+    const width = Math.max(1, e.size * MODEL_SCALE);
+    // texture frames: each frameTicks + 1 ticks, looping (0x4b0f4f); spread over the life's two halves
+    const cycle = (e.frameTicks + 1) * e.frames;
+    const shown = Math.min(e.frames, Math.max(1, Math.round(life / (e.frameTicks + 1))));
+    const half = Math.max(1, Math.ceil(shown / 2));
+    const repeat = Math.max(1, Math.round(life / 2 / cycle));
+    const intervals: [V3, V3] = cycle < life
+      ? [[0, e.frames - 1, repeat], [0, e.frames - 1, repeat]]
+      : [[0, half - 1, 1], [Math.min(half, shown - 1), shown - 1, 1]];
     for (const w of windows) {
       const pivot = pivots.get(w.node) ?? [0, 0, 0];
       model.emitters.push({
-        name: `${e.id}@${w.node}@${w.start}`, parentId: -1, flags: FX_PARTICLE.flags, speed, variation: Math.min(1, Math.abs(e.spread)),
-        latitude: e.kind === 0 ? 0 : FX_PARTICLE.latitude, gravity: -e.vec[1] * MODEL_SCALE / sec, lifeSpan: life * sec,
+        // direction (0x4b04e1): 0 any way (a sphere), > 0 within that many degrees, < 0 a ring
+        name: `${e.id}@${w.node}@${w.start}`, parentId: -1, flags: FX_PARTICLE.flags, speed, variation: 0,
+        latitude: e.direction === 0 ? FX_PARTICLE.sphere : e.direction > 0 ? Math.min(FX_PARTICLE.sphere, e.direction) : FX_PARTICLE.latitude,
+        // gravity a tick² (0x4b0c2d: the fall speed grows by it, y goes down by it)
+        gravity: e.gravity * MODEL_SCALE / (sec * sec), lifeSpan: life * sec,
         // width / length: the area particles start in; their size is the segment scaling (world units)
         emissionRate: Math.max(1, e.count), width: width * FX_PARTICLE.areaShare, length: width * FX_PARTICLE.areaShare, filterMode: FX_PARTICLE_FILTER(e.texture), rows, columns, headOrTail: 0, tailLength: 0, timeMiddle: 0.5,
-        colors: [c0, c0.map((v, i) => (v + (c2[i] as number)) / 2) as V3, c2], alphas: [...FX_PARTICLE.alphas], // a sprite is at most FX_PARTICLE.maxSize: DeviateHit grows x2 a frame and reached 5120 (sixth audit)
+        colors: [colourAt(0), colourAt(life / 2), colourAt(life)], alphas: [...FX_PARTICLE.alphas], // a sprite is at most FX_PARTICLE.maxSize: DeviateHit grows x2 a frame and reached 5120 (sixth audit)
         scaling: [Math.min(FX_PARTICLE.maxSize, width), Math.min(FX_PARTICLE.maxSize, width * scale(life / 2)), Math.min(FX_PARTICLE.maxSize, width * scale(life))],
-        headIntervals: [[0, half - 1, 1], [Math.min(half, e.frames - 1), e.frames - 1, 1]], tailIntervals: [[0, 0, 1], [0, 0, 1]],
+        headIntervals: intervals, tailIntervals: [[0, 0, 1], [0, 0, 1]],
         // emitted at its rate over its window (a squirt keyed once emitted nothing in 1.31.1, hits
         // probe 2026-10-08)
         textureId, squirt: 0, priorityPlane: 0, replaceableId: 0,

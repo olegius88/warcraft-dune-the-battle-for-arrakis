@@ -718,6 +718,27 @@ test('FXData MASTER node events: hide / show and texture scrolling', opts, async
   assert.ok(m.materials.some((x: { layers: Array<{ textureAnimationId: number }> }) => x.layers.some((l) => l.textureAnimationId >= 0)), 'layer uses it');
 });
 
+// FXData particles move as Game.exe 1.09 moves them (0x4b0b10 a tick, 0x4b0000 at birth): +0x14 is
+// their gravity (a fall speed growing by it a tick, y down by it), +0x3c their direction (0: any way,
+// > 0: within that many degrees, < 0: a ring), +0x18 their size (Emperor units, x MODEL_SCALE), +0x34
+// ticks a texture frame (frames looping). Ours took +0x3c for gravity ("-3 for falling bits") and
+// +0x14 for a speed variation: smoke (+0x14 < 0) fell instead of rising.
+test('FXData particles: gravity +0x14, direction +0x3c, size +0x18 (Game.exe)', opts, async () => {
+  const { buildEffects } = await import('../src/emperor/effects.ts');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const set = buildEffects(['Explosion'], loadArtIni(path.join(RAW, 'ArtIni.txt')));
+  const m = new MdlxModel();
+  m.load(new Uint8Array(set.files[(set.model.get('explosion') as string).replace(/\.mdl$/, '.mdx')] as Buffer));
+  type E = { name: string; gravity: number; latitude: number; variation: number; lifeSpan: number; segmentScaling: ArrayLike<number> };
+  const e = (id: string): E => m.particleEmitters2.find((x: E) => x.name.startsWith(id)) as E;
+  // #18: gravity 0.05 a tick², a ring (-3), 24 wide, 43 ticks; #17: -0.1 (rises), any way (0), 50 wide
+  const sparks = e('3B0C9770#18'), flash = e('3B0C9770#17');
+  assert.ok(Math.abs(sparks.gravity - 0.05 * 4 / 0.04 ** 2) < 1e-3 && Math.abs(flash.gravity + 0.1 * 4 / 0.04 ** 2) < 1e-3, `gravity ${sparks.gravity} ${flash.gravity}`);
+  assert.deepStrictEqual([sparks.latitude, flash.latitude, sparks.variation], [90, 180, 0]);
+  assert.strictEqual(sparks.segmentScaling[0], 24 * 4);
+  assert.ok(Math.abs(sparks.lifeSpan - 43 * 0.04) < 1e-4, `life ${sparks.lifeSpan}`);
+});
+
 // Sixth audit: 17 converted models have no "Weapon Ref" (no #fire node: HKBuzzsaw, ATMongoose...); the
 // muzzle flash asked for "weapon" on them. Those flash at "chest".
 test('a muzzle flash goes to the chest of a converted model without a weapon attachment', opts, async () => {
