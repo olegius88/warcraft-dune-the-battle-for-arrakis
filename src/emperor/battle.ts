@@ -196,7 +196,12 @@ function battleSetup(o: BattleOptions): BattleSetup {
         radius: storm.sizeTiles * WC3_UNITS_PER_TILE,
         damageLines: [...(o.rules ? o.rules.objects.values() : [])]
           .filter((x) => rc(x.name) && x.stormDamage > 0)
-          .map((x) => `    call SaveInteger(EmpStormTab, '${rc(x.name)}', 0, ${x.stormDamage})`).join('\n'),
+          // StormDamage packs (class * STORM_CLASS_STEP) + damage; class 0 'only damages, is never
+          // picked up' (Rules.txt [StormUnit] comments): key 0 damage, key 1 class
+          .flatMap((x) => [
+            `    call SaveInteger(EmpStormTab, '${rc(x.name)}', 0, ${x.stormDamage % C.STORM_CLASS_STEP})`,
+            ...(x.stormDamage >= C.STORM_CLASS_STEP ? [`    call SaveInteger(EmpStormTab, '${rc(x.name)}', 1, ${Math.floor(x.stormDamage / C.STORM_CLASS_STEP)})`] : []),
+          ]).join('\n'),
       }));
       lines.push('    call EmpStormData()', `    call TimerStart(CreateTimer(), ${real(C.STORM_TICK)}, true, function EmpStormTick)`);
     }

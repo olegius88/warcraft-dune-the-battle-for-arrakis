@@ -24,7 +24,8 @@ function EmpStormHit takes nothing returns nothing
     if EmpAlive(u) and u != EmpWorm and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and not IsUnitType(u, UNIT_TYPE_FLYING) then
         if not IsUnitInGroup(u, EmpStormSeen) then
             call GroupAddUnit(EmpStormSeen, u)
-            if GetRandomInt(0, 255) < {{storm.killChance}} then
+            // only a StormDamage class above 0 is picked up (battle.ts damageLines)
+            if LoadInteger(EmpStormTab, GetUnitTypeId(u), 1) > 0 and GetRandomInt(0, 255) < {{storm.killChance}} then
                 call KillUnit(u)
                 set u = null
                 return

@@ -63,6 +63,9 @@ export const WORM_CHECK_PERIOD = 1;
 export const STORM_TICK = 0.25;
 export const STORM_SCALE = 3;
 export const STORM_SPAWN_TRIES = 30;
+/** StormDamage = class * STORM_CLASS_STEP + damage (Rules.txt '74 // (1*64)+10'); class 0 is
+ * never picked up. */
+export const STORM_CLASS_STEP = 64;
 export const WORM_SURFACE_OFFSET_TILES = 8;
 export const SURFACE_WORM = 'SurfaceWorm';
 

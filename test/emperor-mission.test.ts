@@ -441,6 +441,11 @@ test('sandstorms come and go on the sand by Rules.txt', opts, () => {
   assert.ok(m.script.includes('function EmpStormTick'), 'storm runtime');
   assert.match(m.script, /TimerStart\(CreateTimer\(\), [\d.]+, true, function EmpStormTick\)/);
   assert.ok(m.script.includes(`call SaveInteger(EmpStormTab, '${all.units.rawcode.get('HKWall')}', 0, 5)`), 'StormDamage per type');
+  // StormDamage packs (class * 64) + damage (Rules.txt '74 // (1*64)+10'); below 64 'only damages, is
+  // never picked up' (third audit: vehicles were picked up). Damage = value mod 64, class = value / 64.
+  const inf = all.units.rawcode.get('ATInfantry');
+  assert.ok(m.script.includes(`call SaveInteger(EmpStormTab, '${inf}', 0, 10)`) && m.script.includes(`call SaveInteger(EmpStormTab, '${inf}', 1, 2)`), 'ATInfantry 138 = class 2, damage 10');
+  assert.ok(m.script.includes('LoadInteger(EmpStormTab, GetUnitTypeId(u), 1) > 0'), 'only a class above 0 is picked up');
 });
 
 // [General] HarvReplacementDelay ("ticks before harvester gets replaced") and CashDeliveryWhenNoSpice*

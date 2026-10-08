@@ -34,6 +34,7 @@ const m = buildMission({
     local real y0
     local integer k = 0
     local integer alive = 0
+    local integer infAlive = 0
     local unit array us
     set EmpNormalConditions = false
     set EmpStormNext = 0
@@ -46,24 +47,27 @@ const m = buildMission({
     call TriggerSleepAction(1.0)
     call SetCameraPositionForPlayer(Player(0), EmpStormX, EmpStormY)
     loop
-        exitwhen k >= 8
-        set us[k] = CreateUnit(Player(1), '${all.units.rawcode.get('ATTrike')}', x0 + GetRandomReal(-100, 100), y0 + GetRandomReal(-100, 100), 0.0)
+        exitwhen k >= 16
+        // even: trikes (StormDamage class 0, never picked up), odd: infantry (class 2)
+        set us[k] = CreateUnit(Player(1), IntegerTertiaryOp(ModuloInteger(k, 2) == 0, '${all.units.rawcode.get('ATTrike')}', '${all.units.rawcode.get('ATInfantry')}'), x0 + GetRandomReal(-100, 100), y0 + GetRandomReal(-100, 100), 0.0)
         call PauseUnit(us[k], true)
         set k = k + 1
     endloop
     call TriggerSleepAction(6.0)
     set k = 0
     loop
-        exitwhen k >= 8
-        if EmpAlive(us[k]) then
+        exitwhen k >= 16
+        if EmpAlive(us[k]) and ModuloInteger(k, 2) == 0 then
             set alive = alive + 1
+        elseif EmpAlive(us[k]) then
+            set infAlive = infAlive + 1
         endif
         set k = k + 1
     endloop
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload("art:"${Object.entries(ART_ABILITY).map(([k, a]) => ` + " ${k}=" + GetAbilityEffectById('${a.id}', ${a.type}, 0)`).join('')})
-    call Preload("storm on=" + I2S(IntegerTertiaryOp(EmpStormFx != null, 1, 0)) + " at " + I2S(R2I(x0)) + "," + I2S(R2I(y0)) + " moved=" + I2S(R2I(SquareRoot((EmpStormX - x0) * (EmpStormX - x0) + (EmpStormY - y0) * (EmpStormY - y0)))) + " trikes alive=" + I2S(alive) + "/8")
+    call Preload("storm on=" + I2S(IntegerTertiaryOp(EmpStormFx != null, 1, 0)) + " at " + I2S(R2I(x0)) + "," + I2S(R2I(y0)) + " moved=" + I2S(R2I(SquareRoot((EmpStormX - x0) * (EmpStormX - x0) + (EmpStormY - y0) * (EmpStormY - y0)))) + " trikes alive=" + I2S(alive) + "/8 infantry alive=" + I2S(infAlive) + "/8")
     call PreloadGenEnd("DuneSmoke\\\\storm.pld")
 endfunction`,
   } : {}),
