@@ -476,6 +476,10 @@ test('starport prices change every StarportCostUpdateDelay ticks within Starport
   // Regression (third audit): a cancelled purchase got the full stock price back from WC3 and kept
   // the starport's difference: below 100 % every buy-and-cancel made money. The difference goes back too.
   assert.ok(m.script.includes('EVENT_PLAYER_UNIT_TRAIN_FINISH') && m.script.includes('function EmpPortFinish'), 'difference settled when the unit is out, so a cancel needs nothing');
+  // fourth audit: the record of a destroyed starport stayed on its handle id; a factory reusing it
+  // settled a starport price for its own trike. Only starports settle, and the record goes with it.
+  const fin = m.script.slice(m.script.indexOf('function EmpPortFinish'), m.script.indexOf('endfunction', m.script.indexOf('function EmpPortFinish')));
+  assert.ok(fin.includes('LoadBoolean(EmpPortTab, GetUnitTypeId(b), 2)') && fin.includes('call RemoveSavedInteger(EmpPortTab, GetHandleId(b), t)'), 'starport only, record removed');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

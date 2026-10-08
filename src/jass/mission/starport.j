@@ -4,6 +4,9 @@
 // back), and is cancelled when the player cannot pay it.
 // EmpPortTab[type]: 0 index, 1 Rules.txt Cost; EmpPortTab[starport type]: 2 true;
 // EmpPortTab[starport handle][type]: the difference fixed at the start of that type's purchase.
+// TODO(starport): two units of one type queued at different prices share one record (the later
+// start wins) if TRAIN_START fires at queueing rather than at the start of training; which one 1.31
+// does is not checked. Risk: a few credits off for such a queue.
 // TODO(starport): the stock (StarportStockIncrease*, StarportMaxDeliverySingle) and the frigate
 // delivery (FrigateCountdown) are not modelled: units come after their BuildTime.
 function EmpPortPrices takes nothing returns nothing
@@ -50,8 +53,11 @@ function EmpPortFinish takes nothing returns nothing
     local integer t = GetUnitTypeId(u)
     local integer delta
     local player p = GetOwningPlayer(b)
-    if HaveSavedInteger(EmpPortTab, GetHandleId(b), t) then
+    // only a starport settles, and the record goes: a factory reusing the handle id of a destroyed
+    // starport took its old price for its own trike (fourth audit, test/emperor-mission.test.ts)
+    if LoadBoolean(EmpPortTab, GetUnitTypeId(b), 2) and HaveSavedInteger(EmpPortTab, GetHandleId(b), t) then
         set delta = LoadInteger(EmpPortTab, GetHandleId(b), t)
+        call RemoveSavedInteger(EmpPortTab, GetHandleId(b), t)
         if delta > GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) then
             call SetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD, GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) + LoadInteger(EmpPortTab, t, 1))
             call RemoveUnit(u)
