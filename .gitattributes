@@ -1,0 +1,2 @@
+# scripts for the Linux test host and the VM (tools/vm): LF whatever the checkout settings
+tools/vm/** text eol=lf
