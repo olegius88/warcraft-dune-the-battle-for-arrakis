@@ -33,6 +33,8 @@ export interface UnitIds {
   harvestAbility: string;
   /** spice field (gold mine) */
   spiceField: string;
+  /** spice mound (bursts into a spice field) */
+  spiceMound: string;
   /** house prefix (AT/HK/OR) -> builder unit spawned by a construction yard */
   builders: Record<string, string>;
   /** second builder per house: walls and turrets */
@@ -194,7 +196,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   // ---- economy / construction objects (ids fixed so the runtime can refer to them) ----
   const HARVEST_ABILITY = CUSTOM_ID.harvestAbility; // Ahar with Emperor capacity
   // Territory marker of the Arrakis hub map: invulnerable, unarmed, house-coloured tower.
-  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, builders: {}, defenceBuilders: {}, allyBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker };
+  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, spiceMound: CUSTOM_ID.spiceMound, builders: {}, defenceBuilders: {}, allyBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker };
   const abilities: ObjectDef[] = [{ base: ABILITY.harvest, id: HARVEST_ABILITY, mods: [
     { field: ABILITY_FIELD.harvestGold, type: 'int', value: U.HARVEST_CAPACITY, level: 1, column: 3 },
     { field: ABILITY_FIELD.harvestLumber, type: 'int', value: 0, level: 1, column: 2 },
@@ -204,6 +206,12 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   const [tintR, tintG, tintB] = U.SPICE_FIELD_TINT;
   objects.push({ base: UNIT.goldMine, id: ids.spiceField, mods: [str(F.name, U.SPICE_FIELD_NAME), real(F.scale, U.SPICE_FIELD_SCALE), real(F.selectionScale, U.SPICE_FIELD_SCALE),
     int(F.tintRed, tintR), int(F.tintGreen, tintG), int(F.tintBlue, tintB)], emperor: null });
+  // Spice mound: a small sand-coloured mine with no mining, Rules.txt [SpiceMound] Health; it bursts
+  // into a spice field (battle spice-fields.j)
+  const [mR, mG, mB] = U.SPICE_MOUND_TINT;
+  objects.push({ base: UNIT.goldMine, id: ids.spiceMound, mods: [str(F.name, U.SPICE_MOUND_NAME), str(F.abilities, ''),
+    int(F.hitPoints, Math.max(S.MIN_HP, rules.spiceMound.health / S.HP_DIVISOR)), real(F.scale, U.SPICE_MOUND_SCALE), real(F.selectionScale, U.SPICE_MOUND_SCALE),
+    int(F.tintRed, mR), int(F.tintGreen, mG), int(F.tintBlue, mB)], emperor: null });
 
   objects.push({ base: UNIT.guardTower, id: ids.territoryMarker, mods: [str(F.name, U.TERRITORY_MARKER_NAME), str(F.abilities, ABILITY.invulnerable), int(F.attacksEnabled, 0),
     real(F.scale, U.TERRITORY_MARKER_SCALE), real(F.selectionScale, U.TERRITORY_MARKER_SCALE), str(F.upgrades, ''), str(F.researches, '')], emperor: null });

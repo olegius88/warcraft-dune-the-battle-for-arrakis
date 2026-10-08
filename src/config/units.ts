@@ -73,6 +73,10 @@ export const HARVEST_ABILITY_NAME = 'Сбор специи';
 export const SPICE_FIELD_NAME = 'Поле специи';
 export const SPICE_FIELD_SCALE = 0.6;
 export const SPICE_FIELD_TINT: readonly [number, number, number] = [255, 140, 40];
+/** Spice mound (Rules.txt [SpiceMound]): name, scale and tint of the mine model it is made from. */
+export const SPICE_MOUND_NAME = 'Курган специи';
+export const SPICE_MOUND_SCALE = 0.35;
+export const SPICE_MOUND_TINT: readonly [number, number, number] = [200, 150, 90];
 export const TERRITORY_MARKER_NAME = 'Территория';
 export const TERRITORY_MARKER_SCALE = 0.7;
 export const BUILDER_NAME = 'Строитель';

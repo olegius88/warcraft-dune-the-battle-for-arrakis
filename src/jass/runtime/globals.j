@@ -71,6 +71,8 @@
     real array EmpUiGap
     integer array EmpUiNext
     hashtable EmpUiTab = InitHashtable()
+    // spice mounds (battle spice-fields.j)
+    hashtable EmpMoundTab = null
     real EmpTmpX = 0.0
     real EmpTmpY = 0.0
     real EmpTmpR = 0.0

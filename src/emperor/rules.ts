@@ -171,6 +171,10 @@ export interface Rules {
   campaignMoney: CampaignMoney;
   /** StealthedWhenStill units turn invisible this many ticks after they stop / after they fired */
   stealth: { delay: number; afterFiring: number };
+  /** [SpiceMound]: Health, Size (min ticks before it bursts) + up to Cost ticks, BlastRadius (bloom
+   * tiles), SpiceCapacity, BuildTime (ticks before the spice appears), Min/MaxRange (ticks before it
+   * grows again) */
+  spiceMound: { health: number; minTicks: number; randomTicks: number; radiusTiles: number; capacity: number; delayTicks: number; regrowMin: number; regrowMax: number };
 }
 
 function parseSections(text: string): { sections: Map<string, RulesSection>; order: string[] } {
@@ -331,7 +335,12 @@ function loadRules(rulesPath: string): Rules {
   };
   const campaignMoney: CampaignMoney = { attack: num(general.CampaignAttackMoney), defend: num(general.CampaignDefendMoney) };
   const stealth = { delay: num(general.StealthDelay), afterFiring: num(general.StealthDelayAfterFiring) };
-  return { sections, objects, armourTypes, general, category, crates, worms, reinforcements, campaignMoney, stealth };
+  const mound = sec('SpiceMound') ? baseValues(sec('SpiceMound') as RulesSection).single : {};
+  const spiceMound = {
+    health: num(mound.Health), minTicks: num(mound.Size), randomTicks: num(mound.Cost), radiusTiles: num(mound.BlastRadius),
+    capacity: num(mound.SpiceCapacity), delayTicks: num(mound.BuildTime), regrowMin: num(mound.MinRange), regrowMax: num(mound.MaxRange),
+  };
+  return { sections, objects, armourTypes, general, category, crates, worms, reinforcements, campaignMoney, stealth, spiceMound };
 }
 
 export { loadRules, parseSections };

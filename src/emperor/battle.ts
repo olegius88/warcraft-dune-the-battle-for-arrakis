@@ -25,7 +25,7 @@ import type { Scope } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
 import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
 import { EMPEROR_TILE, TICKS_PER_SECOND, WC3_UNITS_PER_TILE } from '../config/scale.ts';
-import { TERRAIN, UNIT_FIELD } from '../config/wc3.ts';
+import { TERRAIN, UNIT_FIELD, ART_ABILITY } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules } from './rules.ts';
 import type { AiRules } from './ai-rules.ts';
@@ -133,8 +133,14 @@ function battleSetup(o: BattleOptions): BattleSetup {
 
   // ---- spice fields ----
   const clusters = spiceClusters(o.meta);
+  // spice mounds of the map (Rules.txt [SpiceMound]; ticks -> seconds)
+  const mound = o.rules?.spiceMound ?? { health: 0, minTicks: 0, randomTicks: 0, radiusTiles: 0, capacity: 0, delayTicks: 0, regrowMin: 0, regrowMax: 0 };
   fns.push(jass('spice-fields', {
     fieldLines: clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, ${FACING})\n    call SetResourceAmount(m, ${Math.max(C.SPICE_FIELD_MIN, c.tiles * C.SPICE_PER_TILE)})`; }).join('\n'),
+    moundLines: (o.rules ? o.meta.spiceMounds ?? [] : []).map(([tx, ty]) => { const [x, y] = o.terrain.toWorld(tx, ty); return `    call EmpMoundAdd(${real(x)}, ${real(y)})`; }).join('\n'),
+    mound, spiceField: o.units.ids.spiceField, spiceMound: o.units.ids.spiceMound, ART_ABILITY,
+    burstMin: mound.minTicks / TICKS_PER_SECOND, burstMax: (mound.minTicks + mound.randomTicks) / TICKS_PER_SECOND,
+    regrowMin: mound.regrowMin / TICKS_PER_SECOND, regrowMax: mound.regrowMax / TICKS_PER_SECOND,
   }));
 
   // ---- economy & construction glue ----

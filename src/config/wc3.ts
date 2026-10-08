@@ -92,6 +92,8 @@ export const ART_ABILITY = {
   bomb: { id: 'AHfs', type: 'EFFECT_TYPE_EFFECT' },
   /** Death Hand fallout cloud (Disease Cloud of the abomination) */
   fallout: { id: 'Aap1', type: 'EFFECT_TYPE_CASTER' },
+  /** spice mound burst (Thunder Clap's dust ring) */
+  spiceBloom: { id: 'AHtc', type: 'EFFECT_TYPE_CASTER' },
   /** stealth crate */
   stealth: { id: 'AOws', type: 'EFFECT_TYPE_CASTER' },
 } as const;
@@ -133,6 +135,7 @@ export const CUSTOM_ID = {
   upgradeBase: 'Rhme',
   harvestAbility: 'A000',
   spiceField: 'xS00',
+  spiceMound: 'xS01',
   territoryMarker: 'xM00',
   /** builder spawned by a construction yard, per house */
   builder: { AT: 'xBA0', HK: 'xBH0', OR: 'xBO0' },

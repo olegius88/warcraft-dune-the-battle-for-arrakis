@@ -407,6 +407,21 @@ test('in-game announcements: the original lines of the player\'s house, with the
   assert.ok(m.script.includes('function EmpUiDeath') && m.script.includes('function EmpUiAttacked'), 'event hooks');
 });
 
+// Spice mounds of the maps (test.xbf SpiceMound tag, 73 on the territory maps) were read and dropped.
+// Rules.txt [SpiceMound]: a mound bursts after Size + up to Cost ticks into a spice bloom of
+// SpiceCapacity, BlastRadius tiles, and grows again after MinRange..MaxRange ticks.
+test('spice mounds burst into spice blooms and grow again', opts, () => {
+  const all = loadAll();
+  assert.deepStrictEqual(all.rules.spiceMound, { health: 100, minTicks: 1000, randomTicks: 500, radiusTiles: 6, capacity: 50000, delayTicks: 6, regrowMin: 200, regrowMax: 2000 });
+  const mound = all.units.objects.find((o) => o.id === all.units.ids.spiceMound);
+  assert.ok(mound, 'mound unit');
+  const meta = readMeta(path.join(ensureMap('#T5 ')[0] as string, 'test.xbf'));
+  assert.strictEqual(meta.spiceMounds?.length, 4);
+  const m = buildMission({ scripts: [], meta, ...all, name: 'mounds', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.strictEqual((m.script.match(/call EmpMoundAdd\(/g) ?? []).length, 4, 'one per mound of the map');
+  assert.ok(m.script.includes('function EmpMoundTimer') && m.script.includes('call SetResourceAmount(f, 50000)'), 'bloom of SpiceCapacity');
+});
+
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
 // lines its scripts use and Message() queues them (one at a time, by known duration).
 test('mission messages play the original speech', opts, () => {

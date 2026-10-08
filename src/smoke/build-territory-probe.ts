@@ -25,6 +25,43 @@ const m = buildMission({
   scripts, meta, ...all, name: `Territory ${n}`, playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x', debugName: `Territory${n}`,
   ...(flag('--briefing') && names[0] ? { briefing: all.ctx.textByKey(names[0]) ?? '' } : {}),
   ...(flag('--no-icons') ? { iconsInMap: false } : {}), ...(flag('--autowin') ? { autoWinSeconds: 15 } : {}),
+  // --mounds: spice mounds and fields at 5 s and after the first bursts (Size + Cost ticks = 60 s)
+  ...(flag('--mounds') ? {
+    extraStart: 'MoundProbeRun',
+    extraFunctions: `function MoundProbeCount takes nothing returns string
+    local group g = CreateGroup()
+    local unit u
+    local integer mounds = 0
+    local integer fields = 0
+    call GroupEnumUnitsOfPlayer(g, Player(PLAYER_NEUTRAL_PASSIVE), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if GetUnitTypeId(u) == '${all.units.ids.spiceMound}' then
+            set mounds = mounds + 1
+        elseif GetUnitTypeId(u) == '${all.units.ids.spiceField}' then
+            set fields = fields + 1
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return "game s " + I2S(EmpTick / 25) + " mounds=" + I2S(mounds) + " fields=" + I2S(fields)
+endfunction
+
+function MoundProbeRun takes nothing returns nothing
+    local string a
+    set EmpNormalConditions = false
+    call TriggerSleepAction(5.0)
+    set a = MoundProbeCount()
+    call TriggerSleepAction(65.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(a)
+    call Preload(MoundProbeCount())
+    call PreloadGenEnd("DuneSmoke\\\\mounds.pld")
+endfunction`,
+  } : {}),
 });
 const out = path.join(BUILD_DIR, 'test', `Territory${n}${args.map((s) => `-${s.replace(/^--/, '')}`).join('')}.w3x`);
 fs.writeFileSync(out, m.buffer);
