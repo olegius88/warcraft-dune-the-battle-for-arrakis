@@ -36,3 +36,16 @@ test('every API function has a body', opts, () => {
   assert.deepStrictEqual(rt.stubbed, []);
   assert.doesNotMatch(rt.functions, /function EF_(int|obj|pos|if) /);
 });
+
+// CameraStartRotate(speed, direction): Game.exe 1.09 (script id 0x69 -> 0x533250) keeps speed and
+// direction; every camera update (0x532564) adds speed * pi / 180 to the yaw, or takes it off when the
+// direction byte is 0. The scripts spin at speed 2 for exactly 180 ticks before CameraRestore
+// (ATStart 250..430, ATP1M3SA 170..350, ...): 2 degrees a tick, one full turn. Ours spun 20 degrees a
+// second (speed x CAMERA_SPIN_DEGREES 10, a guess) and turned the other way for direction 2, which
+// Game.exe spins the same way as 1.
+test('CameraStartRotate spins speed degrees a game tick; only direction 0 turns the other way', () => {
+  const body = apiBodies().get('CameraStartRotate') ?? '';
+  assert.match(body, /set EmpCamSpin = I2R\(a1\) \* 25\.0/);
+  assert.match(body, /if a2 == 0 then\n\s+set EmpCamSpin = -EmpCamSpin/);
+  assert.doesNotMatch(body, /a2 == 2/);
+});

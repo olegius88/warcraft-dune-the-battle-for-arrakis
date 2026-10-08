@@ -1,6 +1,7 @@
 // Parameters of the JASS runtime of a mission map (src/emperor/runtime.ts, mission.ts): Emperor
 // sides, distances used by the "near" API functions, timers, speech queue, crates, veterancy.
 // Distances are WC3 world units (128 per Emperor tile), times seconds unless named *_TICKS.
+import { TICKS_PER_SECOND } from './scale.ts';
 
 /** Sides 0..MAX_SIDE map to Player(side); NEUTRAL_SIDE -> Player(PLAYER_NEUTRAL_PASSIVE). */
 export const MAX_SIDE = 11;
@@ -99,9 +100,13 @@ export const ORIENTATION_STEP = 90;
 export const AIRSTRIKE_SECONDS = 60;
 export const AIRSTRIKE_SLOTS = 64;
 
-/** Main camera spin (CameraStartRotate(speed, direction); direction 2 = the other way): degrees per
- * second for speed 1, update period. TODO(camera): Emperor's spin speed unit is not documented. */
-export const CAMERA_SPIN_DEGREES = 10;
+/** Main camera spin (CameraStartRotate(speed, direction)): degrees per second for speed 1, update
+ * period. Game.exe 1.09 turns the camera speed * pi / 180 radians every update (0x532564), the
+ * updates follow the game ticks: the scripts spin at speed 2 for exactly 180 ticks (ATStart 250..430,
+ * ATP1M3SA 170..350 and 20 more), one full turn. Direction 0 turns the other way, any other value
+ * (the scripts' 1 and 2) the same way. Which way a growing yaw turns on screen is not established;
+ * the WC3 rotation grows with it. */
+export const CAMERA_SPIN_DEGREES = TICKS_PER_SECOND;
 export const CAMERA_SPIN_PERIOD = 0.05;
 /** WC3 camera rotation the spin returns to (the default game camera looks north). */
 export const CAMERA_DEFAULT_ROTATION = 90;

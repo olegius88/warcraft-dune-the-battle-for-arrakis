@@ -5,6 +5,16 @@
 ## [Unreleased]
 
 ### Changed
+- 2026-10-08 Вращение камеры `CameraStartRotate(speed, direction)` по `Game.exe` 1.09
+  ([CameraStartRotate.j](src/jass/runtime/api/CameraStartRotate.j), `RT.CAMERA_SPIN_DEGREES`):
+  - **Скорость.** Каждое обновление камеры добавляет к углу `speed·π/180` (`0x532564`). Скрипты
+    крутят со скоростью 2 ровно 180 тиков (ATStart 250..430 и ещё 20 с лишним скриптов) — полный
+    оборот, значит, обновление идёт раз в тик: 2° за тик, 50° в секунду. Было 20° в секунду (догадка).
+  - **Направление.** Обратно крутит только `direction` 0; скриптовые 1 и 2 крутят в одну сторону
+    (`0x533250` хранит байт, `0x532570` сравнивает с нулём). Раньше 2 крутило в обратную.
+  - В какую сторону на экране идёт растущий угол Emperor, не установлено.
+
+  Закрыт `TODO(camera)`.
 - 2026-10-08 `SideAIBehaviourAggressive` / `Normal` / `Defensive` по `Game.exe` 1.09
   ([forces.j](src/jass/battle/forces.j) `EmpAiBehave`, [config/battle.ts](src/config/battle.ts)
   `AI_BEHAVIOUR_PCT`):
