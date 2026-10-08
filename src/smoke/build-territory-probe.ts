@@ -13,6 +13,7 @@ import { BUILD_DIR, RAW_DIR } from '../config/paths.ts';
 import { territoryMapPrefix } from '../config/story.ts';
 import { ART_ABILITY } from '../config/wc3.ts';
 import * as RT from '../config/runtime.ts';
+import * as BATTLE from '../config/battle.ts';
 
 // node src/smoke/build-territory-probe.ts <territory> [script ...]: the scripts (phase 1, 2, ...) too
 // flags as build-campaign.ts sets them: --briefing (of the first script), --no-icons, --autowin
@@ -139,6 +140,46 @@ function HarvProbeRun takes nothing returns nothing
     call PreloadGenStart()
     call Preload("harvesters removed=" + I2S(before) + " after 46 s=" + I2S(HarvProbeCount()))
     call PreloadGenEnd("DuneSmoke\\\\harv.pld")
+endfunction`,
+  } : {}),
+  // --builders: all the player's builders go; a yard of his gives them again within YARD_CHECK_PERIOD
+  ...(flag('--builders') ? {
+    extraStart: 'BuildersProbeRun',
+    extraFunctions: `function BuildersProbeCount takes boolean remove returns integer
+    local group g = CreateGroup()
+    local unit u
+    local integer n = 0
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and (${(['AT', 'HK', 'OR'] as const).flatMap((c) => [all.units.ids.builders[c], all.units.ids.defenceBuilders[c], all.units.ids.allyBuilders[c]]).map((id) => `GetUnitTypeId(u) == '${id}'`).join(' or ')}) then
+            set n = n + 1
+            if remove then
+                call RemoveUnit(u)
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return n
+endfunction
+
+function BuildersProbeRun takes nothing returns nothing
+    local integer first
+    local integer removed
+    set EmpNormalConditions = false
+    call TriggerSleepAction(1.0)
+    call CreateUnit(Player(0), '${all.units.rawcode.get('ATConYard')}', EmpEntrX[EmpEntranceFor(0)], EmpEntrY[EmpEntranceFor(0)], 270.0)
+    call TriggerSleepAction(${BATTLE.YARD_CHECK_PERIOD * 2 + 1}.0)
+    set first = BuildersProbeCount(false)
+    set removed = BuildersProbeCount(true)
+    call TriggerSleepAction(${BATTLE.YARD_CHECK_PERIOD * 2 + 1}.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload("builders first=" + I2S(first) + " removed=" + I2S(removed) + " after=" + I2S(BuildersProbeCount(false)))
+    call PreloadGenEnd("DuneSmoke\\\\builders.pld")
 endfunction`,
   } : {}),
   // --mounds: spice mounds and fields at 5 s and after the first bursts (Size + Cost ticks = 60 s)
