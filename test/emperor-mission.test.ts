@@ -399,6 +399,9 @@ test('every construction yard of the player gets its builders, also those made w
   // Regression (third audit): builders came once per yard; when they died (storm, worm) the player could
   // not build again. A yard gives them again while the player has none.
   assert.ok(m.script.includes('call GroupClear(EmpYardsServed)'), 'builders again when all are gone');
+  // fourth audit: a surviving sub-house builder counted as a builder, so the yard gave no others
+  const tick = m.script.slice(m.script.indexOf('function EmpYardTick'), m.script.indexOf('endfunction', m.script.indexOf('function EmpYardTick')));
+  assert.ok(!tick.includes(`'${all.units.ids.allyBuilders.AT}'`) && tick.includes(`'${all.units.ids.builders.AT}'`), 'only the yard\'s own builders count');
 });
 
 // In-game announcements were missing or invented ("Ментат: Недостаточно энергии! Турели отключены…"):
