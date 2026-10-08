@@ -16,6 +16,10 @@ export const ENEMY_VEHICLES: readonly string[] = ['Trike', 'Buzzsaw', 'DustScout
 
 /** Spice: tiles within this reach (tiles) form one field; credits per tile, minimum per field. */
 export const SPICE_CLUSTER_REACH = 2;
+// TODO(economy): SPICE_PER_TILE is not from the data: map tiles only say "spice" (all 255 in
+// test.xbf), [General] SpiceValue = 200 has no comment (maybe credits per tile: 7.5x less) and no
+// source explaining it was found (web search 2026-10-08); a mound holds SpiceCapacity = 50000
+// ([SpiceMound]), a harvester carries 700. Risk: fields may hold more credits than in Emperor.
 export const SPICE_PER_TILE = 1500;
 export const SPICE_FIELD_MIN = 2000;
 

@@ -2,7 +2,8 @@
 // to Cost ticks, or when it is destroyed, into a spice field of SpiceCapacity, and grows again on the
 // same spot after MinRange..MaxRange ticks. One timer per spot; EmpMoundTab[timer]: 0 the mound,
 // 1/2 x / y, 3 what is next (0 burst, 1 grow); EmpMoundTab[mound]: 0 its timer.
-// The bloom is one field (a WC3 mine), not a BlastRadius patch.
+// TODO(mounds): the bloom is one field (a WC3 mine) at the mound, not spice spread over BlastRadius
+// tiles: harvesters gather it from one spot. Risk: looks and plays more compact than in Emperor.
 function EmpMoundTimer takes nothing returns nothing
     local timer tm = GetExpiredTimer()
     local integer h = GetHandleId(tm)

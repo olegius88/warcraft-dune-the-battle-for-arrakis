@@ -575,6 +575,8 @@ function EmpUiAttacked takes nothing returns nothing
 endfunction
 
 // the player's units lost
+// TODO(ui): a wall lost is announced as a building lost (at most once per EmpUiGap); whether Emperor
+// is silent about walls is not in the data. Risk: noise while walls are shot down.
 function EmpUiDeath takes nothing returns nothing
     if IsUnitType(GetTriggerUnit(), UNIT_TYPE_STRUCTURE) then
         call EmpUiSay({{UI.bldgLost}})
