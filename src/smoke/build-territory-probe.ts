@@ -437,6 +437,41 @@ function BehaveProbeRun takes nothing returns nothing
     call PreloadGenEnd("DuneSmoke\\\\behave.pld")
 endfunction`,
   } : {}),
+  // --losing: the AI's losing test (ai.j EmpAiLosingCase / Check): side 1 loses its refineries and
+  // credits, the clock passes 15000 ticks; the case, then retreat (units leave) or last gasp (attack)
+  ...(flag('--losing') ? {
+    extraStart: 'LosingProbeRun',
+    extraFunctions: `function LosingProbeKill takes nothing returns boolean
+    local unit u = GetFilterUnit()
+    if EmpAlive(u) and LoadBoolean(EmpAiTab, EmpType(u), 3) then
+        call KillUnit(u)
+    endif
+    set u = null
+    return false
+endfunction
+
+function LosingProbeRun takes nothing returns nothing
+    local string s
+    local group g = CreateGroup()
+    set EmpNormalConditions = false
+    call TriggerSleepAction(4.0)
+    set s = "before: case=" + I2S(EmpAiLosingCase()) + " gold=" + I2S(EmpEnemyGold())
+    call GroupEnumUnitsOfPlayer(g, Player(1), Filter(function LosingProbeKill))
+    call DestroyGroup(g)
+    call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 0)
+    call TriggerSleepAction(1.0)
+    set s = s + " | no refinery, no credits: case=" + I2S(EmpAiLosingCase())
+    set EmpTick = ${BATTLE.AI_LOSING.fromTicks}
+    call EmpAiLosingCheck()
+    set s = s + " | lost=" + I2S(IntegerTertiaryOp(EmpAiLost, 1, 0)) + " gone=" + I2S(IntegerTertiaryOp(EmpAiGone, 1, 0)) + " mode=" + I2S(EmpAIMode[1]) + " defPct=" + I2S(EmpAiDefPct)
+    call TriggerSleepAction(1.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s)
+    call PreloadGenEnd("DuneSmoke\\\\losing.pld")
+    set g = null
+endfunction`,
+  } : {}),
   // --mounds: spice mounds and fields at 5 s and after the first bursts (Size + Cost ticks = 60 s)
   ...(flag('--mounds') ? {
     extraStart: 'MoundProbeRun',

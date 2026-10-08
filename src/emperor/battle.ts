@@ -319,6 +319,13 @@ endfunction`;
       `    set EmpAiTFirst[${lvl}] = ${t.firstAttackDelay}`, `    set EmpAiTMinDef[${lvl}] = ${t.minDefence}`, `    set EmpAiTMaxDef[${lvl}] = ${t.maxDefence}`, `    set EmpAiTTurrets[${lvl}] = ${t.maxTurrets}`,
       `    set EmpAiTBuildTicks[${lvl}] = ${t.buildingDelay}`, `    set EmpAiTGapTicks[${lvl}] = ${t.gapBetweenScripts}`);
   });
+  // the losing test (ai.j EmpAiLosingCase): Rules.txt AiManufacturing types and the MCV's price
+  for (const r of o.rules?.objects.values() ?? []) {
+    const id = rc(r.name);
+    if (id && /^true$/i.test((r.raw.AiManufacturing ?? '').trim())) aiLines.push(`    call SaveBoolean(EmpAiTab, '${id}', ${C.AI_TAB_MANUFACTURING}, true)`);
+    if (id && r.conYard) aiLines.push(`    call SaveBoolean(EmpAiTab, '${id}', ${C.AI_TAB_YARD}, true)`);
+  }
+  aiLines.push(`    set EmpAiMcv = ${mcv ? `'${mcv}'` : 0}`, `    set EmpAiMcvCost = ${o.rules?.objects.get('MCV')?.cost ?? 0}`);
   // the ai.ini values SideAIBehaviour* re-tunes (forces.j EmpAiBehave)
   aiLines.push(`    set EmpAiDefPct = ${ai.defencePercent}`, `    set EmpAiWander = ${ai.defenceWanderTiles}`,
     `    set EmpAiBuildsDef = ${ai.buildsDefences}`, `    set EmpAiScoutTeams = ${ai.scoutTeams}`);

@@ -525,6 +525,123 @@ function EmpAiSuperweapon takes nothing returns nothing
     endif
 endfunction
 
+// Game.exe 1.09 losing test (0x43f260): which case says the AI is losing, 0 none. Counted like Game.exe:
+// every unit of the side (0x44c670), buildings but walls (0x42fc30), Rules.txt AiManufacturing ones
+// (0x44cce0), refineries (0x44cc40), its credits; an MCV it has (0x464950; this AI makes none).
+function EmpAiLosingCase takes nothing returns integer
+    local group g = CreateGroup()
+    local unit u
+    local integer t
+    local boolean yard = false
+    local boolean mcv = false
+    local integer units = 0
+    local integer buildings = 0
+    local integer factories = 0
+    local integer refineries = 0
+    local integer money = EmpEnemyGold()
+    local integer losing = 0
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) then
+            set t = EmpType(u)
+            if IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+                if t != EmpAiWall[EmpEnemyHouse] then
+                    set buildings = buildings + 1
+                endif
+                if LoadBoolean(EmpAiTab, t, {{C.AI_TAB_YARD}}) then
+                    set yard = true
+                endif
+                if LoadBoolean(EmpAiTab, t, 3) then
+                    set refineries = refineries + 1
+                endif
+            else
+                set units = units + 1
+                if t == EmpAiMcv then
+                    set mcv = true
+                endif
+            endif
+            if LoadBoolean(EmpAiTab, t, {{C.AI_TAB_MANUFACTURING}}) then
+                set factories = factories + 1
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    if yard then
+        if units >= {{C.AI_LOSING.yardUnits}} then
+            return 0
+        endif
+        if refineries == 0 and money < {{C.AI_LOSING.lowCredits}} then
+            return 6
+        elseif factories == 0 and refineries == 0 and money < {{C.AI_LOSING.credits}} then
+            return 7
+        endif
+        return 0
+    endif
+    if money <= EmpAiMcvCost and refineries == 0 then
+        set losing = 1
+    endif
+    if mcv then
+        return losing
+    endif
+    if factories == 0 then
+        return 2
+    elseif refineries == 0 and money < {{C.AI_LOSING.credits}} then
+        return 3
+    elseif money < {{C.AI_LOSING.poorCredits}} and units < {{C.AI_LOSING.fewUnits}} and buildings < {{C.AI_LOSING.fewBuildings}} then
+        return 4
+    elseif factories == 1 and units < {{C.AI_LOSING.fewUnits}} and buildings < {{C.AI_LOSING.fewBuildingsOneFactory}} then
+        return 5
+    endif
+    return losing
+endfunction
+
+// Once the AI is losing (Game.exe 0x43f4b0): with 1 - 1 / (100 / ChanceOfRetreating) odds it retreats,
+// its units leave the map (SideAIBehaviourRetreat's way), else its "last gasp": AGGRESSIVE
+// (SideAIBehaviourAggressive) and every unit at the enemy base.
+function EmpAiLosingCheck takes nothing returns nothing
+    local integer c
+    local group g
+    local unit u
+    local integer b
+    if EmpAiLost or EmpTick < {{C.AI_LOSING.fromTicks}} then
+        return
+    endif
+    set c = EmpAiLosingCase()
+    if c == 0 then
+        return
+    endif
+    set EmpAiLost = true
+    call EmpAiLog("losing, case " + I2S(c))
+    if {{ai.retreatChance}} > 0 and GetRandomInt(0, 100 / {{ai.retreatChance}} - 1) != 0 then
+        set EmpAiGone = true
+        set EmpAIMode[1] = 3
+        call EmpAiLog("retreats")
+        return
+    endif
+    set EmpAiBehaveMode = {{C.AI_BEHAVIOUR.aggressive}}
+    call ExecuteFunc("EmpAiBehave")
+    set b = EmpBaseOfSide(0)
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+            call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 3)
+            call SaveBoolean(EmpWaveTab, GetHandleId(u), 0, true)
+            call IssuePointOrder(u, "attack", EmpBaseX[b], EmpBaseY[b])
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    call EmpAiLog("last gasp")
+endfunction
+
 function EmpAiTactics takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
@@ -538,6 +655,13 @@ function EmpAiTactics takes nothing returns nothing
     local boolean formed = true
     local integer waveUnits = 0
     local real tile = {{real WC3_UNITS_PER_TILE}}
+    call EmpAiLosingCheck()
+    // a retreating AI no longer leads its units (they leave the map, EmpAIMode 3)
+    if EmpAiGone then
+        call DestroyGroup(g)
+        set g = null
+        return
+    endif
     // the player's base is known after TicksUntilAISeesIntoShroud
     if not EmpAiKnown and EmpTick >= {{ai.ticksSeesIntoShroud}} then
         set EmpAiKnown = true
@@ -656,14 +780,9 @@ function EmpAiWave takes nothing returns nothing
     local group g
     local unit u
     local integer b = EmpBaseOfSide(1)
-    // TODO(ai): Game.exe 1.09 reads ChanceOfRetreating only when the AI is losing (0x43f260, after 15000
-    // ticks): then, with 100 / ChanceOfRetreating odds against, it retreats (0x44fc20), else it turns
-    // AGGRESSIVE and sends everything at the enemy ("last gasp", 0x43f570). Its losing test weighs
-    // credits (< 1200 / 2000 / 4000), units (< 20 / 40), AiManufacturing buildings (0x44cce0),
-    // refineries and pads (0x44cc40) and three values not traced (0x42fc30, the type at 0x682c6c +0x24,
-    // the side flag at game +0xc4). Here it decides per wave whether its units stay at the target. Risk:
-    // late-game AI retreats / all-out attacks differ from Emperor's.
-    local boolean stay = GetRandomInt(1, 100) > {{ai.retreatChance}}
+    // a wave fights on at the target: Game.exe reads ChanceOfRetreating only when the AI is losing
+    // (EmpAiLosingCheck), never per wave
+    local boolean stay = true
     local integer n = 0
     local integer home = 0
     local integer send

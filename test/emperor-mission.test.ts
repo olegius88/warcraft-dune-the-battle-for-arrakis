@@ -1012,7 +1012,7 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes('local boolean veh = GetRandomInt(1, 20 + 80) > 20'), 'Foot / Tank mix');
   assert.ok(m.script.includes('set send = home - IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])') && m.script.includes('    set EmpAiDefPct = 24'), 'defence share stays home (within ai_difficulty.ini bounds)');
-  assert.ok(m.script.includes('local boolean stay = GetRandomInt(1, 100) > 50'), 'retreat chance');
+  assert.ok(m.script.includes('GetRandomInt(0, 100 / 50 - 1) != 0'), 'retreat chance (when losing)');
   assert.ok(m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'rebuild money');
   const yard = all.units.rawcode.get('HKConYard');
   assert.ok(m.script.includes(`set EmpTplType[16] = '${yard}'`), 'house 1 template starts with its construction yard');
@@ -1030,6 +1030,37 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   // report 2026-10-08). The type the AI has fewest of is picked (random among equals).
   const pick = m.script.slice(m.script.indexOf('function EmpAiPick'), m.script.indexOf('endfunction', m.script.indexOf('function EmpAiPick')));
   assert.ok(pick.includes('set have = EmpCount(1, t)') && pick.includes('if have < fewest then'), 'fewest-first pick');
+});
+
+// ChanceOfRetreating: Game.exe 1.09 reads it once (key 27: only 0x43f51d), when the AI is losing
+// (pattern 0x43f260, from tick 15000): then it retreats with 1 - 1 / (100 / ChanceOfRetreating) odds,
+// else it turns AGGRESSIVE and sends everything at the enemy (0x43f4b0; ai.ini: "50% chance of
+// retreating or launching all out attack"). Ours drew it for every attack wave instead, half the waves
+// came home. The losing test (cases 1..7): with a construction yard, under 40 units and no refinery
+// with < 2000 credits, or no AiManufacturing building and no refinery with < 4000; without one, no MCV
+// affordable and no refinery (1), or with no MCV: no AiManufacturing building (2), no refinery and
+// < 4000 (3), < 1200, < 20 units and < 7 buildings but walls (4), one AiManufacturing building,
+// < 20 units and < 6 buildings (5).
+test('the AI decides to retreat or attack all out when it is losing, by ChanceOfRetreating (Game.exe)', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const losing = body('EmpAiLosingCase');
+  for (const line of [
+    'if units >= 40 then', 'if refineries == 0 and money < 2000 then', 'elseif factories == 0 and refineries == 0 and money < 4000 then',
+    'if money <= EmpAiMcvCost and refineries == 0 then', 'if factories == 0 then', 'elseif refineries == 0 and money < 4000 then',
+    'elseif money < 1200 and units < 20 and buildings < 7 then', 'elseif factories == 1 and units < 20 and buildings < 6 then',
+  ]) assert.ok(losing.includes(line), line);
+  const decide = body('EmpAiLosingCheck');
+  assert.ok(decide.includes('EmpTick < 15000') && decide.includes('GetRandomInt(0, 100 / 50 - 1) != 0'), 'from tick 15000, ChanceOfRetreating 50');
+  assert.ok(decide.includes('set EmpAIMode[1] = 3') && decide.includes('set EmpAiBehaveMode = 1'), 'retreat / last gasp');
+  // AiManufacturing (Rules.txt: factories, barracks; not the windtraps) and the MCV's price
+  const factory = all.units.rawcode.get('HKFactory') as string, windtrap = all.units.rawcode.get('HKSmWindtrap') as string, barracks = all.units.rawcode.get('HKBarracks') as string;
+  assert.ok(m.script.includes(`call SaveBoolean(EmpAiTab, '${factory}', 6, true)`) && m.script.includes(`call SaveBoolean(EmpAiTab, '${barracks}', 6, true)`) && !m.script.includes(`call SaveBoolean(EmpAiTab, '${windtrap}', 6, true)`), 'AiManufacturing');
+  assert.ok(m.script.includes(`    set EmpAiMcvCost = ${all.rules.objects.get('MCV')?.cost}`), 'MCV cost');
+  // waves fight to the end: no per-wave retreat draw any more
+  assert.ok(!body('EmpAiWave').includes('GetRandomInt(1, 100)'), 'no per-wave draw');
 });
 
 // SideAIBehaviourAggressive / Normal / Defensive (script ids 0x42 / 0x44 / 0x4d) set the AI side's

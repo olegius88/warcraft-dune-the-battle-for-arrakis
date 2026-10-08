@@ -158,6 +158,17 @@ export const AI_BEHAVIOUR_SET = {
 export const AI_BEHAVIOUR = { normal: 0, aggressive: 1, defensive: 2 } as const;
 /** The side the base-running AI (src/jass/battle/ai.j, Player(1)) plays. */
 export const AI_RUN_SIDE = 1;
+/** The AI's losing test (Game.exe 1.09 0x43f260; ai.j EmpAiLosingCase): not before fromTicks; with a
+ * construction yard only under yardUnits units, then no refinery and under lowCredits credits, or no
+ * AiManufacturing building and no refinery under credits; without one see ai.j. Then it retreats or
+ * attacks all out by ChanceOfRetreating (0x43f4b0). */
+export const AI_LOSING = { fromTicks: 15000, yardUnits: 40, lowCredits: 2000, credits: 4000, poorCredits: 1200, fewUnits: 20, fewBuildings: 7, fewBuildingsOneFactory: 6 } as const;
+/** EmpAiTab child: the type has Rules.txt AiManufacturing (counted by the losing test). */
+export const AI_TAB_MANUFACTURING = 6;
+/** EmpAiTab child: the type is a construction yard (Rules.txt ConYard). Game.exe's losing test asks
+ * the per-side flag at game +0xc4 (0x44cc20); where it is false the AI builds an MCV ("Emergency
+ * building an MCV", 0x42d72f), so it stands for "has a construction yard". */
+export const AI_TAB_YARD = 7;
 /** Units the AI may have beyond MaxAiUnits in a story mission (Game.exe 1.09 0x464473: +100 when
  * the mission came from CCampaignManager::SetupMissionData, not from a territory battle). */
 export const STORY_AI_EXTRA_UNITS = 100;
