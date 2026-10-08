@@ -36,9 +36,10 @@ export interface SpecialAbilities {
   repair: { units: string[]; rangeTiles: number; perTenTicks: number };
   /** CanBeRepaired = FALSE */
   notRepairable: string[];
-  /** story characters (TastyToWorms = FALSE): not leeched, not contaminated */
+  /** story characters (TastyToWorms = FALSE): not leeched, not contaminated. An inference: Rules.txt
+   * states no such rule (the nine are infantry, so it changes only contamination) */
   story: string[];
-  /** walls: a saboteur does not blow up at them */
+  /** walls: a saboteur does not blow up at them. An inference: [ORSaboteur] / [SaboteurBomb] say nothing */
   walls: string[];
 }
 
