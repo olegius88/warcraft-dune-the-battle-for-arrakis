@@ -39,6 +39,21 @@ test('MDX: an independent reader loads our model and writes the same bytes back'
   assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf, 'byte-exact round trip');
 });
 
+// Emperor effects play texture sequences (Textures/!%boom0..10.tga): a layer flips through textures by
+// a texture id track (KMTF, integer values; mdx-m3-viewer layer.ts / animations.ts UintAnimation).
+test('MDX: a layer texture id track (KMTF), read back by the independent reader', () => {
+  const flip: MdxModel = { ...tiny, textures: [{ path: 'a.blp' }, { path: 'b.blp' }, { path: 'c.blp' }],
+    materials: [{ layers: [{ filterMode: 3, flags: 0x11, textureId: 0, textureIds: { frames: [1100, 1200, 1300], values: [[0], [1], [2]], interpolation: 0 } }] }] };
+  const buf = writeMdx(flip);
+  const m = new MdlxModel();
+  m.load(new Uint8Array(buf));
+  const anim = m.materials[0].layers[0].animations[0];
+  assert.strictEqual(anim.name, 'KMTF');
+  assert.deepStrictEqual([...anim.frames], [1100, 1200, 1300]);
+  assert.deepStrictEqual(anim.values.map((v: ArrayLike<number>) => Array.from(v)), [[0], [1], [2]]);
+  assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf, 'byte-exact round trip');
+});
+
 // Glue-screen models (the campaign background, src/emperor/menu-scene.ts) need a camera and tracks
 // that loop on their own (global sequences).
 test('MDX: global sequences and a camera, read back by the independent reader', () => {

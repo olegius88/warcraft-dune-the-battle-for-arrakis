@@ -34,7 +34,13 @@ export const FILTER = { none: 0, transparent: 1, blend: 2, additive: 3, addAlpha
 /** Layer flags (MDL: Unshaded 0x1, SphereEnvMap 0x2, TwoSided 0x10, Unfogged 0x20, NoDepthTest 0x40, NoDepthSet 0x80). */
 export const LAYER_FLAG = { unshaded: 0x1, twoSided: 0x10, unfogged: 0x20, noDepthTest: 0x40, noDepthSet: 0x80 } as const;
 
-export interface Layer { filterMode: number; flags: number; textureId: number; alpha?: number }
+export interface Layer {
+  filterMode: number; flags: number; textureId: number; alpha?: number;
+  /** texture id track (KMTF, integer values: a texture sequence; layer.ts / animations.ts UintAnimation) */
+  textureIds?: Track;
+  /** alpha track (KMTA) */
+  alphas?: Track;
+}
 export interface Material { priorityPlane?: number; flags?: number; layers: Layer[] }
 
 export interface Geoset {
@@ -124,6 +130,15 @@ function trackBytes(tag: string, t: Track, size: number): Buffer {
   return o.buffer();
 }
 
+/** A track of integer values (KMTF texture ids): one uint32 per key (animations.ts UintAnimation). */
+function uintTrackBytes(tag: string, t: Track): Buffer {
+  const o = new Out();
+  const interpolation = t.interpolation ?? 0;
+  o.tag(tag); o.u32(t.frames.length); o.u32(interpolation); o.i32(t.globalSequenceId ?? -1);
+  t.frames.forEach((f, i) => { o.i32(f); o.u32((t.values[i] as number[])[0] as number); });
+  return o.buffer();
+}
+
 function chunk(o: Out, tag: string, body: Buffer): void { o.tag(tag); o.u32(body.length); o.push(body); }
 
 function writeMdx(m: MdxModel): Buffer {
@@ -142,9 +157,15 @@ function writeMdx(m: MdxModel): Buffer {
   if (m.materials.length) {
     const c = new Out();
     for (const mat of m.materials) {
-      c.u32(20 + mat.layers.length * 28); c.i32(mat.priorityPlane ?? 0); c.u32(mat.flags ?? 0);
+      // a layer's animations (KMTA alpha, KMTF texture id) follow its fixed 28 bytes, inside its size
+      const anims = mat.layers.map((l) => Buffer.concat([l.alphas ? trackBytes('KMTA', l.alphas, 1) : Buffer.alloc(0), l.textureIds ? uintTrackBytes('KMTF', l.textureIds) : Buffer.alloc(0)]));
+      c.u32(20 + anims.reduce((s, a) => s + 28 + a.length, 0)); c.i32(mat.priorityPlane ?? 0); c.u32(mat.flags ?? 0);
       c.tag('LAYS'); c.u32(mat.layers.length);
-      for (const l of mat.layers) { c.u32(28); c.u32(l.filterMode); c.u32(l.flags); c.i32(l.textureId); c.i32(-1); c.u32(0); c.f32(l.alpha ?? 1); }
+      mat.layers.forEach((l, i) => {
+        const a = anims[i] as Buffer;
+        c.u32(28 + a.length); c.u32(l.filterMode); c.u32(l.flags); c.i32(l.textureId); c.i32(-1); c.u32(0); c.f32(l.alpha ?? 1);
+        c.push(a);
+      });
     }
     chunk(o, 'MTLS', c.buffer());
   }
