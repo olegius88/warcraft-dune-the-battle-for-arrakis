@@ -198,6 +198,12 @@ export const AI_SKILL = { none: -1, baseMax: 8, lowPhases: [1, 2] as readonly nu
  * rand % (roll * 10) < skill, a side without a building of its barracks type (0x43b920, 0x46c680)
  * builds one first. */
 export const AI_CRITICAL_BARRACKS = { early: 2, late: 6, skillUnder: 4, roll: 10, rollMax: 10 * 10 - 1, ticksPerMinute: 1500 } as const;
+/** Game.exe 1.09 0x45a8f9 ("Harvester under attack, sending to new spice", AiTacticsManager task 3,
+ * every AI update = tick): a harvester hit less than `window` ticks ago by a live attacker, on
+ * rand % 10 < skill, past tech FirstCampaignGameTechLevel + 1 (else only on rand % 100 == 0), with a
+ * refinery (0x44cc40), goes to FindRandomReachableTileWithinRange (0x46b770) of its base point within
+ * rand % 120 + 8 tiles; then it harvests the nearest spice again (economy.j). `tries`: tiles tried. */
+export const AI_HARV_FLIGHT = { window: 16, rollMax: 1 * 10 - 1, luckyMax: 99, rangeRandMax: 119, rangeMin: 8, tries: 20 } as const;
 export const AI_MAINTAIN_RATIO = { roll: 7, rollMax: 7 * 10 - 1, gold: 1100 } as const;
 /** EmpAiTab child: the type has Rules.txt AiManufacturing (counted by the losing test). */
 export const AI_TAB_MANUFACTURING = 6;

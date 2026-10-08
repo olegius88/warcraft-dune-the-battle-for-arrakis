@@ -241,6 +241,11 @@
     integer EmpAiSkill = {{AI_SKILL.none}}
     integer EmpAiSkillBase = 0
     integer EmpAiStrength = 0
+    // the harvester of side 1 hit lately, by whom, when (battle ai.j EmpAiHarvTick)
+    unit EmpAiHarvHit = null
+    unit EmpAiHarvHitBy = null
+    integer EmpAiHarvHitAt = 0
+    trigger EmpAiHarvHitTrig = null
     // the losing test (battle ai.j EmpAiLosingCheck): MCV type and price, done once, the AI retreated
     integer EmpAiMcv = 0
     integer EmpAiMcvCost = 0

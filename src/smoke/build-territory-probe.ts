@@ -491,6 +491,47 @@ function CriticalProbeRun takes nothing returns nothing
     set g = null
 endfunction`,
   } : {}),
+  // --harvflee: the harvester flight (ai.j EmpAiHarvTick): skill 99, tech 8; a unit of the player hits
+  // side 1's harvester; the AI report logs "harvester under attack" and where it went
+  ...(flag('--harvflee') ? {
+    extraStart: 'HarvFleeProbeRun',
+    extraFunctions: `function HarvFleeProbeRun takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit h = null
+    local unit u
+    local unit a
+    set EmpNormalConditions = false
+    call TriggerSleepAction(3.0)
+    set EmpAiSkill = 99
+    set EmpTechLevel = 8
+    loop
+        exitwhen h != null or EmpTick > 3000
+        call GroupEnumUnitsOfPlayer(g, Player(1), null)
+        loop
+            set u = FirstOfGroup(g)
+            exitwhen u == null
+            call GroupRemoveUnit(g, u)
+            if EmpType(u) == '${all.units.rawcode.get('Harvester')}' and EmpAlive(u) then
+                set h = u
+            endif
+        endloop
+        call TriggerSleepAction(1.0)
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    if h == null then
+        call EmpAiLog("probe: no harvester")
+        return
+    endif
+    call EmpAiLog("probe: harvester at " + I2S(R2I(GetUnitX(h))) + "," + I2S(R2I(GetUnitY(h))))
+    set a = CreateUnit(Player(0), '${all.units.rawcode.get('ATTrike')}', GetUnitX(h) + 200.0, GetUnitY(h), 0.0)
+    call UnitDamageTarget(a, h, 1.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    call TriggerSleepAction(1.0)
+    call EmpAiLog("probe: harvester order " + OrderId2String(GetUnitCurrentOrder(h)) + " at " + I2S(R2I(GetUnitX(h))) + "," + I2S(R2I(GetUnitY(h))))
+    call TriggerSleepAction(8.0)
+    call EmpAiLog("probe: harvester now at " + I2S(R2I(GetUnitX(h))) + "," + I2S(R2I(GetUnitY(h))))
+endfunction`,
+  } : {}),
   // --losing: the AI's losing test (ai.j EmpAiLosingCase / Check): side 1 loses its refineries and
   // credits, the clock passes 15000 ticks; the case, then retreat (units leave) or last gasp (attack)
   ...(flag('--losing') ? {

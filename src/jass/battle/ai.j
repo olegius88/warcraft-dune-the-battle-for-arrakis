@@ -967,11 +967,81 @@ function EmpAiWave takes nothing returns nothing
     endif
 endfunction
 
+// a harvester of side 1 is hit (EmpAiHarvTick)
+function EmpAiHarvHurt takes nothing returns nothing
+    if EmpType(GetTriggerUnit()) == '{{harvester}}' and GetEventDamageSource() != null then
+        set EmpAiHarvHit = GetTriggerUnit()
+        set EmpAiHarvHitBy = GetEventDamageSource()
+        set EmpAiHarvHitAt = EmpTick
+    endif
+endfunction
+
+// Game.exe 1.09 0x45a8f9, every tick (src/config/battle.ts AI_HARV_FLIGHT): the harvester hit lately
+// runs to a random reachable spot near its base
+function EmpAiHarvTick takes nothing returns nothing
+    local group g
+    local unit u
+    local boolean refinery = false
+    local integer b
+    local real r
+    local real x
+    local real y
+    local integer i = 0
+    if EmpAiHarvHit == null then
+        return
+    endif
+    if EmpTick - EmpAiHarvHitAt >= {{C.AI_HARV_FLIGHT.window}} then
+        set EmpAiHarvHit = null
+        set EmpAiHarvHitBy = null
+        return
+    endif
+    if not EmpAlive(EmpAiHarvHit) or not EmpAlive(EmpAiHarvHitBy) or GetRandomInt(0, {{C.AI_HARV_FLIGHT.rollMax}}) >= EmpAiSkill then
+        return
+    endif
+    if EmpTechLevel <= {{harvFlightTech}} and GetRandomInt(0, {{C.AI_HARV_FLIGHT.luckyMax}}) != 0 then
+        return
+    endif
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and LoadBoolean(EmpAiTab, EmpType(u), 3) then
+            set refinery = true
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    if not refinery then
+        return
+    endif
+    set b = EmpBaseOfSide(1)
+    set r = I2R(GetRandomInt(0, {{C.AI_HARV_FLIGHT.rangeRandMax}}) + {{C.AI_HARV_FLIGHT.rangeMin}}) * {{real WC3_UNITS_PER_TILE}}
+    loop
+        exitwhen i >= {{C.AI_HARV_FLIGHT.tries}}
+        set x = EmpBaseX[b] + GetRandomReal(-r, r)
+        set y = EmpBaseY[b] + GetRandomReal(-r, r)
+        if x > EmpMapMinX and x < EmpMapMaxX and y > EmpMapMinY and y < EmpMapMaxY and not IsTerrainPathable(x, y, PATHING_TYPE_WALKABILITY) then
+            call IssuePointOrder(EmpAiHarvHit, "move", x, y)
+            call EmpAiLog("harvester under attack, sending to new spice")
+            set EmpAiHarvHit = null
+            set EmpAiHarvHitBy = null
+            return
+        endif
+        set i = i + 1
+    endloop
+endfunction
+
 function EmpAiInit takes nothing returns nothing
     local trigger tr = CreateTrigger()
     call EmpAiData()
     call TriggerRegisterPlayerUnitEvent(tr, Player(1), EVENT_PLAYER_UNIT_ATTACKED, null)
     call TriggerAddAction(tr, function EmpAiOnAttacked)
+    set EmpAiHarvHitTrig = CreateTrigger()
+    call TriggerRegisterPlayerUnitEvent(EmpAiHarvHitTrig, Player(1), EVENT_PLAYER_UNIT_DAMAGED, null)
+    call TriggerAddAction(EmpAiHarvHitTrig, function EmpAiHarvHurt)
+    call TimerStart(CreateTimer(), {{real TICK_SECONDS}}, true, function EmpAiHarvTick)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiTactics)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiSuperweapon)
     set EmpAiWaveTimer = CreateTimer()

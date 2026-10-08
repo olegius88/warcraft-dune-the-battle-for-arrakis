@@ -1244,6 +1244,15 @@ test('the campaign enemy gets the personality, strength and skill of its phase (
   assert.ok(crit.includes('if EmpAiStrength == 0 or EmpAiSkill < 4 then') && crit.includes('if EmpTick <= m * 1500 or GetRandomInt(0, 99) >= EmpAiSkill then'), 'barracks roll');
   assert.ok(body('EmpAiBuild').includes('set t = EmpAiCriticalBarracks()'), 'asked by the builder');
   assert.ok(t.includes('set EmpAiStrength = strength'), 'strength kept');
+  // Game.exe 0x45a8f9: a harvester hit within 16 ticks rolls rand % 10 < skill every AI update (a
+  // tick); past FirstCampaignGameTechLevel + 1 (else rand % 100 == 0), with a refinery, it goes to a
+  // random reachable tile within rand % 120 + 8 tiles of its base (FindRandomReachableTileWithinRange)
+  const harv = body('EmpAiHarvTick');
+  assert.ok(harv.includes('if EmpTick - EmpAiHarvHitAt >= 16 then'), 'window');
+  assert.ok(harv.includes('GetRandomInt(0, 9) >= EmpAiSkill'), 'skill roll');
+  assert.ok(harv.includes('EmpTechLevel <= 3 and GetRandomInt(0, 99) != 0'), 'tech gate');
+  assert.ok(harv.includes('GetRandomInt(0, 119) + 8'), 'range');
+  assert.ok(m.script.includes('call TriggerRegisterPlayerUnitEvent(EmpAiHarvHitTrig, Player(1), EVENT_PLAYER_UNIT_DAMAGED, null)'), 'hits watched');
 });
 
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines
