@@ -12,6 +12,10 @@
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
 
 ### Changed
+- 2026-10-08 Критические барраки по `Game.exe` 0x42db2d ([ai.j](src/jass/battle/ai.j)
+  `EmpAiCriticalBarracks`, `AI_CRITICAL_BARRACKS`). Если у стороны нет барраков дольше 2 минут
+  (6 минут при силе 0 или навыке < 4) и выпал бросок rand%100 < навык, строитель ставит барраки
+  первыми. Проверено пробником `--critical`.
 - 2026-10-08 Противник в битве за территорию получает личность, силу и навык своей фазы, как в
   `Game.exe` 1.09 ([forces.j](src/jass/battle/forces.j) `EmpAiCampaignTune` / `EmpAiTune`,
   `AI_CAMPAIGN`, `AI_SKILL` в [config/battle.ts](src/config/battle.ts)). CreateGame (`0x48e990`) даёт ему

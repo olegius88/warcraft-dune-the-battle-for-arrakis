@@ -34,9 +34,15 @@
 // as turrets by ratio with a wall row each (ai.j EmpAiWalls); of the 17 skill rolls (0x46c5d0) the
 // maintenance one and the critical barracks (0x42db67, ai.j EmpAiCriticalBarracks, asked in every
 // builder turn like 0x42f07d does) are reproduced, the builder update's own critical check (0x430e30:
-// rand % 1000 < skill each update, in the [StartScript] too) not; nor those at 0x4304c0, 0x430786,
-// 0x440613, 0x44e680 (pro-active targets), 0x450575, 0x4582a0 (scouts), 0x45a600, 0x45b030 (extra
-// units), 0x463980, 0x465473, 0x468410 (infiltrators), 0x469c60; a story mission's AI record
+// rand % 1000 < skill each update, in the [StartScript] too) not; nor those that need what the port
+// has not: 0x44e680 (a pro-active target is the best scored one, the score threshold +- rand 10 unless
+// rand % 10 < skill; the waves here go for the player's base, no target scores), 0x4582a0 (a scout
+// team re-picks one of 5 scout points on rand % 20 < skill; scouts roam here), 0x4304c0 (past tech
+// FirstCampaignGameTechLevel + 1, credits over the reserve >= 10, 1 in 20 updates: each building with
+// building vfunc +0x108 gets command 0x4c2a40 on rand % 10 < skill, group 5 also rand % 300 < skill;
+// the command is not identified, possibly the upgrade the builder here buys at once, EmpAiUpgrade);
+// not looked into: 0x430786, 0x440613, 0x450575, 0x45a600, 0x45b030 (extra units), 0x463980,
+// 0x465473, 0x468410 (infiltrators), 0x469c60; a story mission's AI record
 // (SetupMissionData 0x4903b0 -> 0x534d80) is not traced for its personality / skill, so there the skill
 // stays -1 (SideAIBehaviour*: EmpAiSkillBase 0 + 2); a windtrap goes first when short of power (not
 // traced in Game.exe). Risk: the AI's base grows in another order than Emperor's.
