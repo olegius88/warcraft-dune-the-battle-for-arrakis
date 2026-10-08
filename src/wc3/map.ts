@@ -83,11 +83,16 @@ function buildMap(m: MapSpec): BuiltMap {
     players: players.map((p) => ({
       id: p.id, type: PLAYER_TYPE[p.control], race: PLAYER_RACE[p.race || 'human'], name: p.name, x: p.x, y: p.y, fixed: true,
     })),
-    forces: teams.map((t) => ({
-      flags: 0x1 | 0x2, // allied, allied victory
-      playerMask: players.filter((p) => p.team === t).reduce((mask, p) => mask | (1 << p.id), 0),
-      name: `Force ${t + 1}`,
-    })),
+    forces: teams.map((t) => {
+      const members = players.filter((p) => p.team === t);
+      return {
+        flags: 0x1 | 0x2, // allied, allied victory
+        playerMask: members.reduce((mask, p) => mask | (1 << p.id), 0),
+        // the lobby shows force names: one player's force is named after them (test "a force of one
+        // named player"; "Force N" over every side looked unfinished in the contest map's lobby)
+        name: members.length === 1 && members[0]?.name ? members[0].name : `Force ${t + 1}`,
+      };
+    }),
   });
   const script = buildScript({
     name, description, width: m.width, height: m.height, boundary: m.boundary,

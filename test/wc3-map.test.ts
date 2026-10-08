@@ -6,6 +6,8 @@ import mpqArchiveModule from 'mdx-m3-viewer/dist/cjs/parsers/mpq/archive.js';
 const MpqArchive = mpqArchiveModule.default;
 import blpImageModule from 'mdx-m3-viewer/dist/cjs/parsers/blp/image.js';
 const { BlpImage } = blpImageModule;
+import w3xModule from 'mdx-m3-viewer/dist/cjs/parsers/w3x/index.js';
+const w3x = w3xModule.default;
 
 function sampleMap() {
   return buildMap({
@@ -57,4 +59,24 @@ test('map texts go to war3map.wts and the w3i / config() refer to them as TRIGST
   assert.ok(wts.includes(long.trim()) && wts.includes('Атака: Bilar Slopes'), 'texts in wts');
   assert.match(m.script, /call SetMapName\( "TRIGSTR_\d{3}" \)/);
   assert.match(m.script, /call SetMapDescription\( "TRIGSTR_\d{3}" \)/);
+});
+
+// Lobby of the contest map (2026-10-09): every force was called "Force N", so the custom game screen
+// listed "Force 1 .. Force 12" over the mission's sides. A force of one player now carries that
+// player's name; mixed teams keep "Force N".
+test('a force of one named player is named after the player', () => {
+  const m = buildMap({
+    name: 'T', width: 32, height: 32, tileset: 'B', ground: ['Bdsr'], cliffs: ['CBde'], corner: () => ({}),
+    players: [
+      { id: 0, control: 'user', race: 'human', team: 0, x: 0, y: 0, name: 'Командор' },
+      { id: 1, control: 'computer', race: 'orc', team: 1, x: 0, y: 0, name: 'Сторона 1' },
+      { id: 2, control: 'computer', race: 'orc', team: 2, x: 0, y: 0, name: 'A' },
+      { id: 3, control: 'computer', race: 'orc', team: 2, x: 0, y: 0, name: 'B' },
+    ],
+  });
+  const archive = new MpqArchive();
+  archive.load(new Uint8Array(m.buffer), true);
+  const f = new w3x.w3i.File();
+  f.load(archive.get('war3map.w3i')?.bytes() ?? new Uint8Array());
+  assert.deepStrictEqual(f.forces.map((x: { name: string }) => x.name), ['Командор', 'Сторона 1', 'Force 3']);
 });
