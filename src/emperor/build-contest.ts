@@ -6,6 +6,8 @@
 // the map stays small) and their sound.
 // Usage: node src/emperor/build-contest.ts [--house AT|HK|OR] [--quality 70] [--out file.w3x] [--check]
 //        [--autowin seconds]   (tests: the mission is won that long after it starts)
+//        [--killwin seconds]   (tests: the computer players' units die that long after the start; the
+//                               mission script itself must end the game)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,7 +31,8 @@ import { readIndex, readArchive } from './rfh.ts';
 import { readTga, writeTga } from '../wc3/tga.ts';
 import { resize } from '../wc3/blp.ts';
 import { loadingScreen } from './loading-screen.ts';
-import { RAW_DIR, BUILD_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
+import { renderFile } from '../wc3/template.ts';
+import { RAW_DIR, BUILD_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData, jassFile } from '../config/paths.ts';
 
 const args = process.argv.slice(2);
 const opt = (n: string, d: string): string => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] as string : d; };
@@ -40,6 +43,7 @@ const quality = Number(opt('--quality', String(CONTEST.movieQuality)));
 const out = opt('--out', path.join(BUILD_DIR, 'contest', CONTEST.file(h)));
 const movieRoot = path.join(BUILD_DIR, 'contest', 'movies');
 const autoWin = Number(opt('--autowin', '0'));
+const killWin = Number(opt('--killwin', '0'));
 
 const all = loadAll({ models: true });
 const music = loadMusic();
@@ -103,6 +107,7 @@ const m = buildMission({
   defaultPhase: CP.START_MISSION_PHASE, defaultTech: CP.START_MISSION_TECH,
   briefing: all.ctx.textByKey(script) || '', debugName: `Contest_${h}`,
   music: tracks, intro: { movies, player }, extraImports, mapDescription: CONTEST.description(CONTEST.houseFor[h]), loadingScreen: CONTEST.loading.model, ...(autoWin ? { autoWinSeconds: autoWin } : {}),
+  ...(killWin ? { extraFunctions: renderFile(jassFile('smoke/kill-win'), { seconds: killWin }), extraStart: 'EmpKillWin' } : {}),
 });
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, m.buffer);

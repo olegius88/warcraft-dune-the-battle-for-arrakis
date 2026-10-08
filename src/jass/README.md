@@ -53,7 +53,7 @@
 | `battle/forces.j` | `src/emperor/battle.ts` | стартовые силы, база врага, производство и волны, оборонительные битвы |
 | `battle/init.j` | `src/emperor/battle.ts` | `EmpBattleInit`: триггеры и таймеры битвы за территорию |
 | `preview/init.j` | `src/emperor/preview-map.ts` | превью рельефа: отряд на базе, маркеры точек GameElements, камера |
-| `smoke/*.j` | `src/smoke/build-smoke.ts`, `build-hop.ts`, `build-bg-probe.ts` | дымовые тестовые карты: game cache, `SmokeLog`, смена уровня, `PlayCinematic` |
+| `smoke/*.j` | `src/smoke/build-smoke.ts`, `build-hop.ts`, `build-bg-probe.ts`, `src/emperor/build-contest.ts --killwin` | дымовые тестовые карты: game cache, `SmokeLog`, смена уровня, `PlayCinematic`; `kill-win.j` — проверка победы по условию сценария |
 | `runtime/globals.j` | `src/emperor/runtime.ts` | глобальные переменные рантайма API Emperor |
 | `runtime/helpers.j` | `src/emperor/runtime.ts` | вспомогательные функции рантайма (стороны, подсчёт, ИИ, речь, конец миссии) |
 | `runtime/api/<Name>.j` | `src/emperor/runtime.ts` | тело функции `EF_<Name>` API миссий Emperor |
