@@ -512,6 +512,55 @@ endfunction`,
     endloop
 endfunction`,
   } : {}),
+  // --reserve: the reserve teams (ai.j EmpAiResTeam): 8 home units of side 1, a unit of the player at
+  // the base as a threat, killed after 15 s; the AI report logs the points and where the teams stand
+  ...(flag('--reserve') ? {
+    extraStart: 'ReserveProbeRun',
+    extraFunctions: `function ReserveProbeLog takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local integer b = EmpBaseOfSide(1)
+    local integer t
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        set t = LoadInteger(EmpWaveTab, GetHandleId(u), ${BATTLE.AI_TAB_RESERVE_TEAM})
+        if t > 0 and EmpAlive(u) then
+            call EmpAiLog("probe: team " + I2S(t) + " at " + I2S(R2I(GetUnitX(u))) + "," + I2S(R2I(GetUnitY(u))) + " point " + I2S(R2I(EmpAiDefX[b * 3 + t])) + "," + I2S(R2I(EmpAiDefY[b * 3 + t])))
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
+function ReserveProbeRun takes nothing returns nothing
+    local integer i = 0
+    local integer b
+    local unit a
+    set EmpNormalConditions = false
+    call TriggerSleepAction(3.0)
+    set b = EmpBaseOfSide(1)
+    call EmpAiLog("probe: base " + I2S(R2I(EmpBaseX[b])) + "," + I2S(R2I(EmpBaseY[b])) + " points " + I2S(R2I(EmpAiDefX[b * 3])) + "," + I2S(R2I(EmpAiDefY[b * 3])) + " " + I2S(R2I(EmpAiDefX[b * 3 + 1])) + "," + I2S(R2I(EmpAiDefY[b * 3 + 1])) + " " + I2S(R2I(EmpAiDefX[b * 3 + 2])) + "," + I2S(R2I(EmpAiDefY[b * 3 + 2])))
+    loop
+        exitwhen i >= 8
+        call CreateUnit(Player(1), '${all.units.rawcode.get('HKLightInf')}', EmpBaseX[b] + 200.0, EmpBaseY[b], 0.0)
+        set i = i + 1
+    endloop
+    call TriggerSleepAction(5.0)
+    set a = CreateUnit(Player(0), '${all.units.rawcode.get('ATTrike')}', EmpBaseX[b] + 500.0, EmpBaseY[b], 0.0)
+    call UnitShareVision(a, Player(1), true)
+    call SetUnitInvulnerable(a, true)
+    call TriggerSleepAction(15.0)
+    call EmpAiLog("probe: trike alive " + I2S(IntegerTertiaryOp(EmpAlive(a), 1, 0)) + " visible " + I2S(IntegerTertiaryOp(IsUnitVisible(a, Player(1)), 1, 0)) + " fights " + I2S(EmpAiResFight[1]))
+    call SetUnitInvulnerable(a, false)
+    call KillUnit(a)
+    call TriggerSleepAction(25.0)
+    call EmpAiLog("probe: fights " + I2S(EmpAiResFight[1]) + " " + I2S(EmpAiResFight[2]) + " " + I2S(EmpAiResFight[3]))
+    call ReserveProbeLog()
+endfunction`,
+  } : {}),
   // --harvflee: the harvester flight (ai.j EmpAiHarvTick): skill 99, tech 8; a unit of the player hits
   // side 1's harvester; the AI report logs "harvester under attack" and where it went
   ...(flag('--harvflee') ? {

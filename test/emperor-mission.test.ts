@@ -1266,6 +1266,15 @@ test('the campaign enemy gets the personality, strength and skill of its phase (
   const dev = all.units.rawcode.get('HKDevastator') as string;
   assert.ok(m.script.includes(`call SaveBoolean(EmpAiTab, '${dev}', 8, true)`), 'special flag');
   assert.ok(body('EmpEnemyPick').includes('LoadBoolean(EmpAiTab, t, 8) == special'), 'regular picks skip specials');
+  // the reserve tactic (Game.exe 0x44d980): home units fill 5 teams of 3; after a fight team k goes to
+  // the base's defensive assembly point k (0x452940 -> 0x460880), only teams 1 and 2 have one
+  assert.match(m.script, /set EmpAiDefX\[0\] = -?\d/, 'points of base 0');
+  const res = body('EmpAiResTeam');
+  assert.ok(res.includes('EmpAiResN[t] < 3 or t == 5'), 'teams fill one by one, the last takes any');
+  const tac = body('EmpAiTactics');
+  assert.ok(tac.includes('if threat != null then') && tac.includes('set EmpAiResFight[team] = EmpTick'), 'a fight marks the team');
+  assert.ok(tac.includes('team < 3 and EmpAiResFight[team] > 0 and threat == null'), 'after it, teams with a point');
+  assert.ok(tac.includes('call IssuePointOrder(u, "move", EmpAiDefX[b * 3 + team], EmpAiDefY[b * 3 + team])'), 'to the point');
   const sp = body('EmpAiSpecialTurn');
   assert.ok(sp.includes('EmpTechLevel < 5 or EmpTick < 4500 or EmpEnemyGold() < 800 or EmpCount(1, 1) < 16 then') && sp.includes('if GetRandomInt(0, 29) >= EmpAiSkill then'), 'special gate');
 });

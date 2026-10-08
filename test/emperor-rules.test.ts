@@ -93,6 +93,8 @@ test('the shipped ai.ini: building ratios, site weights, strategy values', { ski
   assert.strictEqual(ai.buildsDefences, true);
   // FirstCampaignGameTechLevel (S42): the harvester flight and building commands wait past it + 1
   assert.strictEqual(ai.firstCampaignTech, 2);
+  // the reserve tactic: 5 teams of 3 (Game.exe 0x44d980)
+  assert.deepStrictEqual([ai.reserveTeams, ai.reservePerTeam], [5, 3]);
   // ai_difficulty.ini next to it: per tech level, [Tech1] the default of every key
   assert.strictEqual(ai.tech.length, 9, 'index = tech level 1..8');
   assert.deepStrictEqual(ai.tech[1], { maxUnits: 22, numBuildings: 7, buildingDelay: 1200, maintenanceDelay: 3500, firstAttackDelay: 5000, gapBetweenScripts: 1300, unitDelay: 875, minDefence: 2, maxDefence: 5, maxTurrets: 0 });

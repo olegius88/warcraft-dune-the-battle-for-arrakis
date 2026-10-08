@@ -206,6 +206,17 @@ export const AI_CRITICAL_BARRACKS = { early: 2, late: 6, skillUnder: 4, roll: 10
 export const AI_HARV_FLIGHT = { window: 16, rollMax: 1 * 10 - 1, luckyMax: 99, rangeRandMax: 119, rangeMin: 8, tries: 20 } as const;
 /** Game.exe 1.09 0x430e30: the builder update asks its critical needs on rand % 1000 < skill (0x46c5d0 n 100). */
 export const AI_CRITICAL_TICK = { rollMax: 100 * 10 - 1 } as const;
+/** Defensive assembly points of a base (Game.exe 1.09, src/emperor/ai-points.ts): `count` per cluster
+ * (0x42acc0 "D AP"); point k is the ramp of the k-th direction (0 north, clockwise, 0x46c8d0 sectors
+ * ending at `sectors` degrees) that has one (0x42b770), `out` tiles further that way (0x42cba0:
+ * diagonals half per axis), else `boxOut` + `out` tiles from the cluster box (`boxTiles` round the
+ * base here) towards the enemy (0x42bb20); kept `edge` tiles from the map edge (0x46ca50). The
+ * reserve's team k (1-based, ai.ini NumReserveTeams of MaxUnitsPerReserveTeam) goes to point k after a
+ * fight (0x452940 -> 0x460880); teams past the last point have none (0x42badb). */
+/** EmpWaveTab children of a unit of side 1: its reserve team (ai.j EmpAiResTeam), sent to its point. */
+export const AI_TAB_RESERVE_TEAM = 2;
+export const AI_TAB_RESERVE_POSTED = 3;
+export const AI_DEF_POINT = { count: 3, out: 12, boxOut: 4, edge: 6, boxTiles: 8, sectors: [30, 60, 120, 150, 210, 240, 300, 330] as readonly number[] } as const;
 export const AI_MAINTAIN_RATIO = { roll: 7, rollMax: 7 * 10 - 1, gold: 1100 } as const;
 /** EmpAiTab child: the type has Rules.txt AiManufacturing (counted by the losing test). */
 export const AI_TAB_MANUFACTURING = 6;

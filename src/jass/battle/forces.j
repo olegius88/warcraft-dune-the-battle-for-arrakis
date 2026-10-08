@@ -270,22 +270,15 @@ endfunction
 // unit tactic (type 4). A reserve team's target is a defensive assembly point of the base
 // (0x45fc10: GetAnAssemblyPointLocation 0x42ba50, ePointDefensive k), where it goes back after each
 // battle (0x452940 -> reserve +0x60, 0x460880 -> "Team <%s> moving to <%s>", 0x460740); an armed unit
-// joining a team gets no order (0x45fd50). TODO(ai): here those near the yard go with its waves (#A1
-// before the posts: 68 of 74 sent at 140 s), those beyond DefenceTacticWanderDistance keep their
-// posts, also after a fight; whether an idle reserve team walks to its point once assembled (team states
-// 0x4602be, "units assembled - awaiting orders") is not traced; the points are script targets of a
-// building cluster (0x42acc0: 1 "T AP", 3 "D AP", 4 "S AP" via 0x44c260) placed with the rock's ramps
-// (0x42caf0 "CreateRampInDirectionArray": a ramp tile per direction of 8, 0x437750, at cluster
-// +0x54); defensive point k (0x42b770) is the k-th ramp found, without ramps 4 tiles from the cluster
-// centre towards its direction +0x40 (0x439c50, 0x42bb20) stepped 12 tiles a direction (0x42cba0),
-// then moved by 0x46ca50(6) and made reachable (0x46b2f0). The ramp search (0x437750) floods the
-// AI grid from the base tile over tiles whose class (& 3) is not 2, collects up to 256 tiles with bit
-// 0x20 and returns the first lying in the asked direction (0x46c8d0); 0x4369a0 sets 0x20 on a tile next
-// to a map tile (8-byte records at +0xa278) with flag +1 & 0x80 ("There are no ramps on this map").
-// Not traced: how the class bits are made, which Rules.txt terrain type sets +1 & 0x80 (Ramp?), +0x40
-// and the two moves; here home units gather at the yard.
-// Risk: early waves stronger or weaker
-// than in the original.
+// joining a team gets no order (0x45fd50), and the reserve has no other move (its methods 0x458060..,
+// vtable 0x5d1418; 0x452e20 / 0x452e40 are other tactics'). Here: ai.j EmpAiResTeam (5 teams of 3), a
+// team in a fight goes to its point once the fight is over; the points are computed from the map
+// (src/emperor/ai-points.ts, probe --reserve). TODO(ai): approximations there: the flood order, the
+// first part of 0x4369a0, 0x46b2f0 "made reachable", the cluster box and the enemy zone (0x439cf0);
+// "over" here is no threat at a tactics turn (Game.exe: the team state machine 0x460930). Those near
+// the yard go with the waves (#A1 before the posts: 68 of 74 sent at 140 s), guards beyond
+// DefenceTacticWanderDistance keep their posts. Risk: early waves stronger or weaker than in the
+// original.
 function EmpStoryAiStart takes nothing returns nothing
     local group g = CreateGroup()
     local unit u

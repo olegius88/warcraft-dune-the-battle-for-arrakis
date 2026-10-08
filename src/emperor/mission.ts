@@ -10,6 +10,8 @@ import { jassFile } from '../config/paths.ts';
 import { translateScript } from './translate.ts';
 import { buildTerrain } from './terrain.ts';
 import { battleSetup, storyAiHouse } from './battle.ts';
+import { defensivePoints } from './ai-points.ts';
+import { AI_DEF_POINT, STORY_AI_OWNER, STORY_AI_BUILDING } from '../config/battle.ts';
 import type { House } from '../config/houses.ts';
 import type { ScriptPlayer } from '../wc3/jass.ts';
 import type { MapMeta, GamePoint } from './mapxbf.ts';
@@ -134,6 +136,19 @@ function buildMission(p: MissionParams): BuiltMission {
   bases.forEach((b, i) => { const [x, y] = toW(b); init.push(`    set EmpBaseX[${i}] = ${real(x)}`, `    set EmpBaseY[${i}] = ${real(y)}`, `    set EmpBaseOwner[${i}] = -1`); });
   init.push(`    set EmpBaseCount = ${Math.max(1, bases.length)}`);
   if (!bases.length) init.push('    set EmpBaseX[0] = 0.0', '    set EmpBaseY[0] = 0.0', '    set EmpBaseOwner[0] = -1');
+  // the defensive assembly points of each base point (Game.exe "D AP", src/emperor/ai-points.ts),
+  // the enemy taken at the map centre; the story AI's yard gets the index its own base point takes at
+  // runtime (battle forces.j EmpStoryAiStart)
+  if (p.meta.tiles && p.meta.mapSize) {
+    const [W, H] = p.meta.mapSize;
+    const sites: Array<[number, number]> = bases.map((b) => [Math.floor(b.x / EMPEROR_TILE), Math.floor(b.y / EMPEROR_TILE)]);
+    const yard = (p.meta.buildings ?? []).find((o) => o.owner === STORY_AI_OWNER && o.name.endsWith(STORY_AI_BUILDING));
+    if (yard) sites[Math.max(1, bases.length)] = [yard.x, yard.y];
+    sites.forEach(([bx, by], b) => defensivePoints(p.meta.tiles as Buffer, W, H, bx, by, Math.floor(W / 2), Math.floor(H / 2)).forEach(([x, y], k) => {
+      const [wx, wy] = t.toWorld(x * EMPEROR_TILE + EMPEROR_TILE / 2, y * EMPEROR_TILE + EMPEROR_TILE / 2);
+      init.push(`    set EmpAiDefX[${b * AI_DEF_POINT.count + k}] = ${real(wx)}`, `    set EmpAiDefY[${b * AI_DEF_POINT.count + k}] = ${real(wy)}`);
+    }));
+  }
   for (let s = 0; s <= RT.NEUTRAL_SIDE; s++) init.push(`    set EmpSideBase[${s}] = -1`);
   init.push('    set EmpSideBase[0] = 0', '    set EmpBaseOwner[0] = 0');
   const entrances = ((ge.Entrance || {}).Connected_Entrance) || [];

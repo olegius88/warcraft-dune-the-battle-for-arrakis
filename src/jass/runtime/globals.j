@@ -241,6 +241,12 @@
     integer EmpAiSkill = {{AI_SKILL.none}}
     integer EmpAiSkillBase = 0
     integer EmpAiStrength = 0
+    // defensive assembly points by base point (index b * 3 + k, mission.ts), reserve team members and
+    // the tick of each team's last fight (battle ai.j EmpAiResTeam / EmpAiTactics)
+    real array EmpAiDefX
+    real array EmpAiDefY
+    integer array EmpAiResN
+    integer array EmpAiResFight
     // the harvester of side 1 hit lately, by whom, when (battle ai.j EmpAiHarvTick)
     unit EmpAiHarvHit = null
     unit EmpAiHarvHitBy = null

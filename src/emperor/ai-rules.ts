@@ -56,6 +56,9 @@ export interface AiRules {
   firstTechDefendCY: number;
   /** FirstCampaignGameTechLevel: Game.exe waits past it + 1 for the harvester flight (0x45a954), building commands (0x4304c0), the defence plan */
   firstCampaignTech: number;
+  /** NumReserveTeams / MaxUnitsPerReserveTeam: the reserve tactic's teams (Game.exe 0x44d980; the last one takes any number) */
+  reserveTeams: number;
+  reservePerTeam: number;
   ticksSeesIntoShroud: number;
   ticksAbandonForming: number;
   /** [StartScript] Next= entries in order: the building groups built first (lower case) */
@@ -145,6 +148,8 @@ function parseAiRules(text: string, difficulty = ''): AiRules {
     ticksDefendCY: s('TicksBeforeDefendCYTactic', 0),
     firstTechDefendCY: s('FirstTechLevelForDefendCYTactic', 0),
     firstCampaignTech: s('FirstCampaignGameTechLevel', 0),
+    reserveTeams: s('NumReserveTeams', 0),
+    reservePerTeam: s('MaxUnitsPerReserveTeam', 0),
     ticksSeesIntoShroud: s('TicksUntilAISeesIntoShroud', 0),
     ticksAbandonForming: s('TicksUntilAbandonForming', 0),
     startScript: (sections.get('startscript')?.entries ?? []).filter(([k]) => k.toLowerCase() === 'next').map(([, v]) => (v.split('//')[0] ?? '').trim().toLowerCase()).filter(Boolean),

@@ -781,6 +781,23 @@ function EmpAiLosingCheck takes nothing returns nothing
     call EmpAiLog("last gasp")
 endfunction
 
+// the reserve tactic (Game.exe 1.09 0x44d980, src/config/battle.ts AI_DEF_POINT): a home unit's team,
+// given on first sight to the first of {{ai.reserveTeams}} teams with room for {{ai.reservePerTeam}} (the last takes any)
+function EmpAiResTeam takes unit u returns integer
+    local integer t = LoadInteger(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_TEAM}})
+    if t > 0 then
+        return t
+    endif
+    set t = 1
+    loop
+        exitwhen EmpAiResN[t] < {{ai.reservePerTeam}} or t == {{ai.reserveTeams}}
+        set t = t + 1
+    endloop
+    set EmpAiResN[t] = EmpAiResN[t] + 1
+    call SaveInteger(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_TEAM}}, t)
+    return t
+endfunction
+
 function EmpAiTactics takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
@@ -794,6 +811,8 @@ function EmpAiTactics takes nothing returns nothing
     local boolean formed = true
     local integer waveUnits = 0
     local real tile = {{real WC3_UNITS_PER_TILE}}
+    local integer team
+    local integer i = 1
     call EmpAiLosingCheck()
     // a retreating AI no longer leads its units (they leave the map, EmpAIMode 3)
     if EmpAiGone then
@@ -827,6 +846,22 @@ function EmpAiTactics takes nothing returns nothing
             endif
         endif
     endloop
+    // the reserve teams' members now (EmpAiResTeam)
+    loop
+        exitwhen i > {{ai.reserveTeams}}
+        set EmpAiResN[i] = 0
+        set i = i + 1
+    endloop
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        set team = LoadInteger(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_TEAM}})
+        if team > 0 and EmpAiHomeUnit(u) then
+            set EmpAiResN[team] = EmpAiResN[team] + 1
+        endif
+    endloop
     // roles: scouts and escorts, home guard orders, wave forming
     call GroupEnumUnitsOfPlayer(g, Player(1), null)
     loop
@@ -853,9 +888,19 @@ function EmpAiTactics takes nothing returns nothing
                 if best == null or GetUnitDefaultMoveSpeed(u) > GetUnitDefaultMoveSpeed(best) then
                     set best = u
                 endif
-                if threat != null and GetUnitCurrentOrder(u) == 0 then
-                    call IssueTargetOrder(u, "attack", threat)
-                elseif not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], I2R(EmpAiWander) * tile) then
+                set team = EmpAiResTeam(u)
+                if threat != null then
+                    // the team is in a fight (it goes to its point once it is over)
+                    set EmpAiResFight[team] = EmpTick
+                    call SaveBoolean(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_POSTED}}, false)
+                    if GetUnitCurrentOrder(u) == 0 then
+                        call IssueTargetOrder(u, "attack", threat)
+                    endif
+                elseif team < {{C.AI_DEF_POINT.count}} and EmpAiResFight[team] > 0 and threat == null and not LoadBoolean(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_POSTED}}) then
+                    // the fight is over: the team goes to its defensive assembly point (0x460880)
+                    call IssuePointOrder(u, "move", EmpAiDefX[b * {{C.AI_DEF_POINT.count}} + team], EmpAiDefY[b * {{C.AI_DEF_POINT.count}} + team])
+                    call SaveBoolean(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_POSTED}}, true)
+                elseif not LoadBoolean(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_POSTED}}) and not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], I2R(EmpAiWander) * tile) then
                     call IssuePointOrder(u, "move", EmpBaseX[b], EmpBaseY[b])
                 elseif EmpAiCYHit > 0 and EmpTick - EmpAiCYHit < R2I({{real C.AI_CY_ALARM_SECONDS}} * {{TPS}}) and EmpTick >= {{ai.ticksDefendCY}} and EmpTechLevel >= {{ai.firstTechDefendCY}} then
                     call IssuePointOrder(u, "attack", GetUnitX(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]), GetUnitY(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]))
