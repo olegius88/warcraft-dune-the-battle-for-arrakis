@@ -540,6 +540,11 @@ test('a starport sells orders that a frigate delivers after FrigateCountdown, up
   // FrigateCountdown and flies off; Locust keeps it out of selection
   assert.ok(m.script.includes(`'${all.units.rawcode.get('Frigate')}'`) && m.script.includes('function EmpPortFrigateFly'), 'frigate shown');
   assert.ok(m.script.includes("call UnitAddAbility(f, 'Aloc')"), 'not selectable');
+  // the frigate (hidden for up to FrigateCountdown, owned by the buyer) counted as a unit of his: a
+  // player with nothing left but a delivery on its way did not lose (EmpNormalCheck). Locust units
+  // are not counted.
+  const count = m.script.slice(m.script.indexOf('function EmpCountEnum'), m.script.indexOf('endfunction', m.script.indexOf('function EmpCountEnum')));
+  assert.ok(count.includes("GetUnitAbilityLevel(u, 'Aloc') == 0"), 'frigates do not count');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

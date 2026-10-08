@@ -223,6 +223,29 @@ function BuildersProbeRun takes nothing returns nothing
     call PreloadGenEnd("DuneSmoke\\\\builders.pld")
 endfunction`,
   } : {}),
+  // --portqueue: two trike orders queued at 70 % and 130 %: final gold 9400 = TRAIN_START fires when
+  // training begins (each order keeps its price), 9310 = at queueing (the second price overwrote the first)
+  ...(flag('--portqueue') ? {
+    extraStart: 'PortQueueRun',
+    extraFunctions: `function PortQueueRun takes nothing returns nothing
+    local unit b
+    set EmpNormalConditions = false
+    call TriggerSleepAction(3.0)
+    set b = CreateUnit(Player(0), '${all.units.rawcode.get('ATStarport')}', EmpEntrX[EmpEntranceFor(0)] * 0.5, EmpEntrY[EmpEntranceFor(0)] * 0.5, 270.0)
+    call SetPlayerTechMaxAllowed(Player(0), '${trikeOrder}', -1)
+    call SetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD, 10000)
+    set EmpPortPct[LoadInteger(EmpPortTab, '${trikeOrder}', 0)] = 70
+    call IssueImmediateOrderById(b, '${trikeOrder}')
+    set EmpPortPct[LoadInteger(EmpPortTab, '${trikeOrder}', 0)] = 130
+    call IssueImmediateOrderById(b, '${trikeOrder}')
+    call TriggerSleepAction(6.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload("portqueue gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1)))
+    call PreloadGenEnd("DuneSmoke\\\\portqueue.pld")
+    set b = null
+endfunction`,
+  } : {}),
   // --mounds: spice mounds and fields at 5 s and after the first bursts (Size + Cost ticks = 60 s)
   ...(flag('--mounds') ? {
     extraStart: 'MoundProbeRun',

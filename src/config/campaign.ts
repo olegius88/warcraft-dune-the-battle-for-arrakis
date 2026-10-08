@@ -40,7 +40,9 @@ export const SUBHOUSE_TAGS: Readonly<Record<string, { building: string; rival?: 
 export const ALLYGAIN_TAGS: readonly string[] = ['FR', 'SA', 'IX', 'TL'];
 export const ALLYGAIN_KEY = /^(?:AT|HK|OR)allygain(\d)$/i;
 /** "<H>allybreak<n>": played when the sub-house's condition fails (ATallybreak1 "the Fremen will be
- * outraged... the alliance is doomed"); it ends alliance n whatever the mission's result. */
+ * outraged... the alliance is doomed"); it ends alliance n whatever the mission's result (an
+ * assumption: the scripts play it during the mission; what a lost mission does in Emperor is not in
+ * the data). */
 export const ALLYBREAK_KEY = /^(?:AT|HK|OR)allybreak(\d)$/i;
 /** The hub's line when alliance n (ALLYGAIN_TAGS[n - 1]) was made / lost (E_Output_Pickup). */
 export const allyDebriefKey = (house: string, n: number, gained: boolean): string => `${house}allydebrief${gained ? 'gain' : 'break'}${n}`;

@@ -9,9 +9,9 @@
 // 2 true; EmpPortTab[starport handle]: [type] the difference fixed at the start of that type's
 // purchase, 1 units waiting for the frigate, 2 its timer, PORT_SLOT + i the waiting types;
 // EmpPortTab[delivery timer]: 1/2 x / y of the starport, 3 owner id, 4 starport handle id, 5 the frigate.
-// TODO(starport): two units of one type queued at different prices share one record (the later
-// start wins) if TRAIN_START fires at queueing rather than at the start of training; which one 1.31
-// does is not checked. Risk: a few credits off for such a queue.
+// TRAIN_START fires when an order starts training, not when it is queued: two orders queued at 70 %
+// and 130 % paid 9400 of 10000 (src/smoke/build-territory-probe.ts --portqueue, 1.31.1, 2026-10-08),
+// so each order keeps its own price in the record.
 // TODO(starport): the stock (StarportStockIncreaseProb / Delay) is not modelled: how much of each type a
 // starport starts with and holds at most is not in Rules.txt. Risk: every type is always available.
 function EmpPortPrices takes nothing returns nothing

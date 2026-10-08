@@ -31,7 +31,9 @@ endfunction
 
 function EmpCountEnum takes nothing returns boolean
     local unit u = GetFilterUnit()
-    if EmpAlive(u) and (EmpTmpType == 0 or (EmpTmpType == 1 and not IsUnitType(u, UNIT_TYPE_STRUCTURE)) or (EmpTmpType == 2 and IsUnitType(u, UNIT_TYPE_STRUCTURE)) or GetUnitTypeId(u) == EmpTmpType) and not (EmpTmpLose and LoadBoolean(EmpVet, GetUnitTypeId(u), 4)) then
+    // Locust units (the starport frigate, mission starport.j) are no units of the side: a player with
+    // only a delivery on its way has lost (test/emperor-mission.test.ts)
+    if EmpAlive(u) and GetUnitAbilityLevel(u, '{{ABILITY.locust}}') == 0 and (EmpTmpType == 0 or (EmpTmpType == 1 and not IsUnitType(u, UNIT_TYPE_STRUCTURE)) or (EmpTmpType == 2 and IsUnitType(u, UNIT_TYPE_STRUCTURE)) or GetUnitTypeId(u) == EmpTmpType) and not (EmpTmpLose and LoadBoolean(EmpVet, GetUnitTypeId(u), 4)) then
         set EmpTmpCount = EmpTmpCount + 1
     endif
     set u = null

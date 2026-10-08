@@ -11,7 +11,8 @@
   на территории 5: вокруг курганов 0 клеток специи → после выбросов 82.
 - 2026-10-08 Потеря союза с субдомом: скрипты произносят «<дом>allybreak<n>», когда условие субдома
   провалено (ATP1M4FR: «Фримены будут возмущены… Союз обречен»); теперь это разрывает союз при любом
-  исходе миссии, из «gain» и «break» считается последнее ([src/jass/runtime/api/Message.j](src/jass/runtime/api/Message.j),
+  исходе миссии (принято: что делает проигранная миссия в Emperor — в данных нет), из «gain» и «break»
+  считается последнее ([src/jass/runtime/api/Message.j](src/jass/runtime/api/Message.j),
   [src/jass/mission/campaign.j](src/jass/mission/campaign.j)). Хаб по возвращении сообщает о новом или
   потерянном союзе оригинальной репликой (`ATallydebriefgain1` «Фримены считают за честь, объединится с
   нами…», `…break1` «Фримены разорвали союз с нами.»; [src/jass/hub/functions.j](src/jass/hub/functions.j)
@@ -333,6 +334,11 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-08 Скрытый фрегат Starport (владелец — покупатель) считался юнитом стороны: игрок без войск
+  и зданий не проигрывал, пока летела доставка. Юниты с «саранчой» (`Aloc`) больше не считаются
+  ([src/jass/runtime/helpers.j](src/jass/runtime/helpers.j) `EmpCountEnum`). Очередь Starport: проба
+  `--portqueue` показала, что `TRAIN_START` срабатывает в начале обучения (9400 из 10000 при 70 % и
+  130 %), у каждого заказа своя цена — TODO снят.
 - 2026-10-08 Третий независимый аудит (Fable 5.1), исправлено с регрессионными тестами
   ([test/emperor-mission.test.ts](test/emperor-mission.test.ts)) и проверено в игре:
   - особые способности ([src/jass/mission/specials.j](src/jass/mission/specials.j)): сюжетные
