@@ -297,6 +297,21 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-08 Третий независимый аудит (Fable 5.1), исправлено с регрессионными тестами
+  ([test/emperor-mission.test.ts](test/emperor-mission.test.ts)) и проверено в игре:
+  - особые способности ([src/jass/mission/specials.j](src/jass/mission/specials.j)): сюжетные
+    персонажи (`TastyToWorms = FALSE`) не заражаются и не берутся пиявкой; пиявка не цепляется к
+    летающим, червю и нейтралам; новая пиявка выходит только из убитого носителя, а не из убранного
+    (MCV развернулся); диверсант не взрывается у стен; ремонтник не чинит `CanBeRepaired = FALSE`;
+    давит только движущийся давитель (раньше — любой с приказом, в том числе стреляющий на месте);
+  - песчаная буря ([src/jass/battle/storm.j](src/jass/battle/storm.j)): `StormDamage` разбирается как
+    `класс * 64 + урон`; класс 0 «only damages, is never picked up» — технику буря больше не уносит,
+    пехоту уносит (проба: трайки 8/8, пехота 7/8);
+  - Starport ([src/jass/mission/starport.j](src/jass/mission/starport.j)): разница цены фиксируется при
+    старте покупки и платится, когда юнит готов; отмена возвращает штатную цену и больше не даёт
+    заработать на скидке (проба: 10000 → 9700 → отмена 9700 → готов 9790 при 70 % от 300);
+  - строители ([src/jass/battle/economy.j](src/jass/battle/economy.j)): если у игрока не осталось ни
+    одного, стройплощадки выдают их снова.
 - 2026-10-08 Карта AT_A07 роняла клиент 1.31 при загрузке («Not enough memory… Requested 437369793696
   bytes»): длинный брифинг был вписан прямо в `w3i` и `config()`. Как в картах редактора, тексты карты
   теперь в `war3map.wts` со ссылками `TRIGSTR_nnn` ([src/wc3/map.ts](src/wc3/map.ts), регрессия в
