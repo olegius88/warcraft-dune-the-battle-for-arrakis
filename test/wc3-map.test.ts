@@ -36,3 +36,25 @@ test('buildMap always emits a readable 256x256 war3mapMap.blp', () => {
   // left half (texture 0) and right half (texture 1) must use different palette entries
   assert.notStrictEqual(pixels[128 * 256 + 10], pixels[128 * 256 + 250]);
 });
+
+// Regression: the map's texts were written straight into war3map.w3i and config(). The 1.31.1
+// client crashed while loading AT_A07 ("Not enough memory ... Requested 437369793696 bytes",
+// 2026-10-08): its briefing (ATP1M7FR, 432 characters) is the loading screen text and description;
+// the same map without the briefing loaded (src/smoke/build-territory-probe.ts --briefing). Maps the
+// editor saves keep these texts in war3map.wts and refer to them as TRIGSTR_nnn; so do ours now.
+test('map texts go to war3map.wts and the w3i / config() refer to them as TRIGSTR', () => {
+  const long = 'Вы должны знать, что были сообщения о злодеяниях. '.repeat(10);
+  const m = buildMap({
+    name: 'Атака: Bilar Slopes', description: long, loadingText: long, width: 32, height: 32, tileset: 'B', ground: ['Bdsr'], cliffs: ['CBde'],
+    corner: () => ({}), players: [{ id: 0, control: 'user', race: 'human', team: 0, x: 0, y: 0 }],
+  });
+  const archive = new MpqArchive();
+  archive.load(new Uint8Array(m.buffer), true);
+  const w3i = Buffer.from(archive.get('war3map.w3i')?.bytes() ?? new Uint8Array()).toString('utf8');
+  const wts = Buffer.from(archive.get('war3map.wts')?.bytes() ?? new Uint8Array()).toString('utf8');
+  assert.ok(!w3i.includes('злодеяниях') && !w3i.includes('Bilar'), 'no text inline in w3i');
+  assert.match(w3i, /TRIGSTR_\d{3}/);
+  assert.ok(wts.includes(long.trim()) && wts.includes('Атака: Bilar Slopes'), 'texts in wts');
+  assert.match(m.script, /call SetMapName\( "TRIGSTR_\d{3}" \)/);
+  assert.match(m.script, /call SetMapDescription\( "TRIGSTR_\d{3}" \)/);
+});

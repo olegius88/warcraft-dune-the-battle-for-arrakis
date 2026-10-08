@@ -52,18 +52,31 @@ export interface BuiltMap {
 function buildMap(m: MapSpec): BuiltMap {
   const players = m.players;
   const teams = [...new Set(players.map((p) => p.team))];
+  // The map's texts go to war3map.wts and the w3i / config() refer to them as TRIGSTR_nnn, like the
+  // editor's: written inline, a long briefing crashed the 1.31.1 client while loading the map
+  // (AT_A07, 2026-10-08; regression test in test/wc3-map.test.ts).
+  const strings = new Map<number, string>(m.strings instanceof Map ? m.strings : Object.entries(m.strings || {}).map(([k, v]): [number, string] => [Number(k), v]));
+  let nextString = Math.max(0, ...strings.keys()) + 1;
+  const trig = (text: string): string => {
+    if (!text) return '';
+    const id = nextString++;
+    strings.set(id, text);
+    return `TRIGSTR_${String(id).padStart(3, '0')}`;
+  };
+  const name = trig(m.name);
+  const description = trig(m.description || '');
   const w3i = F.writeW3i({
-    name: m.name,
-    author: m.author || 'warcraft-dune',
-    description: m.description || '',
+    name,
+    author: trig(m.author || 'warcraft-dune'),
+    description,
     width: m.width,
     height: m.height,
     boundary: m.boundary,
     tileset: m.tileset,
-    loadingTitle: m.loadingTitle || m.name,
-    loadingSubtitle: m.loadingSubtitle || '',
+    loadingTitle: m.loadingTitle ? trig(m.loadingTitle) : name,
+    loadingSubtitle: trig(m.loadingSubtitle || ''),
     campaignBackground: m.campaignBackground,
-    loadingText: m.loadingText || '',
+    loadingText: trig(m.loadingText || ''),
     players: players.map((p) => ({
       id: p.id, type: PLAYER_TYPE[p.control], race: PLAYER_RACE[p.race || 'human'], name: p.name, x: p.x, y: p.y, fixed: true,
     })),
@@ -74,7 +87,7 @@ function buildMap(m: MapSpec): BuiltMap {
     })),
   });
   const script = buildScript({
-    name: m.name, description: m.description, width: m.width, height: m.height, boundary: m.boundary,
+    name, description, width: m.width, height: m.height, boundary: m.boundary,
     players, globals: m.globals, functions: m.functions, init: m.init, tilesetDnc: m.tilesetDnc,
     ambientDay: m.ambientDay, ambientNight: m.ambientNight,
   });
@@ -93,7 +106,7 @@ function buildMap(m: MapSpec): BuiltMap {
   mpq.add('war3map.j', script);
   // Standard auxiliary files every editor-saved map has. Written empty: the client has crashed on
   // missing "optional" files before (minimap), so we do not rely on them being optional.
-  mpq.add('war3map.wts', F.writeWts(m.strings || {}));
+  mpq.add('war3map.wts', F.writeWts(strings));
   mpq.add('war3map.w3r', F.writeRegionsEmpty());
   mpq.add('war3map.w3c', F.writeCamerasEmpty());
   mpq.add('war3map.w3s', F.writeSoundsEmpty());
