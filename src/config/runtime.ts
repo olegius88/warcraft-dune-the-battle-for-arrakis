@@ -128,6 +128,20 @@ export const SHROUD_SLOTS = 64;
 export const SW_FLEE_STEP = 600;
 export const SW_FLEE_PERIOD = 0.5;
 
+/** Super weapon warheads (runtime helpers.j EmpSwDamage): EmpSwTab children of a type's armour index,
+ * of a strike's percentage per armour (key + index) and of its fallout's; a warhead without the armour
+ * hits with SW_DEFAULT_PCT. */
+export const SW_ARMOUR_KEY = 20;
+export const SW_STRIKE_PCT_KEY = 30;
+export const SW_FALLOUT_PCT_KEY = 60;
+export const SW_DEFAULT_PCT = 100;
+
+/** Buildings whose loss is not announced: the name after the house prefix (Game.exe 1.09 0x4f9c69,
+ * strings 0x60f93c / 0x60f944). */
+export const UI_SILENT_LOSS = ['Wall', 'FactoryFrigate'] as const;
+/** House prefix length of Rules.txt names (ATWall). */
+export const HOUSE_PREFIX_LENGTH = 2;
+
 /** In-game announcements (Uispoken.txt / DATA\Sounds\sounds.txt section IngameMessages; runtime
  * helpers.j EmpUiSay): event, message key without the house prefix (the player's house version
  * <H><key> first, else <key>), seconds before the same announcement again. Event id = index + 1. */

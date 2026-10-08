@@ -177,6 +177,8 @@ function buildMission(p: MissionParams): BuiltMission {
   for (const o of p.rules ? p.rules.objects.values() : []) {
     const id = p.units.rawcode.get(o.name);
     if (id && o.harvester) init.push(`    call SaveBoolean(EmpUiTab, '${id}', 0, true)`);
+    // a lost wall or factory frigate is not announced (Game.exe; config UI_SILENT_LOSS)
+    if (id && (RT.UI_SILENT_LOSS as readonly string[]).includes(o.name.slice(RT.HOUSE_PREFIX_LENGTH))) init.push(`    call SaveBoolean(EmpUiTab, '${id}', 1, true)`);
   }
   for (const n of tooltips) { const text = p.ctx.tooltipText(n); if (text) init.push(`    set EmpTipText[${n}] = ${str(text)}`); }
   // spoken briefing of each script (sounds.txt section Briefing), queued at start for the script
@@ -270,12 +272,34 @@ function buildMission(p: MissionParams): BuiltMission {
   const SW_KIND = { deathHand: 1, hawk: 2, beam: 3 } as const;
   const swLines: string[] = [];
   const swLimitLines: string[] = [];
-  for (const w of p.rules ? superweapons(p.rules) : []) {
+  // armour classes (Rules.txt [ArmourTypes], and Earplugs which warheads name besides): index + 1 of a
+  // type's armour at EmpSwTab child SW_ARMOUR_KEY; the warhead percentage of a strike at
+  // SW_STRIKE_PCT_KEY + index + 1 and of its fallout at SW_FALLOUT_PCT_KEY + index + 1 (helpers.j)
+  const armours = p.rules ? [...new Set([...p.rules.armourTypes, 'Earplugs'])] : [];
+  const pctLines = (id: string, base: number, warhead: string): string[] => {
+    const s = p.rules?.sections.get(warhead.toLowerCase());
+    if (!s) return [];
+    const pct = new Map(s.entries.map(([k, v]) => [k, parseFloat(v.split('//')[0] ?? '')]));
+    return armours.map((a, i) => `    call SaveInteger(EmpSwTab, '${id}', ${base + i + 1}, ${Number.isFinite(pct.get(a)) ? pct.get(a) : RT.SW_DEFAULT_PCT})`);
+  };
+  const sws = p.rules ? superweapons(p.rules) : [];
+  if (sws.length) {
+    for (const o of p.rules ? p.rules.objects.values() : []) {
+      const id = p.units.rawcode.get(o.name);
+      const k = armours.indexOf(o.armour);
+      if (id && k >= 0) swLines.push(`    call SaveInteger(EmpSwTab, '${id}', ${RT.SW_ARMOUR_KEY}, ${k + 1})`);
+    }
+  }
+  for (const w of sws) {
     const id = p.units.rawcode.get(w.name);
     if (!id) continue;
     swLines.push(`    call EmpSwType('${id}', ${SW_KIND[w.kind]}, ${real(w.damage / DAMAGE_DIVISOR)}, ${real(w.radiusTiles * WC3_UNITS_PER_TILE)}, ${w.friendly}, ${real(w.effectTicks / TICKS_PER_SECOND)})`);
-    // DeathHandSplat Size is the side of the square splat in tiles: radius half of it
-    if (w.fallout) swLines.push(`    call EmpSwFallout('${id}', ${real(w.fallout.damage / DAMAGE_DIVISOR)}, ${real((w.fallout.sizeTiles / 2) * WC3_UNITS_PER_TILE)}, ${real(w.fallout.lifespanTicks / TICKS_PER_SECOND)}, ${w.fallout.friendly})`);
+    swLines.push(...pctLines(id, RT.SW_STRIKE_PCT_KEY, w.warhead));
+    // the fallout bullet hits every tick (superweapons.ts): damage per second, within its BlastRadius
+    if (w.fallout) {
+      swLines.push(`    call EmpSwFallout('${id}', ${real((w.fallout.damage * TICKS_PER_SECOND) / DAMAGE_DIVISOR)}, ${real(w.fallout.radiusTiles * WC3_UNITS_PER_TILE)}, ${real(w.fallout.lifespanTicks / TICKS_PER_SECOND)}, ${w.fallout.friendly})`);
+      swLines.push(...pctLines(id, RT.SW_FALLOUT_PCT_KEY, w.fallout.warhead));
+    }
     if (w.kind === 'deathHand') swLines.push(`    set EmpSwDeathHand = '${id}'`);
     swLimitLines.push(`        call SetPlayerTechMaxAllowed(Player(i), '${id}', 1)`);
   }

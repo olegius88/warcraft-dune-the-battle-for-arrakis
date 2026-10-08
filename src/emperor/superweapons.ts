@@ -25,7 +25,11 @@ export interface Superweapon {
   friendly: boolean;
   /** ticks a hit unit flees (hawk) or is berserk (beam); 0 for the Death Hand */
   effectTicks: number;
-  fallout?: { damage: number; sizeTiles: number; lifespanTicks: number; friendly: boolean };
+  /** warhead of the strike bullet (damage per armour) */
+  warhead: string;
+  /** Game.exe 1.09 splat update 0x543c00: the splat detonates its Resource bullet every tick for its
+   * Lifespan; that bullet hits within its own BlastRadius through its warhead */
+  fallout?: { damage: number; radiusTiles: number; lifespanTicks: number; friendly: boolean; warhead: string };
 }
 
 const KIND_FLAG: ReadonlyArray<readonly [SuperweaponKind, string]> = [['deathHand', 'DeathHand'], ['hawk', 'HawkWeapon'], ['beam', 'BeamWeapon']];
@@ -54,12 +58,18 @@ function superweapons(rules: Rules): Superweapon[] {
       name: o.name, kind, palace: o.primaryBuilding[0] ?? '', chargeTicks: o.buildTime,
       damage: num(b.Damage), radiusTiles: num(b.BlastRadius) / EMPEROR_TILE, friendly: bool(b.DamageFriendly, true),
       effectTicks: kind === 'hawk' ? num(rules.general.HawkStrikeDuration) : kind === 'beam' ? num(rules.general.LightningDuration) : 0,
+      warhead: b.Warhead ?? '',
     };
     const splatName = (o.raw.ExplosionType ?? '').split('//')[0]?.trim();
     const splat = splatName ? raw(splatName) : undefined;
-    const splatBullet = splatName ? raw(`${splatName}_B`) : undefined;
+    // the splat's bullet: its Resource (DeathHandSplat_B)
+    const splatBulletName = splat?.Resource?.split(',')[0]?.trim();
+    const splatBullet = splatBulletName ? raw(splatBulletName) : undefined;
     if (splat && splatBullet) {
-      w.fallout = { damage: num(splatBullet.Damage), sizeTiles: num(splat.Size), lifespanTicks: num(splat.Lifespan), friendly: bool(splatBullet.DamageFriendly, true) };
+      w.fallout = {
+        damage: num(splatBullet.Damage), radiusTiles: num(splatBullet.BlastRadius) / EMPEROR_TILE, lifespanTicks: num(splat.Lifespan),
+        friendly: bool(splatBullet.DamageFriendly, true), warhead: splatBullet.Warhead ?? '',
+      };
     }
     out.push(w);
   }

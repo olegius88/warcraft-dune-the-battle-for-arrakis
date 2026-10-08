@@ -215,20 +215,29 @@ function EmpSwFallout takes integer t, real dps, real r, real seconds, boolean f
     call SaveBoolean(EmpSwTab, t, 8, friendly)
 endfunction
 
-// damage within r of (x, y); without friendly fire who's allies are spared
-function EmpSwDamage takes player who, real x, real y, real r, real dmg, boolean friendly returns nothing
+// damage within r of (x, y); without friendly fire who's allies are spared. With a warhead (t, base
+// above 0) each unit takes the percentage of its armour (EmpSwTab[t, base + armour index], mission.ts),
+// else the whole damage.
+function EmpSwDamage takes player who, real x, real y, real r, real dmg, boolean friendly, integer t, integer base returns nothing
     local group g = CreateGroup()
     local unit u
+    local real d
+    local integer a
     call GroupEnumUnitsInRange(g, x, y, r, null)
     loop
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
         if EmpAlive(u) and u != EmpWorm and (friendly or not IsUnitAlly(u, who)) then
-            if GetWidgetLife(u) <= dmg then
+            set d = dmg
+            set a = LoadInteger(EmpSwTab, EmpType(u), {{RT.SW_ARMOUR_KEY}})
+            if base > 0 and a > 0 and HaveSavedInteger(EmpSwTab, t, base + a) then
+                set d = dmg * LoadInteger(EmpSwTab, t, base + a) / 100.0
+            endif
+            if GetWidgetLife(u) <= d then
                 call KillUnit(u)
-            else
-                call SetWidgetLife(u, GetWidgetLife(u) - dmg)
+            elseif d > 0.0 then
+                call SetWidgetLife(u, GetWidgetLife(u) - d)
             endif
         endif
     endloop
@@ -236,16 +245,15 @@ function EmpSwDamage takes player who, real x, real y, real r, real dmg, boolean
     set g = null
 endfunction
 
-// radioactive fallout of the Death Hand: damage every second for its Lifespan
-// TODO(superweapon): how often the DeathHandSplat_B damage applies is not in Rules.txt; once a
-// second is assumed (per tick would be 25 times as much). Warhead percentages (Death_W,
-// DeathHandSplat_W) are not applied: the damage is the same for every armour.
+// radioactive fallout of the Death Hand: Game.exe 1.09 (splat update 0x543c00) detonates the splat's
+// bullet every tick for its Lifespan, within that bullet's BlastRadius, through its warhead; here
+// every second with the damage of a second's ticks (mission.ts EmpSwFallout)
 function EmpSwFalloutTick takes nothing returns nothing
     local timer tm = GetExpiredTimer()
     local integer h = GetHandleId(tm)
     local integer t = LoadInteger(EmpSwTab, h, 0)
     local integer left = LoadInteger(EmpSwTab, h, 3) - 1
-    call EmpSwDamage(Player(LoadInteger(EmpSwTab, h, 4)), LoadReal(EmpSwTab, h, 1), LoadReal(EmpSwTab, h, 2), LoadReal(EmpSwTab, t, 6), LoadReal(EmpSwTab, t, 5), LoadBoolean(EmpSwTab, t, 8))
+    call EmpSwDamage(Player(LoadInteger(EmpSwTab, h, 4)), LoadReal(EmpSwTab, h, 1), LoadReal(EmpSwTab, h, 2), LoadReal(EmpSwTab, t, 6), LoadReal(EmpSwTab, t, 5), LoadBoolean(EmpSwTab, t, 8), t, {{RT.SW_FALLOUT_PCT_KEY}})
     if left <= 0 then
         call DestroyEffect(LoadEffectHandle(EmpSwTab, h, 5))
         call FlushChildHashtable(EmpSwTab, h)
@@ -348,7 +356,7 @@ function EmpSwStrike takes integer t, player who, real x, real y returns nothing
         call TimerStart(CreateTimer(), {{real RT.SW_FLEE_PERIOD}}, true, function EmpSwFleeTick)
     endif
     call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.nuke.id}}', {{ART_ABILITY.nuke.type}}, 0), x, y))
-    call EmpSwDamage(who, x, y, LoadReal(EmpSwTab, t, 2), LoadReal(EmpSwTab, t, 1), LoadBoolean(EmpSwTab, t, 3))
+    call EmpSwDamage(who, x, y, LoadReal(EmpSwTab, t, 2), LoadReal(EmpSwTab, t, 1), LoadBoolean(EmpSwTab, t, 3), t, {{RT.SW_STRIKE_PCT_KEY}})
     if kind == 2 or kind == 3 then
         call EmpSwAffect(who, x, y, LoadReal(EmpSwTab, t, 2), kind, LoadReal(EmpSwTab, t, 4))
     endif
@@ -587,10 +595,12 @@ function EmpUiAttacked takes nothing returns nothing
 endfunction
 
 // the player's units lost
-// TODO(ui): a wall lost is announced as a building lost (at most once per EmpUiGap); whether Emperor
-// is silent about walls is not in the data. Risk: noise while walls are shot down.
+// (Game.exe 1.09 0x4f9c45..0x4f9cb4: a building is BldgLost unless it is a wall or a factory frigate,
+// EmpUiTab child 1 from mission.ts; test/emperor-mission.test.ts)
 function EmpUiDeath takes nothing returns nothing
-    if IsUnitType(GetTriggerUnit(), UNIT_TYPE_STRUCTURE) then
+    if LoadBoolean(EmpUiTab, EmpType(GetTriggerUnit()), 1) then
+        return
+    elseif IsUnitType(GetTriggerUnit(), UNIT_TYPE_STRUCTURE) then
         call EmpUiSay({{UI.bldgLost}})
     else
         call EmpUiSay({{UI.unitLost}})

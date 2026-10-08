@@ -283,7 +283,12 @@ test('palace super weapons: Rules.txt strike data, trained by the palace, fired 
   const dh = sw.find((w) => w.kind === 'deathHand');
   assert.deepStrictEqual(dh && { name: dh.name, palace: dh.palace, chargeTicks: dh.chargeTicks, damage: dh.damage, radiusTiles: dh.radiusTiles, friendly: dh.friendly },
     { name: 'HKDeathHand', palace: 'HKPalace', chargeTicks: 5184, damage: 5000, radiusTiles: 3, friendly: true });
-  assert.deepStrictEqual(dh?.fallout, { damage: 15, sizeTiles: 10, lifespanTicks: 1000, friendly: true });
+  // TODO(superweapon) closed by Game.exe 1.09 (splat update 0x543c00): the splat detonates its
+  // Resource bullet (DeathHandSplat_B) every tick for its Lifespan; the bullet hits within its own
+  // BlastRadius (320 = 10 tiles, not the splat Size 10 / 2) through its warhead. Before: once a second,
+  // radius Size / 2, the same damage for every armour.
+  assert.deepStrictEqual(dh?.fallout, { damage: 15, radiusTiles: 10, lifespanTicks: 1000, friendly: true, warhead: 'DeathHandSplat_W' });
+  assert.strictEqual(dh?.warhead, 'Death_W');
   const hawk = sw.find((w) => w.kind === 'hawk');
   assert.deepStrictEqual(hawk && [hawk.name, hawk.palace, hawk.chargeTicks, hawk.damage, hawk.radiusTiles, hawk.friendly, hawk.effectTicks], ['ATHawkWeapon', 'ATPalace', 4536, 1000, 4, false, 500]);
   const beam = sw.find((w) => w.kind === 'beam');
@@ -297,6 +302,15 @@ test('palace super weapons: Rules.txt strike data, trained by the palace, fired 
   const dhId = all.units.rawcode.get('HKDeathHand');
   // damage / radius scaled like units.ts: /DAMAGE_DIVISOR, tiles * 128
   assert.ok(m.script.includes(`call EmpSwType('${dhId}', 1, 2500.0, 384.0, true, 0.0)`), 'Death Hand strike data');
+  // fallout: 15 per tick = 15 * 25 / 2 per second, radius 10 tiles, 1000 ticks = 40 s
+  assert.ok(m.script.includes(`call EmpSwFallout('${dhId}', 187.5, 1280.0, 40.0, true)`), 'fallout per tick, bullet radius');
+  // warheads: Death_W for the strike (Building 75), DeathHandSplat_W for the fallout (Building 10)
+  const building = all.rules.armourTypes.indexOf('Building') + 1;
+  assert.ok(building > 0 && m.script.includes(`call SaveInteger(EmpSwTab, '${dhId}', ${30 + building}, 75)`) && m.script.includes(`call SaveInteger(EmpSwTab, '${dhId}', ${60 + building}, 10)`), 'warhead percentages per armour');
+  assert.ok(m.script.includes(`call SaveInteger(EmpSwTab, '${all.units.rawcode.get('ATBarracks')}', 20, ${building})`), 'armour of a type');
+  const dmg = m.script.slice(m.script.indexOf('function EmpSwDamage takes'), m.script.indexOf('endfunction', m.script.indexOf('function EmpSwDamage takes')));
+  assert.ok(dmg.includes('LoadInteger(EmpSwTab, EmpType(u), 20)'), 'damage by the armour of the unit');
+  assert.ok(!m.script.includes('TODO(superweapon)'), 'TODO closed');
   assert.ok(m.script.includes('EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER') && m.script.includes('OrderId("attackground")'), 'strike by attack-ground');
   assert.ok(!/NUKE_RADIUS|2000\.0\)\s*$/m.test(m.script) && m.script.includes('function EmpNukeAt'), 'SideNuke strikes with the Death Hand data');
   // Regression: berserk units belong to Neutral Hostile until they calm down, so a side whose last
@@ -770,6 +784,20 @@ test('starport orders need no building or upgrade (Game.exe tab check)', opts, (
   const req = (id: string): string => all.units.objects.find((o) => o.id === id)?.mods.filter((m) => m.field === 'ureq').map((m) => String(m.value)).at(-1) ?? '';
   assert.notStrictEqual(req(real), '', 'the factory unit keeps its requirements');
   assert.strictEqual(req(order), '', 'the starport order has none');
+});
+
+// A wall lost was announced as a building lost (TODO(ui)). Game.exe 1.09 (0x4f9c45..0x4f9cb4)
+// announces BldgLost for the local player's buildings except those whose name after the house prefix
+// is "Wall" or "FactoryFrigate" (strings 0x60f93c / 0x60f944); a unit is UnitLost.
+test('a lost wall or factory frigate is not announced (Game.exe)', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'ui', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  for (const n of ['ATWall', 'HKWall', 'ORWall', 'ATFactoryFrigate']) assert.ok(m.script.includes(`call SaveBoolean(EmpUiTab, '${all.units.rawcode.get(n)}', 1, true)`), `${n} not announced`);
+  assert.ok(!m.script.includes(`call SaveBoolean(EmpUiTab, '${all.units.rawcode.get('ATBarracks')}', 1, true)`), 'barracks announced');
+  const body = m.script.slice(m.script.indexOf('function EmpUiDeath takes'), m.script.indexOf('endfunction', m.script.indexOf('function EmpUiDeath takes')));
+  assert.ok(body.includes('LoadBoolean(EmpUiTab, EmpType(GetTriggerUnit()), 1)'), 'checked at death');
+  assert.ok(!m.script.includes('TODO(ui)'), 'TODO closed');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

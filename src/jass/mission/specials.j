@@ -172,7 +172,7 @@ function EmpSpTickEnum takes nothing returns nothing
         set b = EmpSpBuildingAt(u, false)
         if b != null then
             call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.bomb.id}}', {{ART_ABILITY.bomb.type}}, 0), GetUnitX(b), GetUnitY(b)))
-            call EmpSwDamage(GetOwningPlayer(u), GetUnitX(b), GetUnitY(b), LoadReal(EmpSpTab, t, 4), LoadReal(EmpSpTab, t, 3), true)
+            call EmpSwDamage(GetOwningPlayer(u), GetUnitX(b), GetUnitY(b), LoadReal(EmpSpTab, t, 4), LoadReal(EmpSpTab, t, 3), true, 0, 0)
             call KillUnit(u)
         endif
     elseif k == 6 then
