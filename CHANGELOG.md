@@ -12,6 +12,13 @@
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
 
 ### Changed
+- 2026-10-08 Частицы FXData по `Game.exe` 1.09 ([effects.ts](src/emperor/effects.ts), `FX_RING` в
+  [config/models.ts](src/config/models.ts)). Торможение +0x40 (`0x4b0c36`) передаётся средней скоростью
+  за жизнь: искры взрыва летят на 58 единиц, а не на 215. Кольца (+0x3c < 0, `0x4b074e`) излучаются в
+  своей плоскости: это эмиттер-линия WC3 (флаг 0x20000), повёрнутая дорожкой KGRT, а не полусфера.
+  Писатель MDX умеет KGRT у эмиттера ([mdx.ts](src/wc3/mdx.ts)). Пробник колец
+  ([build-pre2-probe.ts](src/smoke/build-pre2-probe.ts) `--ring`) показал, что в 1.31.1 эмиттер-линия
+  излучает в плоскости YZ.
 - 2026-10-08 Строитель базы ИИ по фазам `Game.exe` 1.09 ([ai.j](src/jass/battle/ai.j) `EmpAiBuild`,
   [forces.j](src/jass/battle/forces.j), `AI_MAINTAIN_SHORT`):
   - **Фазы** (машина состояний `0x42ef30`): по пропорциям раз в `BuildingDelay`, пока зданий без

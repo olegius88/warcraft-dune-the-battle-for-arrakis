@@ -19,7 +19,7 @@ import { writeBlpImage, resize, pow2Ceil } from '../wc3/blp.ts';
 import type { MdxModel, Track, V3 } from '../wc3/mdx.ts';
 import { writeMdx, FILTER } from '../wc3/mdx.ts';
 import { gameData } from '../config/paths.ts';
-import { MODEL_PATH, EFFECT_SEQUENCES, EFFECT_ADDITIVE, EFFECT_FLIPBOOK, EFFECT_FOLDERS, EFFECT_HIDDEN_NODE, EFFECT_SHOWN, FX_EVENT, FX_EVENT_FIELDS, FX_MASTER_TRACK, EFFECT_MAX_GEOSETS, FX_PARTICLE, FX_PARTICLE_FILTER, FX_ATLAS_SUFFIX, MS_PER_FRAME, MODEL_SCALE, MAX_TEXTURE_SIZE } from '../config/models.ts';
+import { MODEL_PATH, EFFECT_SEQUENCES, EFFECT_ADDITIVE, EFFECT_FLIPBOOK, EFFECT_FOLDERS, EFFECT_HIDDEN_NODE, EFFECT_SHOWN, FX_EVENT, FX_EVENT_FIELDS, FX_MASTER_TRACK, EFFECT_MAX_GEOSETS, FX_PARTICLE, FX_RING, FX_PARTICLE_FILTER, FX_ATLAS_SUFFIX, MS_PER_FRAME, MODEL_SCALE, MAX_TEXTURE_SIZE } from '../config/models.ts';
 
 export interface EffectUse {
   /** object -> effect when it dies (ExplosionType) */
@@ -140,6 +140,8 @@ export interface FxEmitter {
   /** 0: any way, > 0: within that many degrees of the node's direction, < 0: a ring */
   direction: number;
   frames: number; texture: string;
+  /** the particles' alpha at birth (+0x28, 0x4b04a2: the top byte of their vertex colour) */
+  alpha: number;
   /** colour step a tick after colourDelay ticks (-1: never) */
   delta: V3; colourDelay: number;
   /** size factor a tick after growDelay ticks (-1: never) */
@@ -184,13 +186,13 @@ function fxEmitters(fx: Buffer): { emitters: FxEmitter[]; windows: FxWindow[] } 
       const gravity = F();
       const frames = I();
       const texture = S();
-      I();
+      const alpha = I();
       const delta: V3 = [I(), I(), I()];
       I();
       const colourDelay = I(), growDelay = I();
       const grow = F();
       if (!/^[ -~]+$/.test(texture) || frames < 1 || frames > 64) break;
-      emitters.push({ id, kind, count: n, life, lifeRandom: Math.max(0, lifeRandom), speed, gravity, size, rgb, frameTicks: Math.max(0, frameTicks), direction: vec[1], drag: vec[2], frames, texture, delta, colourDelay, grow, growDelay });
+      emitters.push({ id, kind, count: n, life, lifeRandom: Math.max(0, lifeRandom), speed, gravity, size, rgb, frameTicks: Math.max(0, frameTicks), direction: vec[1], drag: vec[2], frames, texture, alpha, delta, colourDelay, grow, growDelay });
     }
   } catch {
     // a record of another layout ends the list (the files with another header variant)
@@ -249,7 +251,16 @@ function addParticles(model: MdxModel, fx: ReturnType<typeof fxEmitters>, pivots
     const colourAt = (t: number): V3 => e.rgb.map((v, i) => unit(v + (e.colourDelay < 0 ? 0 : (e.delta[i] as number) * Math.max(0, t - e.colourDelay)))) as V3;
     const grow = e.grow > 0 ? e.grow : 1;
     const scale = (t: number): number => Math.max(0.05, Math.min(10, e.growDelay < 0 ? 1 : grow ** Math.max(0, t - e.growDelay)));
-    const speed = e.speed * MODEL_SCALE / sec;
+    // the speed along the start direction drops by drag a tick (0x4b0c36): the mean over the life
+    // puts a particle where Game.exe's ends (negative: it came back past its start)
+    const speed = (e.speed - e.drag * life / 2) * MODEL_SCALE / sec;
+    // how far one gets (Emperor units): at the turn if it turns within its life, else at the end
+    const turnAt = e.drag > 0 ? Math.min(life, e.speed / e.drag) : life;
+    const flight = Math.max(Math.abs(e.speed * turnAt - e.drag * turnAt * turnAt / 2), Math.abs(e.speed * life - e.drag * life * life / 2));
+    // a ring (+0x3c < 0, 0x4b074e): a line emitter turned into its plane (FX_RING)
+    const ring = e.direction < 0 ? Math.round(e.direction - 0.4999) : 0;
+    const turn = ring < 0 ? FX_RING.turn(ring) : null;
+    const keys = (q: [number, number, number, number]): Track => ({ frames: [death.start, death.end], values: [q, q], interpolation: 0 });
     // a square `size` Emperor units wide (0x4b0488: half of it each way)
     const width = Math.max(1, e.size * MODEL_SCALE);
     // texture frames: each frameTicks + 1 ticks, looping (0x4b0f4f); spread over the life's two halves
@@ -264,8 +275,9 @@ function addParticles(model: MdxModel, fx: ReturnType<typeof fxEmitters>, pivots
       const pivot = pivots.get(w.node) ?? [0, 0, 0];
       model.emitters.push({
         // direction (0x4b04e1): 0 any way (a sphere), > 0 within that many degrees, < 0 a ring
-        name: `${e.id}@${w.node}@${w.start}`, parentId: -1, flags: FX_PARTICLE.flags, speed, variation: 0,
-        latitude: e.direction === 0 ? FX_PARTICLE.sphere : e.direction > 0 ? Math.min(FX_PARTICLE.sphere, e.direction) : FX_PARTICLE.latitude,
+        name: `${e.id}@${w.node}@${w.start}`, parentId: -1, flags: FX_PARTICLE.flags | (ring < 0 ? FX_RING.flag : 0), speed, variation: 0,
+        latitude: e.direction === 0 ? FX_PARTICLE.sphere : e.direction > 0 ? Math.min(FX_PARTICLE.sphere, e.direction) : FX_RING.latitude,
+        ...(turn ? { rotation: keys(turn) } : {}),
         // gravity a tick² (0x4b0c2d: the fall speed grows by it, y goes down by it)
         gravity: e.gravity * MODEL_SCALE / (sec * sec), lifeSpan: life * sec,
         // width / length: the area particles start in; their size is the segment scaling (world units)
@@ -279,7 +291,7 @@ function addParticles(model: MdxModel, fx: ReturnType<typeof fxEmitters>, pivots
         visibility, emission: window(w.start, w.stop, Math.max(1, e.count)),
       });
       model.pivots.push(pivot);
-      reach = Math.max(reach, Math.hypot(...pivot) + speed * life * sec + width * scale(life));
+      reach = Math.max(reach, Math.hypot(...pivot) + flight * MODEL_SCALE + width * scale(life));
     }
   }
   return reach;
@@ -419,4 +431,4 @@ function buildEffects(names: Iterable<string>, art: Map<string, ArtEntry>, archi
   return set;
 }
 
-export { effectUse, buildEffects, fxTrack, nodeEvents };
+export { effectUse, buildEffects, fxTrack, nodeEvents, fxEmitters };

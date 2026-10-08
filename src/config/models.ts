@@ -98,11 +98,25 @@ export const EFFECT_MAX_GEOSETS = 64;
  * tick², `size` (+0x18) Emperor units wide; after +0x50 ticks their colour moves by its step a tick,
  * after +0x68 ticks their size by its factor a tick; a texture frame lasts +0x34 + 1 ticks, the frames
  * (prefix0..N, atlasColumns to a row) looping (0x4b0b10). Direction (+0x3c, 0x4b04e1): 0 any way
- * (`sphere` degrees of up), > 0 within that many degrees, < 0 a ring (here `latitude` degrees of up).
- * TODO(models): not reproduced: a ring's plane (+0x3c < 0 picks one of three, by axis), the slowing
- * along the start direction (+0x40 / 127 a tick), +0x60 (the alpha's step?), the alpha over the life
- * (`alphas` here). Risk: rings and slowing particles look somewhat different from Emperor's. */
-export const FX_PARTICLE = { minLifeFrames: 3, sphere: 180, latitude: 90, atlasColumns: 8, areaShare: 0.5, flags: 0x8000, maxSize: 256, alphas: [255, 220, 0] as [number, number, number] } as const;
+ * (`sphere` degrees of up), > 0 within that many degrees, < 0 a ring (FX_RING). Their speed along the
+ * start direction drops by +0x40 a tick (0x4b0c36), here the mean speed over the life.
+ * Their alpha: +0x28 is the top byte of a particle's vertex colour at birth (0x4b04a2) and the colour
+ * step rewrites the colour without it (0x4b0ef2); not taken: 32 emitters have 0 there and 13 of the
+ * smokes with an alpha texture (@) and 255 step their colour, which would leave them invisible half
+ * way if Emperor drew by that byte. +0x60 is read neither at birth nor a tick. TODO(models): the
+ * fade over the life (`alphas`) is ours: how Emperor's renderer blends particles is not traced.
+ * Risk: particles end more softly than in Emperor. */
+export const FX_PARTICLE = { minLifeFrames: 3, sphere: 180, atlasColumns: 8, areaShare: 0.5, flags: 0x8000, maxSize: 256, alphas: [255, 220, 0] as [number, number, number] } as const;
+/** FXData rings (+0x3c < 0; Game.exe 1.09 0x4b074e): +0x3c rounded (x - 0.4999, 0x4b0100) -1 emits in
+ * Emperor's YZ plane, -2 in XY, else in XZ (flat; y is up). A WC3 line emitter (PRE2 flag 0x20000,
+ * mdx-m3-viewer parsers/mdlx/particleemitter2.ts) emits in its own YZ plane within `latitude` degrees
+ * (ring probe, 1.31.1, 2026-10-08: unturned upright edge on, turned 90 degrees about Y flat, about Z
+ * upright facing the camera); `turn` (KGRT, x y z w) by the ring: WC3 x = -Emperor z, y = Emperor x,
+ * z = Emperor y (model.ts K): Emperor XZ -> WC3 XY, YZ -> XZ, XY -> YZ (no turn). */
+export const FX_RING = {
+  flag: 0x20000, latitude: 180,
+  turn: (ring: number): [number, number, number, number] | null => (ring === -2 ? null : ring === -1 ? [0, 0, Math.SQRT1_2, Math.SQRT1_2] : [0, Math.SQRT1_2, 0, Math.SQRT1_2]),
+} as const;
 /** Particle filter by the texture flag: @ (an alpha of its own) blend 0, else (! glows on black) additive
  * 1; unshaded (FX_PARTICLE.flags 0x8000): blended by their light they were near invisible (probe
  * 2026-10-08). */

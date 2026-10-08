@@ -734,9 +734,36 @@ test('FXData particles: gravity +0x14, direction +0x3c, size +0x18 (Game.exe)', 
   // #18: gravity 0.05 a tick², a ring (-3), 24 wide, 43 ticks; #17: -0.1 (rises), any way (0), 50 wide
   const sparks = e('3B0C9770#18'), flash = e('3B0C9770#17');
   assert.ok(Math.abs(sparks.gravity - 0.05 * 4 / 0.04 ** 2) < 1e-3 && Math.abs(flash.gravity + 0.1 * 4 / 0.04 ** 2) < 1e-3, `gravity ${sparks.gravity} ${flash.gravity}`);
-  assert.deepStrictEqual([sparks.latitude, flash.latitude, sparks.variation], [90, 180, 0]);
+  assert.deepStrictEqual([sparks.latitude, flash.latitude, sparks.variation], [180, 180, 0]);
   assert.strictEqual(sparks.segmentScaling[0], 24 * 4);
   assert.ok(Math.abs(sparks.lifeSpan - 43 * 0.04) < 1e-4, `life ${sparks.lifeSpan}`);
+});
+
+// Two more of Game.exe's particle motions (1.09) were left out. Slowing (0x4b0c36): a particle's speed
+// along its start direction drops by +0x40 a tick (its offset grows by +0x40 / 127 a tick, times the
+// direction x 127), so the explosion's sparks (#18: speed 5, +0x40 0.17, 43 ticks) flew 215 units
+// instead of 58; WC3 has no drag: the mean speed over the life (speed - drag * life / 2) puts them at
+// the end of their flight. Ring planes (0x4b074e): +0x3c rounded -1 emits in Emperor's YZ plane, -2 in
+// XY, else in XZ (flat); ours spread rings over a half sphere. WC3 line emitters (flags 0x20000) emit in
+// their YZ plane (ring probe, 1.31.1, 2026-10-08: no turn upright edge on, 90 degrees about Y flat, about
+// Z upright facing the camera), turned into the plane by a rotation track.
+test('FXData particles: slowing +0x40 and ring planes +0x3c (Game.exe)', opts, async () => {
+  const { buildEffects } = await import('../src/emperor/effects.ts');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const set = buildEffects(['Explosion', 'AerialExplosion'], loadArtIni(path.join(RAW, 'ArtIni.txt')));
+  const load = (name: string) => { const m = new MdlxModel(); m.load(new Uint8Array(set.files[(set.model.get(name) as string).replace(/\.mdl$/, '.mdx')] as Buffer)); return m; };
+  type E = { name: string; flags: number; speed: number; latitude: number; animations: Array<{ name: string; values: ArrayLike<number>[] }> };
+  const find = (m: { particleEmitters2: E[] }, id: string): E => m.particleEmitters2.find((x) => x.name.startsWith(id)) as E;
+  const sparks = find(load('explosion'), '3B0C9770#18');
+  assert.ok(Math.abs(sparks.speed - (5 - 0.17 * 43 / 2) * 4 / 0.04) < 0.5, `mean speed ${sparks.speed}`);
+  assert.strictEqual(sparks.flags & 0x20000, 0x20000, 'a line emitter');
+  const turn = sparks.animations.find((a) => a.name === 'KGRT');
+  const q = Array.from(turn?.values[0] ?? []);
+  assert.ok(Math.abs((q[1] ?? 0) - Math.SQRT1_2) < 1e-6 && Math.abs((q[3] ?? 0) - Math.SQRT1_2) < 1e-6 && Math.abs(q[0] ?? 1) < 1e-6, `flat: about Y ${q.join(',')}`);
+  // AerialExplosion #1: -2, Emperor's XY plane = WC3's YZ: the line emitter's own plane
+  const aerial = find(load('aerialexplosion'), '39D35420#1');
+  assert.strictEqual(aerial.flags & 0x20000, 0x20000);
+  assert.ok(!aerial.animations.some((a) => a.name === 'KGRT'), 'no turn');
 });
 
 // Sixth audit: 17 converted models have no "Weapon Ref" (no #fire node: HKBuzzsaw, ATMongoose...); the

@@ -14,7 +14,7 @@ import { loadArtIni } from '../emperor/artini.ts';
 import { buildEffects } from '../emperor/effects.ts';
 import { BUILD_DIR, RAW_DIR } from '../config/paths.ts';
 
-const out = path.join(BUILD_DIR, 'test', 'Pre2Probe.w3x');
+const out = path.join(BUILD_DIR, 'test', process.argv.includes('--ring') ? 'Pre2RingProbe.w3x' : 'Pre2Probe.w3x');
 // a white disc, its alpha fading to the edge
 const side = 64;
 const rgba = new Uint8Array(side * side * 4);
@@ -39,7 +39,38 @@ const model = (name: string, texPath: string, rows: number, columns: number): Bu
   geosets: [{ vertices: [0, 0, 0, 60, 0, 0, 0, 60, 0], normals: [0, 0, 1, 0, 0, 1, 0, 0, 1], uvs: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2], bones: [0], materialId: 0, extent: ext, sequenceExtents: [ext] }],
   geosetAnimations: [], bones: [{ name: 'root', parentId: -1 }], pivots: [[0, 0, 0], [0, 0, 0]], emitters: [emitter(0, rows, columns)],
 });
-const m = buildMap({
+// --ring: line emitters (flags 0x20000, latitude 180) of the white disc: R0 as is (expected: a ring in
+// the XZ plane, upright, facing the camera), R1 turned 90 degrees about Y (KGRT),
+// R2 turned 90 degrees about Z (upright, seen edge on)
+const ring = process.argv.includes('--ring');
+const s = Math.SQRT1_2;
+const ringModel = (name: string, q: [number, number, number, number] | null): Buffer => writeMdx({
+  name, extent: ext, sequences: [{ name: 'Stand', start: 0, end: 1000, extent: ext }], textures: [{ path: 'Probe\\Disc.blp' }], materials: [{ layers: [{ filterMode: 0, flags: 0x11, textureId: 0 }] }],
+  geosets: [], geosetAnimations: [], bones: [{ name: 'root', parentId: -1 }], pivots: [[0, 0, 0], [0, 0, 0]],
+  emitters: [{ ...emitter(0, 1, 1), flags: 0x8000 | 0x20000, latitude: 180, variation: 0, gravity: 0, colors: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], alphas: [255, 255, 255], scaling: [20, 20, 20],
+    ...(q ? { rotation: { frames: [0, 1000], values: [q, q], interpolation: 0 as const } } : {}) }],
+});
+const m = ring ? buildMap({
+  name: 'PRE2 Ring Probe', width: 64, height: 64, tileset: 'B', ground: ['Bdsr'], cliffs: ['CBde'], corner: () => ({}),
+  players: [{ id: 0, control: 'user', race: 'human', team: 0, x: 0, y: 0 }, { id: 1, control: 'computer', race: 'human', team: 1, x: 1800, y: 1800 }],
+  imports: {
+    'Probe\\Disc.blp': writeBlpImage({ width: side, height: side, rgba }, { alpha: true }),
+    'Probe\\R0.mdx': ringModel('R0', null),
+    'Probe\\R1.mdx': ringModel('R1', [0, s, 0, s]),
+    'Probe\\R2.mdx': ringModel('R2', [0, 0, s, s]),
+  },
+  globals: '',
+  functions: `function Pre2ProbeRun takes nothing returns nothing
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call SetCameraPositionForPlayer(Player(0), 0.0, 0.0)
+    call AddSpecialEffect("Probe\\\\R0.mdl", -450.0, 0.0)
+    call AddSpecialEffect("Probe\\\\R1.mdl", 0.0, 0.0)
+    call AddSpecialEffect("Probe\\\\R2.mdl", 450.0, 0.0)
+    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, 30.0, "R0 line emitter | R1 +90 about Y | R2 +90 about Z")
+endfunction`,
+  init: '    call TimerStart(CreateTimer(), 1.0, false, function Pre2ProbeRun)',
+}) : buildMap({
   name: 'PRE2 Probe', width: 64, height: 64, tileset: 'B', ground: ['Bdsr'], cliffs: ['CBde'], corner: () => ({}),
   players: [{ id: 0, control: 'user', race: 'human', team: 0, x: 0, y: 0 }, { id: 1, control: 'computer', race: 'human', team: 1, x: 1800, y: 1800 }],
   imports: {
