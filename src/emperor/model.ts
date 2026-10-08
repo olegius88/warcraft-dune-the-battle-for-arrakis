@@ -245,6 +245,10 @@ export interface SceneOptions {
   hiddenNode?: (name: string) => boolean;
   /** bones also get scaling tracks (effects grow and shrink; unit models keep translation / rotation) */
   scaling?: boolean;
+  /** the textures a node shows one after the other over every sequence (effects: FXData MASTER) */
+  nodeTextures?: (node: string) => string[] | null;
+  /** layers drawn one-sided (effects: a two-sided additive shell burns twice) */
+  oneSided?: boolean;
   /** the frames of a texture sequence ("!%boom0.tga" -> !%boom0..10), shown one after the other over
    * every sequence (KMTF); null: a still texture */
   flipbook?: (raw: string) => string[] | null;
@@ -261,13 +265,15 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   const materials: Material[] = [];
   const materialOf = new Map<string, number>();
   const usedFiles: string[] = [];
+  const nodeList = (n: string): string[] | null => { const l = opts.nodeTextures?.(n); return l && l.length ? l : null; };
   // layers that flip through a texture sequence: their KMTF tracks are made once the sequences are known
   const flips: Array<{ material: number; first: number; count: number }> = [];
-  const material = (raw: string): number => {
+  /** material of a texture; with own frames (a node's texture list, nodeTextures) one per node */
+  const material = (raw: string, ownFrames?: string[], key?: string): number => {
     const file = M.TEXTURE_FILE(raw);
-    let id = materialOf.get(file.toLowerCase());
+    let id = materialOf.get((key ?? file).toLowerCase());
     if (id !== undefined) return id;
-    const frames = opts.flipbook?.(raw) ?? null;
+    const frames = ownFrames ?? opts.flipbook?.(raw) ?? null;
     const files = frames && frames.length > 1 ? frames.map((f) => M.TEXTURE_FILE(f)) : [file];
     const texId = textures.length;
     let t: TextureRef | null = null;
@@ -278,7 +284,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     }
     id = materials.length;
     if (files.length > 1) flips.push({ material: id, first: texId, count: files.length });
-    const flags = M.TWO_SIDED ? LAYER_FLAG.twoSided : 0;
+    const flags = M.TWO_SIDED && !opts.oneSided ? LAYER_FLAG.twoSided : 0;
     const sceneBlend = opts.blend ? opts.blend(raw) : null;
     if (sceneBlend !== null && sceneBlend !== undefined) {
       // scene layers: glows and sky are self-lit
@@ -294,7 +300,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     } else {
       materials.push({ layers: [{ filterMode: t && t.alpha ? FILTER.transparent : FILTER.none, flags, textureId: texId }] });
     }
-    materialOf.set(file.toLowerCase(), id);
+    materialOf.set((key ?? file).toLowerCase(), id);
     return id;
   };
 
@@ -340,7 +346,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
       }
       if (!pose) all.push(...pts);
       ids.push(geosets.length);
-      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: material(textureOf(tex)), extent: extentOf(pts), sequenceExtents: [] });
+      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: nodeList(node.name) ? material((nodeList(node.name) as string[])[0] as string, nodeList(node.name) as string[], `node:${node.name}`) : material(textureOf(tex)), extent: extentOf(pts), sequenceExtents: [] });
     }
     return ids;
   };
@@ -469,7 +475,9 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   }
   if (!sequences.some((s) => s.name === 'Stand')) {
     // no stationary animation: the bind pose
-    sequences.unshift({ name: 'Stand', start: time, end: time + 1000, extent });
+    // appended: the sequences stay in time order (unshifted first but last in time, no animation
+    // played at all: test/emperor-mission.test.ts "effects: converted")
+    sequences.push({ name: 'Stand', start: time, end: time + 1000, extent });
   }
   for (const [b, rec] of tracks) {
     const bone = bones[b] as Bone;
@@ -507,8 +515,9 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   // with frame copies, the bind-pose geosets of morphing nodes are never shown
   if (morphGeosets) for (const m of morphs) for (const id of m.staticGeosets) geosetAnimations.push({ geosetId: id, staticAlpha: 0 });
   if (opts.fade) {
-    // TODO(models): how an Emperor effect fades is in its FXData block, which is not read; this fade
-    // is an approximation. Risk: effects end differently from the original.
+    // TODO(models): the effect's own textures go dark (FXData MASTER, effects.ts); the times of those
+    // events and any fade of its own are not read, so this fade is an approximation. Risk: effects end
+    // a little differently from the original.
     const fade = opts.fade;
     const animated = new Set(geosetAnimations.map((g) => g.geosetId));
     const keys: Track = { frames: [], values: [] };

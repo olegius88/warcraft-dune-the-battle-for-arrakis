@@ -15,7 +15,7 @@ import type { TextureRef } from './model.ts';
 import { convertTextures } from './models.ts';
 import { writeMdx, FILTER } from '../wc3/mdx.ts';
 import { gameData } from '../config/paths.ts';
-import { MODEL_PATH, EFFECT_SEQUENCES, EFFECT_ADDITIVE, EFFECT_FLIPBOOK, EFFECT_FOLDERS, EFFECT_HIDDEN_NODE, EFFECT_FADE } from '../config/models.ts';
+import { MODEL_PATH, EFFECT_SEQUENCES, EFFECT_ADDITIVE, EFFECT_FLIPBOOK, EFFECT_FOLDERS, EFFECT_HIDDEN_NODE, EFFECT_FADE, FX_EVENT_MARK, FX_TEXTURE_EVENT, EFFECT_MAX_GEOSETS } from '../config/models.ts';
 
 export interface EffectUse {
   /** object -> effect when it dies (ExplosionType) */
@@ -29,6 +29,8 @@ export interface EffectUse {
 export interface EffectSet {
   /** effect name (lower case) -> model path for AddSpecialEffect */
   model: Map<string, string>;
+  /** model path -> how far it reaches (WC3 units): bind radius times its largest bone scale */
+  radius: Map<string, number>;
   /** archive path -> MDX / BLP */
   files: Record<string, Buffer>;
   /** effects that could not be converted, with the reason */
@@ -36,6 +38,32 @@ export interface EffectSet {
 }
 
 const value = (v: string | undefined): string => (v ?? '').split('//')[0]?.trim() ?? '';
+
+/**
+ * The texture each node shows over the effect, in order: the MASTER section of the XBF's FXData is a
+ * list of events, each u32 type, u32 100, u32 size, then its data; type 6 sets a node's texture
+ * (two zero-terminated strings: node, texture; Explosion/explosion.xbf: ?shockwave !choc0 .. !choc7,
+ * ?innerfire !%boom0 .. !%boom10). The other types (3 / 4 start an emitter at a node, 7, 8, 9) are
+ * skipped by their strings. No times are stored with the events, so the frames are spread evenly.
+ */
+function nodeTextures(fx: Buffer): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const m = fx.indexOf('MASTER');
+  if (m < 0) return out;
+  // an event starts where a small type is followed by 100 (FX_EVENT_MARK)
+  for (let p = m + 7; p + 12 <= fx.length; p++) {
+    if (fx.readUInt32LE(p) !== FX_TEXTURE_EVENT || fx.readUInt32LE(p + 4) !== FX_EVENT_MARK) continue;
+    let q = p + 12;
+    const zs = (): string => { const e = fx.indexOf(0, q); const s = e < 0 ? '' : fx.subarray(q, e).toString('latin1'); q = e + 1; return s; };
+    const node = zs(), tex = zs();
+    if (!node || !/\.tga$/i.test(tex)) continue;
+    const list = out.get(node) ?? [];
+    list.push(tex);
+    out.set(node, list);
+    p = q - 1;
+  }
+  return out;
+}
 
 /** Which effect every object shows (Rules.txt). */
 function effectUse(rules: Rules): EffectUse {
@@ -56,7 +84,7 @@ function effectUse(rules: Rules): EffectUse {
 
 /** Convert the effects named (those ArtIni.txt gives an Xaf whose XBF is in EFFECT_FOLDERS). */
 function buildEffects(names: Iterable<string>, art: Map<string, ArtEntry>, archive = gameData('3DDATA0001')): EffectSet {
-  const set: EffectSet = { model: new Map(), files: {}, failed: new Map() };
+  const set: EffectSet = { model: new Map(), radius: new Map(), files: {}, failed: new Map() };
   const index = readIndex(archive + '.RFH').map((e) => e.name);
   const inFolders = new Map(index.filter((n) => EFFECT_FOLDERS.some((f) => n.toLowerCase().startsWith(f))).map((n) => [baseName(n).toLowerCase(), n]));
   const textureNames = index.filter((n) => /^textures\//i.test(n)).map((n) => baseName(n));
@@ -87,22 +115,28 @@ function buildEffects(names: Iterable<string>, art: Map<string, ArtEntry>, archi
     try {
       const data = xbf.get(file) as Buffer;
       const ref = (tex: string): TextureRef => { textureFiles.add(tex.toLowerCase()); return { path: MODEL_PATH.texture(tex), alpha: true, teamColour: false }; };
-      const { model } = xbfToMdx(key, readXbf(data), readAnimations(data), ref, {
-        sequences: EFFECT_SEQUENCES, scaling: true, flipbook, hiddenNode: EFFECT_HIDDEN_NODE, fade: EFFECT_FADE,
-        blend: (raw) => (EFFECT_ADDITIVE(raw) ? FILTER.additive : FILTER.blend),
+      const scene = readXbf(data);
+      const lists = nodeTextures(scene.fx);
+      const { model } = xbfToMdx(key, scene, readAnimations(data), ref, {
+        sequences: EFFECT_SEQUENCES, scaling: true, flipbook, hiddenNode: EFFECT_HIDDEN_NODE, fade: EFFECT_FADE, oneSided: true,
+        nodeTextures: (n) => lists.get(n) ?? null,
+        blend: () => FILTER.blend,
       });
       // TODO(models): effects drawn only by FXData particles (the hits: mghit, MissileHit, SniperHit,
       // ShellHit, DevImpact, DeviateHit, BloodSplat; the sparks of the explosions) are not converted:
       // the XBF's FXData block (particle emitters at its # helper nodes) is not read. Risk: no hit effects.
       if (!model.geosets.length) { set.failed.set(n, `${file}: only FXData particles (not converted)`); continue; }
+      if (model.geosets.length > EFFECT_MAX_GEOSETS) { set.failed.set(n, `${file}: ${model.geosets.length} geosets (vertex animation frames) stalled the game`); continue; }
       if (!model.sequences.some((s) => s.name === EFFECT_SEQUENCES[0]?.[1])) { set.failed.set(n, `${file}: no animation`); continue; }
       set.files[MODEL_PATH.model(key)] = writeMdx(model);
       set.model.set(n, MODEL_PATH.modelField(key));
+      const grow = Math.max(1, ...model.bones.flatMap((b) => (b.scaling?.values ?? []).flat()));
+      set.radius.set(MODEL_PATH.modelField(key), model.extent.radius * grow);
     } catch (e) {
       set.failed.set(n, `${file}: ${(e as Error).message}`);
     }
   }
-  Object.assign(set.files, convertTextures(archive, textureFiles));
+  Object.assign(set.files, convertTextures(archive, textureFiles, EFFECT_ADDITIVE));
   return set;
 }
 

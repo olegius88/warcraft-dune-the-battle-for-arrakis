@@ -19,7 +19,7 @@ import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
 import { superweaponKind } from './superweapons.ts';
 import type { EffectUse, EffectSet } from './effects.ts';
-import { EFFECT_PLAYED } from '../config/models.ts';
+import { EFFECT_PLAYED, EFFECT_MAX_RADIUS, EFFECT_MIN_SCALE } from '../config/models.ts';
 import { SUBHOUSE_BUILDINGS } from '../config/campaign.ts';
 
 type RaceOrNeutral = Wc3Race | 'neutral';
@@ -82,6 +82,8 @@ export interface UnitData {
   /** WC3 type -> its effect models [when it dies, where it fires, where its bullet hits] ('' none;
    * src/emperor/effects.ts, mission effects.j) */
   effects: Map<string, [string, string, string]>;
+  /** effect model path -> how far it reaches (src/emperor/effects.ts; shown at most config EFFECT_MAX_RADIUS) */
+  effectRadius: Map<string, number>;
   /** starport order type -> the unit a frigate delivers for it (mission starport.j) */
   portOrders: Map<string, string>;
 }
@@ -139,7 +141,10 @@ function effectsOf(rules: Rules, rawcode: Map<string, string>, effects?: { use: 
   for (const o of rules.objects.values()) {
     const id = rawcode.get(o.name);
     const all3 = [path(effects.use.death, o.name), path(effects.use.muzzle, o.name), path(effects.use.hit, o.name)];
-    const fx = all3.map((p, k) => (EFFECT_PLAYED[k] ? p : '')) as [string, string, string];
+    // a beam stretched to its target (LTMuzzle, SonicFlash: x250 along one axis) cannot be a still
+    // effect: shrunk under EFFECT_MAX_RADIUS it would vanish; such ones are left out
+    const shown = (p: string, k: number): boolean => Boolean(p) && EFFECT_PLAYED[k] === true && Math.min(1, (EFFECT_MAX_RADIUS[k] as number) / Math.max(1, effects.set.radius.get(p) ?? 1)) >= EFFECT_MIN_SCALE;
+    const fx = all3.map((p, k) => (shown(p, k) ? p : '')) as [string, string, string];
     if (id && fx.some(Boolean)) out.set(id, fx);
   }
   return out;
@@ -356,6 +361,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),
+    effectRadius: effects?.set.radius ?? new Map(),
     w3u: writeObjects(objects.map(({ base, id, mods }) => ({ base, id, mods }))),
     w3a: writeObjects(abilities, true),
     upgrades,

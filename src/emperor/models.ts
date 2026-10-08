@@ -67,13 +67,18 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
 
 /** Textures/<file>.tga of the archive (names in lower case) -> BLP (power-of-two sides, at most
  * MAX_TEXTURE_SIZE, mipmaps, alpha when used), by archive path. */
-function convertTextures(archive: string, textureFiles: Set<string>): Record<string, Buffer> {
+function convertTextures(archive: string, textureFiles: Set<string>, alphaFromLight?: (name: string) => boolean): Record<string, Buffer> {
   const files: Record<string, Buffer> = {};
   for (const f of readArchive(archive, (n) => /^textures\//i.test(n) && textureFiles.has(baseName(n).toLowerCase()))) {
     const img = readTga(f.data);
     const side = (n: number): number => Math.min(MAX_TEXTURE_SIZE, pow2Ceil(n));
     let alpha = false;
-    if (HOUSE_COLOUR_TEXTURE(baseName(f.name))) {
+    if (alphaFromLight?.(baseName(f.name))) {
+      // a glow drawn additive on black in Emperor: its light becomes its alpha, so blending shows the
+      // colour where it shines and nothing where it is black, without burning to white
+      for (let i = 0; i < img.rgba.length; i += 4) img.rgba[i + 3] = Math.max(img.rgba[i] as number, img.rgba[i + 1] as number, img.rgba[i + 2] as number);
+      alpha = true;
+    } else if (HOUSE_COLOUR_TEXTURE(baseName(f.name))) {
       // house-colour panels become see-through: the team colour layer under them shows
       for (let i = 0; i < img.rgba.length; i += 4) if (HOUSE_COLOUR_PIXEL(img.rgba[i] as number, img.rgba[i + 1] as number, img.rgba[i + 2] as number)) img.rgba[i + 3] = 0;
       alpha = true;

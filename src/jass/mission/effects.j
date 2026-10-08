@@ -1,16 +1,25 @@
 // ---- effects (src/emperor/effects.ts; Rules.txt ExplosionType / TurretMuzzleFlash, ArtIni.txt Xaf):
 // EmpFxTab[type]: 0 the model where it dies, 1 where it fires (at its "weapon" attachment), 2 where
-// its bullet hits. An effect model plays its one animation as Death: DestroyEffect right away.
+// its bullet hits; 10 + those: the scale it is shown at (config EFFECT_MAX_RADIUS). An effect model
+// plays its one animation as Death: DestroyEffect right away.
 function EmpFxData takes nothing returns nothing
     set EmpFxTab = InitHashtable()
 {{fxLines}}
+endfunction
+
+// effect k of type t made e: shown at its scale, played once
+function EmpFxPlay takes effect e, integer t, integer k returns nothing
+    if HaveSavedReal(EmpFxTab, t, 10 + k) then
+        call BlzSetSpecialEffectScale(e, LoadReal(EmpFxTab, t, 10 + k))
+    endif
+    call DestroyEffect(e)
 endfunction
 
 function EmpFxDeath takes nothing returns nothing
     local unit u = GetTriggerUnit()
     local integer t = GetUnitTypeId(u)
     if HaveSavedString(EmpFxTab, t, 0) then
-        call DestroyEffect(AddSpecialEffect(LoadStr(EmpFxTab, t, 0), GetUnitX(u), GetUnitY(u)))
+        call EmpFxPlay(AddSpecialEffect(LoadStr(EmpFxTab, t, 0), GetUnitX(u), GetUnitY(u)), t, 0)
     endif
     set u = null
 endfunction
@@ -20,7 +29,7 @@ function EmpFxFire takes nothing returns nothing
     local unit u = GetAttacker()
     local integer t = GetUnitTypeId(u)
     if HaveSavedString(EmpFxTab, t, 1) then
-        call DestroyEffect(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, "weapon"))
+        call EmpFxPlay(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, "weapon"), t, 1)
     endif
     set u = null
 endfunction
@@ -30,7 +39,7 @@ function EmpFxHit takes nothing returns nothing
     local unit s = GetEventDamageSource()
     local unit u = GetTriggerUnit()
     if s != null and HaveSavedString(EmpFxTab, GetUnitTypeId(s), 2) then
-        call DestroyEffect(AddSpecialEffect(LoadStr(EmpFxTab, GetUnitTypeId(s), 2), GetUnitX(u), GetUnitY(u)))
+        call EmpFxPlay(AddSpecialEffect(LoadStr(EmpFxTab, GetUnitTypeId(s), 2), GetUnitX(u), GetUnitY(u)), GetUnitTypeId(s), 2)
     endif
     set s = null
     set u = null

@@ -13,6 +13,7 @@ import { BUILD_DIR, RAW_DIR } from '../config/paths.ts';
 import { territoryMapPrefix } from '../config/story.ts';
 import { ART_ABILITY, TERRAIN } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
+import { EFFECT_MAX_RADIUS } from '../config/models.ts';
 import * as BATTLE from '../config/battle.ts';
 
 // node src/smoke/build-territory-probe.ts <territory> [script ...]: the scripts (phase 1, 2, ...) too
@@ -24,6 +25,8 @@ const flag = (f: string): boolean => args.includes(f);
 const all = loadAll();
 const trike = all.units.rawcode.get('ATTrike') as string;
 const trikeOrder = [...all.units.portOrders].find(([, real]) => real === trike)?.[0] as string;
+// --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
+const fxShown = [...new Map([...all.units.effects.values()].flatMap((fx) => fx.map((m, k) => [m, k] as const)).filter(([m]) => m)).entries()];
 const meta = readMeta(path.join(ensureMap(territoryMapPrefix(n))[0] as string, 'test.xbf'));
 const scripts = names.map((s, i) => ({ tok: fs.readFileSync(path.join(RAW_DIR, `${s}.tok`)), phase: i + 1, name: s }));
 const m = buildMission({
@@ -270,7 +273,12 @@ endfunction`,
     endloop
     set a = CreateUnit(Player(0), '${all.units.rawcode.get('ATMongoose') ?? trike}', x, y - 350.0, 90.0)
     call IssueTargetOrder(a, "attack", t[1])
-    call TriggerSleepAction(4.0)
+    // two trikes of each side fire at each other (muzzle flashes)
+    call CreateUnit(Player(0), '${trike}', x - 150.0, y - 250.0, 90.0)
+    call CreateUnit(Player(0), '${trike}', x + 150.0, y - 250.0, 90.0)
+    call CreateUnit(Player(1), '${trike}', x - 150.0, y + 350.0, 270.0)
+    call CreateUnit(Player(1), '${trike}', x + 150.0, y + 350.0, 270.0)
+    call TriggerSleepAction(6.0)
     set k = 0
     loop
         exitwhen k >= 3
@@ -285,13 +293,20 @@ endfunction`,
     set a = null
 endfunction`,
   } : {}),
-  // --fxgrid: every converted effect on a grid before the camera, played again every 0.7 s
+  // --fxgrid: every played effect in turn at the centre of the screen, its name shown, every 2.5 s
   ...(flag('--fxgrid') ? {
     extraStart: 'FxGridRun',
     extraFunctions: `function FxGridTick takes nothing returns nothing
     local real x = EmpEntrX[EmpEntranceFor(0)] * 0.5
     local real y = EmpEntrY[EmpEntranceFor(0)] * 0.5
-${[...new Set([...all.units.effects.values()].flatMap((fx) => fx.filter(Boolean)))].map((model, i) => `    call DestroyEffect(AddSpecialEffect(${JSON.stringify(model).replace(/\\\\/g, '\\\\')}, x + ${(i % 5) * 500 - 1000}.0, y + ${Math.floor(i / 5) * 450 - 700}.0))`).join('\n')}
+    local effect FxGridE
+    local integer k = ModuloInteger(R2I(EmpTick / 62.5), ${fxShown.length})
+${fxShown.map(([model, kind], i) => `    if k == ${i} then
+        set FxGridE = AddSpecialEffect(${JSON.stringify(model).replace(/\\\\/g, '\\\\')}, x, y)
+        call BlzSetSpecialEffectScale(FxGridE, ${Math.min(1, (EFFECT_MAX_RADIUS[kind] as number) / Math.max(1, all.units.effectRadius.get(model) ?? 1)).toFixed(4)})
+        call DestroyEffect(FxGridE)
+        call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, 2.0, ${JSON.stringify(model.replace(/^.*\\\\/, ''))})
+    endif`).join('\n')}
 endfunction
 
 function FxGridRun takes nothing returns nothing
@@ -300,7 +315,7 @@ function FxGridRun takes nothing returns nothing
     call FogMaskEnable(false)
     call TriggerSleepAction(1.0)
     call SetCameraPositionForPlayer(Player(0), EmpEntrX[EmpEntranceFor(0)] * 0.5, EmpEntrY[EmpEntranceFor(0)] * 0.5)
-    call TimerStart(CreateTimer(), 1.5, true, function FxGridTick)
+    call TimerStart(CreateTimer(), 2.5, true, function FxGridTick)
 endfunction`,
   } : {}),
   // --mounds: spice mounds and fields at 5 s and after the first bursts (Size + Cost ticks = 60 s)

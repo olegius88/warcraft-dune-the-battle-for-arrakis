@@ -506,9 +506,9 @@ test('starport prices change every StarportCostUpdateDelay ticks within Starport
 // dies (ExplosionType) and a muzzle flash for every turret (TurretMuzzleFlash); ArtIni.txt gives their
 // XBF (Explosion/*.xbf), converted like the unit models (src/emperor/effects.ts). The runtime plays
 // them where a unit dies and where it fires.
-// They are converted and the runtime is there, but none is played yet (config EFFECT_PLAYED:
-// converted, they are far larger than units; their size and fade are in the undecoded FXData).
-test('effects: converted from Rules.txt / ArtIni.txt with texture sequences and scaling; runtime ready, none played yet', opts, async () => {
+// The textures a node shows over time come from the FXData MASTER events (the explosion fades by
+// them); effects are shown at most EFFECT_MAX_RADIUS; hits (FXData particles only) are not played.
+test('effects: an explosion where an object dies, a muzzle flash where it fires (Rules.txt, ArtIni.txt, FXData)', opts, async () => {
   const { effectUse, buildEffects } = await import('../src/emperor/effects.ts');
   const { loadArtIni } = await import('../src/emperor/artini.ts');
   const { EFFECT_PLAYED } = await import('../src/config/models.ts');
@@ -520,17 +520,28 @@ test('effects: converted from Rules.txt / ArtIni.txt with texture sequences and 
   const parse = (name: string) => { const m = new MdlxModel(); m.load(new Uint8Array(set.files[(set.model.get(name) as string).replace(/\.mdl$/, '.mdx')] as Buffer)); return m; };
   const boom = parse('explosion');
   assert.ok(boom.sequences.some((s: { name: string }) => s.name === 'Death'), 'the animation plays as Death');
+  // Bug (probe 2026-10-08): the bind-pose Stand was put first in the list but after Death in time;
+  // the game then played no animation at all (the explosion stood still at full size). Sequences go
+  // in time order.
+  const starts = boom.sequences.map((s: { interval: ArrayLike<number> }) => s.interval[0] as number);
+  assert.deepStrictEqual(starts, [...starts].sort((a, b) => a - b), 'sequences in time order');
   assert.ok(boom.materials.some((x: { layers: Array<{ animations: Array<{ name: string }> }> }) => x.layers[0]?.animations.some((a) => a.name === 'KMTF')), '!%boom0..10 flipped');
   assert.ok(parse('muzzle1').geosets.length > 0, 'the flash mesh (? nodes) is drawn');
   assert.match(set.failed.get('missilehit') ?? '', /FXData particles/, 'a hit made of particles only is left out');
-  // not played: nothing in the runtime table, no effect files imported
-  assert.deepStrictEqual(EFFECT_PLAYED, [false, false, false]);
-  assert.strictEqual(all.units.effects.size, 0);
-  assert.ok(!Object.keys(all.units.models).some((k) => /FX_/.test(k)));
+  // the shockwave's textures from FXData MASTER (choc0 .. choc7): one flipping layer
+  assert.ok(boom.textures.some((t: { path: string }) => /_choc7\.blp$/i.test(t.path)), 'MASTER texture list');
+  // explosions and muzzle flashes played, hits not; the trike's are in the runtime table, shrunk
+  assert.deepStrictEqual(EFFECT_PLAYED, [true, true, false]);
+  const trike = all.units.rawcode.get('ATTrike') as string;
+  const fx = all.units.effects.get(trike) as [string, string, string];
+  assert.ok(fx[0].endsWith('FX_SmallExplosion.mdl') && fx[1].endsWith('FX_Muzzle1.mdl') && fx[2] === '', fx.join(' | '));
+  assert.ok(all.units.models[fx[0].replace(/\.mdl$/, '.mdx')], 'imported');
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'fx', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
-  assert.ok(m.script.includes('function EmpFxDeath') && m.script.includes('function EmpFxFire') && m.script.includes('call EmpFxInit()'), 'runtime');
-  assert.ok(m.script.includes('call DestroyEffect(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, "weapon"))'), 'muzzle at the weapon');
+  assert.ok(m.script.includes(`call SaveStr(EmpFxTab, '${trike}', 1, ${JSON.stringify(fx[1])})`), 'muzzle of the trike');
+  assert.match(m.script, new RegExp(`call SaveReal\\(EmpFxTab, '${trike}', 11, 0\\.\\d+\\)`), 'the flash shrunk to EFFECT_MAX_RADIUS');
+  assert.ok(m.script.includes('function EmpFxDeath') && m.script.includes('call EmpFxInit()'), 'runtime');
+  assert.ok(m.script.includes('call EmpFxPlay(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, "weapon"), t, 1)'), 'muzzle at the weapon');
 });
 
 // The hub said nothing when an alliance was made or lost; E_Output_Pickup holds the house's debrief

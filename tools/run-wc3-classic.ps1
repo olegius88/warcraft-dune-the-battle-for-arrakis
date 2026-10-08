@@ -18,7 +18,7 @@ param(
   [switch]$Keep,
   [switch]$Trace,
   [string]$FramesPrefix = '',   # capture the window every -FrameEvery seconds to <prefix>000.png, 001... (GIF frames)
-  [int]$FrameEvery = 3,
+  [double]$FrameEvery = 3,   # seconds, fractions allowed (a capture itself takes some 0.2..0.5 s)
   [string]$Capture = '',
   [string]$Size = '',          # window size WxH for captures, e.g. 1280x560
   [string]$Exe = 'G:\Games\Warcraft III\x86_64\Warcraft III.exe'

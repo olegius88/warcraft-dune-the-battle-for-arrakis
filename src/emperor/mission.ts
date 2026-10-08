@@ -27,6 +27,7 @@ import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
 import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, DAMAGE_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
 import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON, ART_ABILITY, ABILITY } from '../config/wc3.ts';
+import { EFFECT_MAX_RADIUS } from '../config/models.ts';
 import * as SC from '../config/scenery.ts';
 import { SHUFFLE_BATTLE_MUSIC } from '../config/music.ts';
 
@@ -300,7 +301,11 @@ function buildMission(p: MissionParams): BuiltMission {
     portFrigateSeconds: (Number(p.rules?.general.FrigateCountdown ?? 0) || TICKS_PER_SECOND) / TICKS_PER_SECOND,
     portMaxDelivery: Number(p.rules?.general.StarportMaxDeliverySingle ?? 0) || 1,
     // effects of every type (src/emperor/effects.ts; mission effects.j)
-    fxLines: [...(p.units.effects ?? [])].flatMap(([id, fx]) => fx.map((model, k) => (model ? `    call SaveStr(EmpFxTab, '${id}', ${k}, ${str(model)})` : '')).filter(Boolean)).join('\n'),
+    fxLines: [...(p.units.effects ?? [])].flatMap(([id, fx]) => fx.flatMap((model, k) => {
+      if (!model) return [];
+      const scale = Math.min(1, (EFFECT_MAX_RADIUS[k] as number) / Math.max(1, p.units.effectRadius?.get(model) ?? 1));
+      return [`    call SaveStr(EmpFxTab, '${id}', ${k}, ${str(model)})`, ...(scale < 1 ? [`    call SaveReal(EmpFxTab, '${id}', ${10 + k}, ${real(scale)})`] : [])];
+    })).join('\n'),
     // the frigate ([Frigate]) shown flying in and out
     portFrigateUnit: p.units.rawcode.get('Frigate') ?? UNIT.fallback,
     ORDER_CANCEL: RT.ORDER_CANCEL, PORT_PRICE_TEXT: RT.PORT_PRICE_TEXT,
