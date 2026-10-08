@@ -19,7 +19,7 @@ import { writeBlpImage, resize, pow2Ceil } from '../wc3/blp.ts';
 import type { MdxModel, Track, V3 } from '../wc3/mdx.ts';
 import { writeMdx, FILTER } from '../wc3/mdx.ts';
 import { gameData } from '../config/paths.ts';
-import { MODEL_PATH, EFFECT_SEQUENCES, EFFECT_ADDITIVE, EFFECT_FLIPBOOK, EFFECT_FOLDERS, EFFECT_HIDDEN_NODE, EFFECT_FADE, FX_EVENT, FX_EVENT_FIELDS, FX_MASTER_TRACK, EFFECT_MAX_GEOSETS, FX_PARTICLE, FX_PARTICLE_FILTER, FX_ATLAS_SUFFIX, MS_PER_FRAME, MODEL_SCALE, MAX_TEXTURE_SIZE } from '../config/models.ts';
+import { MODEL_PATH, EFFECT_SEQUENCES, EFFECT_ADDITIVE, EFFECT_FLIPBOOK, EFFECT_FOLDERS, EFFECT_HIDDEN_NODE, EFFECT_SHOWN, FX_EVENT, FX_EVENT_FIELDS, FX_MASTER_TRACK, EFFECT_MAX_GEOSETS, FX_PARTICLE, FX_PARTICLE_FILTER, FX_ATLAS_SUFFIX, MS_PER_FRAME, MODEL_SCALE, MAX_TEXTURE_SIZE } from '../config/models.ts';
 
 export interface EffectUse {
   /** object -> effect when it dies (ExplosionType) */
@@ -44,7 +44,7 @@ export interface EffectSet {
 const value = (v: string | undefined): string => (v ?? '').split('//')[0]?.trim() ?? '';
 
 /** An event of an FXData track: its frame, type and the strings its flags carry (FX_EVENT_FIELDS). */
-export interface FxEvent { frame: number; type: number; id: string; node: string; name: string }
+export interface FxEvent { frame: number; type: number; id: string; node: string; name: string; pair?: [number, number] }
 
 /**
  * A track of an XBF's FXData (default FX_MASTER_TRACK) as Game.exe 1.09 reads it (0x46edf0): u32
@@ -69,6 +69,7 @@ function fxTrack(fx: Buffer, track = FX_MASTER_TRACK): { frames: number; events:
             for (const [flag, kind, bytes] of FX_EVENT_FIELDS) {
               if (!(flags & flag)) continue;
               if (kind === 'skip') { p += bytes; continue; }
+              if (kind === 'pair') { e.pair = [fx.readFloatLE(p), fx.readFloatLE(p + 4)]; p += bytes; continue; }
               const end = fx.indexOf(0, p);
               if (end < 0) throw new Error('unterminated string');
               e[kind] = fx.subarray(p, end).toString('latin1');
@@ -84,6 +85,29 @@ function fxTrack(fx: Buffer, track = FX_MASTER_TRACK): { frames: number; events:
     }
   }
   return null;
+}
+
+/** What the MASTER track does to a node besides its textures: hidden / shown from a frame on, and its
+ * texture scrolled by (du, dv) a tick from a frame to another (to the track's end without a stop). */
+export interface NodeEvents {
+  visible: Array<{ frame: number; on: boolean }>;
+  scroll: Array<{ from: number; to: number; du: number; dv: number }>;
+}
+
+/** The node events of an XBF's FXData (FX_EVENT hide / show / scroll / scrollStop), by node. */
+function nodeEvents(fx: Buffer): Map<string, NodeEvents> {
+  const out = new Map<string, NodeEvents>();
+  const track = fxTrack(fx);
+  const of = (node: string): NodeEvents => { let n = out.get(node); if (!n) { n = { visible: [], scroll: [] }; out.set(node, n); } return n; };
+  for (const e of track?.events ?? []) {
+    if (!e.node) continue;
+    if (e.type === FX_EVENT.hide || e.type === FX_EVENT.show) of(e.node).visible.push({ frame: e.frame, on: e.type === FX_EVENT.show });
+    if (e.type === FX_EVENT.scroll && e.pair) {
+      const stop = track?.events.find((s) => s.type === FX_EVENT.scrollStop && s.node === e.node && s.frame > e.frame);
+      of(e.node).scroll.push({ from: e.frame, to: stop ? stop.frame : (track?.frames ?? e.frame), du: e.pair[0], dv: e.pair[1] });
+    }
+  }
+  return out;
 }
 
 /**
@@ -336,9 +360,10 @@ function buildEffects(names: Iterable<string>, art: Map<string, ArtEntry>, archi
       const ref = (tex: string): TextureRef => { textureFiles.add(tex.toLowerCase()); return { path: MODEL_PATH.texture(tex), alpha: true, teamColour: false }; };
       const scene = readXbf(data);
       const lists = nodeTextures(scene.fx);
+      const events = nodeEvents(scene.fx);
       const { model } = xbfToMdx(key, scene, readAnimations(data), ref, {
-        sequences: EFFECT_SEQUENCES, scaling: true, flipbook, hiddenNode: EFFECT_HIDDEN_NODE, fade: EFFECT_FADE, oneSided: true,
-        nodeTextures: (n) => lists.get(n) ?? null,
+        sequences: EFFECT_SEQUENCES, scaling: true, flipbook, hiddenNode: EFFECT_HIDDEN_NODE, deathOnly: EFFECT_SHOWN, oneSided: true,
+        nodeTextures: (n) => lists.get(n) ?? null, nodeEvents: (n) => events.get(n) ?? null,
         blend: () => FILTER.blend,
       });
       // the FXData particles: hits are made of them only, explosions add sparks and smoke
@@ -370,4 +395,4 @@ function buildEffects(names: Iterable<string>, art: Map<string, ArtEntry>, archi
   return set;
 }
 
-export { effectUse, buildEffects, fxTrack };
+export { effectUse, buildEffects, fxTrack, nodeEvents };

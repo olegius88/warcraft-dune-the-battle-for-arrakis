@@ -36,6 +36,8 @@ export const LAYER_FLAG = { unshaded: 0x1, twoSided: 0x10, unfogged: 0x20, noDep
 
 export interface Layer {
   filterMode: number; flags: number; textureId: number; alpha?: number;
+  /** index into MdxModel.textureAnimations (-1 / none: no texture animation) */
+  textureAnimationId?: number;
   /** texture id track (KMTF, integer values: a texture sequence; layer.ts / animations.ts UintAnimation) */
   textureIds?: Track;
   /** alpha track (KMTA) */
@@ -107,6 +109,8 @@ export interface MdxModel {
   sequences: Sequence[];
   textures: Texture[];
   materials: Material[];
+  /** texture animations (TXAN): a translation track (KTAT) of the layers' UVs */
+  textureAnimations?: Array<{ translation: Track }>;
   geosets: Geoset[];
   geosetAnimations: GeosetAnimation[];
   bones: Bone[];
@@ -184,7 +188,7 @@ function writeMdx(m: MdxModel): Buffer {
       c.tag('LAYS'); c.u32(mat.layers.length);
       mat.layers.forEach((l, i) => {
         const a = anims[i] as Buffer;
-        c.u32(28 + a.length); c.u32(l.filterMode); c.u32(l.flags); c.i32(l.textureId); c.i32(-1); c.u32(0); c.f32(l.alpha ?? 1);
+        c.u32(28 + a.length); c.u32(l.filterMode); c.u32(l.flags); c.i32(l.textureId); c.i32(l.textureAnimationId ?? -1); c.u32(0); c.f32(l.alpha ?? 1);
         c.push(a);
       });
     }
@@ -194,6 +198,12 @@ function writeMdx(m: MdxModel): Buffer {
     const c = new Out();
     for (const t of m.textures) { c.u32(t.replaceableId ?? 0); c.str(t.path, 260); c.u32(t.wrap ?? 0); }
     chunk(o, 'TEXS', c.buffer());
+  }
+  if (m.textureAnimations?.length) {
+    // each: inclusive size, then its tracks (textureanimation.ts)
+    const c = new Out();
+    for (const t of m.textureAnimations) { const k = trackBytes('KTAT', t.translation, 3); c.u32(4 + k.length); c.push(k); }
+    chunk(o, 'TXAN', c.buffer());
   }
   if (m.geosets.length) {
     const c = new Out();

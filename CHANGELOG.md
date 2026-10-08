@@ -5,6 +5,16 @@
 ## [Unreleased]
 
 ### Changed
+- 2026-10-08 Остальные события FXData MASTER по `Game.exe` 1.09 ([effects.ts](src/emperor/effects.ts)
+  `nodeEvents`, [model.ts](src/emperor/model.ts), TXAN в [mdx.ts](src/wc3/mdx.ts)):
+  - **1 / 2** скрывают и показывают узел (`0x4afa50` / `0x4afac0` → флаг узла `+0x4b`, `0x4130a0`):
+    например, `?Skull` у DHBigExplosion виден с кадра 0 по 19.
+  - **7 / 8** прокручивают текстуру узла на (du, dv) за тик и останавливают прокрутку (`0x4afde0`,
+    `0x575630` прибавляет их к UV меша): огонь `?innerfire` плывёт на −0,01 за тик. В MDX это
+    анимация текстуры (TXAN, KTAT), текстура повторяется.
+  - **Затухание** с 60 % анимации, которое было заглушкой вместо этих событий, убрано: у Game.exe
+    своего затухания нет. Эффект виден в Death и скрыт в Stand.
+  - Проверено в игре (проба `--fx`). Закрыт `TODO(models)` в model.ts.
 - 2026-10-08 `ChanceOfRetreating` по `Game.exe` 1.09 ([ai.j](src/jass/battle/ai.j)
   `EmpAiLosingCase` / `EmpAiLosingCheck`, `AI_LOSING`):
   - **Где Emperor его читает.** Ровно в одном месте (ключ 27, `0x43f51d`): когда ИИ проигрывает

@@ -238,15 +238,18 @@ export interface SceneOptions {
   /** Emperor animation -> WC3 sequence table instead of config SEQUENCE_MAP (effects: Stationary ->
    * Death, played once by DestroyEffect) */
   sequences?: ReadonlyArray<readonly [string, string, boolean]>;
-  /** effects: every still geoset fades from full to none over the last part of each non-looping
-   * sequence (from this share of it) and is hidden in the looping ones; layers drawn at layerAlpha */
-  fade?: { from: number; layerAlpha: number };
+  /** effects: every geoset is drawn in the non-looping sequences only (a node's hide / show events,
+   * nodeEvents, decide within them); layers drawn at layerAlpha */
+  deathOnly?: { layerAlpha: number };
   /** which nodes are not drawn (default config HIDDEN_NODE; effects draw their ? nodes) */
   hiddenNode?: (name: string) => boolean;
   /** bones also get scaling tracks (effects grow and shrink; unit models keep translation / rotation) */
   scaling?: boolean;
   /** the textures a node shows one after the other over every sequence (effects: FXData MASTER) */
   nodeTextures?: (node: string) => Array<{ texture: string; frame: number }> | null;
+  /** what an effect's MASTER track does to a node (effects.ts nodeEvents): hidden / shown from a frame,
+   * its texture scrolled by (du, dv) a frame between two frames */
+  nodeEvents?: (node: string) => { visible: Array<{ frame: number; on: boolean }>; scroll: Array<{ from: number; to: number; du: number; dv: number }> } | null;
   /** layers drawn one-sided (effects: a two-sided additive shell burns twice) */
   oneSided?: boolean;
   /** the frames of a texture sequence ("!%boom0.tga" -> !%boom0..10), shown one after the other over
@@ -262,6 +265,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   const flat = all0;
   const bind = worldAt(flat, null);
   const textures: Texture[] = [];
+  const textureAnimations: Array<{ translation: Track }> = [];
   const materials: Material[] = [];
   const materialOf = new Map<string, number>();
   const usedFiles: string[] = [];
@@ -304,11 +308,20 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     materialOf.set((key ?? file).toLowerCase(), id);
     return id;
   };
-  /** the material of a node with its own texture list (nodeTextures), null without one */
-  const nodeMaterial = (node: string): number | null => {
+  // materials whose texture scrolls (nodeEvents), and geosets a node's events show and hide
+  const scrolled = new Map<number, Array<{ from: number; to: number; du: number; dv: number }>>();
+  const nodeShown: Array<{ geoset: number; visible: Array<{ frame: number; on: boolean }> }> = [];
+  /** the material of a node with its own texture list (nodeTextures) or scrolling texture (nodeEvents)
+   * showing `raw`, null without either */
+  const nodeMaterial = (node: string, raw: string): number | null => {
     const list = nodeList(node);
-    if (!list) return null;
-    return material((list[0] as { texture: string }).texture, list.map((x) => x.texture), `node:${node}`, list.map((x) => x.frame));
+    const scroll = opts.nodeEvents?.(node)?.scroll ?? [];
+    if (!list && !scroll.length) return null;
+    const id = list
+      ? material((list[0] as { texture: string }).texture, list.map((x) => x.texture), `node:${node}`, list.map((x) => x.frame))
+      : material(raw, undefined, `node:${node}:${raw}`);
+    if (scroll.length) scrolled.set(id, scroll);
+    return id;
   };
 
   const geosets: Geoset[] = [];
@@ -353,7 +366,9 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
       }
       if (!pose) all.push(...pts);
       ids.push(geosets.length);
-      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: nodeMaterial(node.name) ?? material(textureOf(tex)), extent: extentOf(pts), sequenceExtents: [] });
+      const shown = pose ? [] : opts.nodeEvents?.(node.name)?.visible ?? [];
+      if (shown.length) nodeShown.push({ geoset: geosets.length, visible: shown });
+      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: nodeMaterial(node.name, textureOf(tex)) ?? material(textureOf(tex)), extent: extentOf(pts), sequenceExtents: [] });
     }
     return ids;
   };
@@ -523,20 +538,55 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   }
   // with frame copies, the bind-pose geosets of morphing nodes are never shown
   if (morphGeosets) for (const m of morphs) for (const id of m.staticGeosets) geosetAnimations.push({ geosetId: id, staticAlpha: 0 });
-  if (opts.fade) {
-    // The effect's own textures go dark at their MASTER frames (effects.ts nodeTextures).
-    // TODO(models): MASTER events 7 / 8 give a node two per-tick values and take them away again
-    // (Game.exe 1.09 0x4afde0 / 0x4afee0; ?innerfire: -0.01, 0), what they change is not traced, so
-    // this fade stands in. Risk: effects end a little differently from the original.
-    const fade = opts.fade;
-    const animated = new Set(geosetAnimations.map((g) => g.geosetId));
-    const keys: Track = { frames: [], values: [] };
-    for (const s of [...sequences].sort((a, b) => a.start - b.start)) {
-      if (s.nonLooping) { keys.frames.push(s.start, s.start + Math.round((s.end - s.start) * fade.from), s.end); keys.values.push([1], [1], [0]); }
-      else { keys.frames.push(s.start, s.end); keys.values.push([0], [0]); }
+  const ordered = [...sequences].sort((a, b) => a.start - b.start);
+  // a scrolling texture (MASTER 7 / 8): its UVs move by (du, dv) a frame over the scroll's frames of
+  // every sequence (TXAN translation); its textures wrap
+  for (const [id, scroll] of scrolled) {
+    const t: Track = { frames: [], values: [], interpolation: 1 };
+    for (const sq of ordered) {
+      let u = 0, v = 0;
+      t.frames.push(sq.start); t.values.push([0, 0, 0]);
+      for (const s of scroll) {
+        const from = Math.min(sq.end, sq.start + s.from * M.MS_PER_FRAME), to = Math.min(sq.end, sq.start + s.to * M.MS_PER_FRAME);
+        if (to <= from) continue;
+        if (from > (t.frames[t.frames.length - 1] as number)) { t.frames.push(from); t.values.push([u, v, 0]); }
+        u += s.du * (to - from) / M.MS_PER_FRAME; v += s.dv * (to - from) / M.MS_PER_FRAME;
+        t.frames.push(to); t.values.push([u, v, 0]);
+      }
     }
-    geosets.forEach((_, id) => { if (!animated.has(id)) geosetAnimations.push({ geosetId: id, alpha: keys }); });
-    for (const mat of materials) for (const l of mat.layers) l.alpha = fade.layerAlpha;
+    const layer = (materials[id] as Material).layers[0] as Material['layers'][number];
+    layer.textureAnimationId = textureAnimations.length;
+    textureAnimations.push({ translation: t });
+    for (const k of [layer.textureId, ...(layer.textureIds?.values.map((x) => x[0] as number) ?? [])]) { const tex = textures[k]; if (tex) tex.wrap = 3; }
+  }
+  // a node's hide / show events (MASTER 1 / 2): drawn from the start of every sequence until hidden
+  const shownAt = new Map<number, Track>();
+  for (const n of nodeShown) {
+    const keys = new Map<number, number>();
+    for (const sq of ordered) {
+      keys.set(sq.start, 1);
+      for (const e of n.visible) { const at = sq.start + e.frame * M.MS_PER_FRAME; if (at < sq.end) keys.set(at, e.on ? 1 : 0); }
+    }
+    const frames = [...keys.keys()].sort((a, b) => a - b);
+    shownAt.set(n.geoset, { interpolation: 0, frames, values: frames.map((t) => [keys.get(t) as number]) });
+  }
+  if (opts.deathOnly) {
+    // drawn in the non-looping sequences only (by its hide / show events there), hidden in the others
+    const animated = new Set(geosetAnimations.map((g) => g.geosetId));
+    geosets.forEach((_, id) => {
+      if (animated.has(id)) return;
+      const own = shownAt.get(id);
+      const keys: Track = { frames: [], values: [], interpolation: 0 };
+      for (const s of ordered) {
+        if (!s.nonLooping) { keys.frames.push(s.start, s.end); keys.values.push([0], [0]); continue; }
+        const inside = own ? own.frames.map((f, i) => [f, (own.values[i] as number[])[0] as number] as const).filter(([f]) => f >= s.start && f < s.end) : [[s.start, 1] as const];
+        for (const [f, v] of inside) { keys.frames.push(f); keys.values.push([v]); }
+      }
+      geosetAnimations.push({ geosetId: id, alpha: keys });
+    });
+    for (const mat of materials) for (const l of mat.layers) l.alpha = opts.deathOnly.layerAlpha;
+  } else {
+    for (const [id, alpha] of shownAt) geosetAnimations.push({ geosetId: id, alpha });
   }
   for (const g of geosets) g.sequenceExtents = sequences.map(() => g.extent);
   // attachment points the game puts effects on: origin at the ground, chest half way up, overhead
@@ -550,7 +600,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   attach('Overhead Ref', [0, 0, top + M.OVERHEAD_GAP]);
   if (fire >= 0) attach(M.WEAPON_ATTACHMENT, apply(mul(K, bind[fire] as Mat), [0, 0, 0]));
   return {
-    model: { name, extent, sequences, textures, materials, geosets, geosetAnimations, bones, attachments, pivots, ...(globalSequences.length ? { globalSequences } : {}) },
+    model: { name, extent, sequences, textures, materials, ...(textureAnimations.length ? { textureAnimations } : {}), geosets, geosetAnimations, bones, attachments, pivots, ...(globalSequences.length ? { globalSequences } : {}) },
     textures: usedFiles,
   };
 }

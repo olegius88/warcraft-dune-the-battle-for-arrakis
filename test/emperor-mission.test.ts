@@ -692,6 +692,32 @@ test('FXData MASTER events keep their frames: node textures and emitter windows 
   assert.ok(on >= 0 && off > on && (rate.values[on] as ArrayLike<number>)[0] as number > 0 && (rate.values[off] as ArrayLike<number>)[0] === 0, 'emits from its start to its stop event');
 });
 
+// The other MASTER events (Game.exe 1.09 handlers 0x46e31c): 1 / 2 hide / show a node (0x4afa50 /
+// 0x4afac0 -> 0x4130a0 sets the node's hidden flag +0x4b), 7 scrolls a node's texture by two values a
+// tick (0x4afde0; 0x575630 adds them to the mesh's UVs), 8 stops it (0x4afee0). Ours read none of
+// them: DHBigExplosion's ?Skull stayed up, ?innerfire's fire stood still.
+test('FXData MASTER node events: hide / show and texture scrolling', opts, async () => {
+  const { fxTrack, nodeEvents, buildEffects } = await import('../src/emperor/effects.ts');
+  const { readXbf } = await import('../src/emperor/xbf.ts');
+  const { readArchive } = await import('../src/emperor/rfh.ts');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const { gameData } = await import('../src/config/paths.ts');
+  const files = new Map([...readArchive(gameData('3DDATA0001'), (n) => /^explosion\/(explosion|dhbigexplosion)\.xbf$/i.test(n))].map((f) => [f.name.toLowerCase(), f.data]));
+  const boomFx = readXbf(files.get('explosion/explosion.xbf') as Buffer).fx;
+  const scroll = fxTrack(boomFx)?.events.find((e) => e.type === 7 && e.node === '?innerfire');
+  assert.ok(scroll && Math.abs((scroll.pair?.[0] ?? 0) + 0.01) < 1e-6 && scroll.pair?.[1] === 0, 'scroll -0.01, 0 a tick');
+  const fire = nodeEvents(boomFx).get('?innerfire');
+  assert.deepStrictEqual(fire?.scroll.map((s) => [s.from, s.to]), [[0, 49]], 'scrolls from frame 0 to the end');
+  const skull = nodeEvents(readXbf(files.get('explosion/dhbigexplosion.xbf') as Buffer).fx).get('?Skull');
+  assert.deepStrictEqual(skull?.visible, [{ frame: 0, on: true }, { frame: 19, on: false }]);
+  // converted: ?innerfire's layer has a texture animation translating its UVs
+  const set = buildEffects(['Explosion'], loadArtIni(path.join(RAW, 'ArtIni.txt')));
+  const m = new MdlxModel();
+  m.load(new Uint8Array(set.files[(set.model.get('explosion') as string).replace(/\.mdl$/, '.mdx')] as Buffer));
+  assert.ok(m.textureAnimations.length >= 1 && m.textureAnimations.some((t: { animations: Array<{ name: string }> }) => t.animations.some((a) => a.name === 'KTAT')), 'texture animation');
+  assert.ok(m.materials.some((x: { layers: Array<{ textureAnimationId: number }> }) => x.layers.some((l) => l.textureAnimationId >= 0)), 'layer uses it');
+});
+
 // Sixth audit: 17 converted models have no "Weapon Ref" (no #fire node: HKBuzzsaw, ATMongoose...); the
 // muzzle flash asked for "weapon" on them. Those flash at "chest".
 test('a muzzle flash goes to the chest of a converted model without a weapon attachment', opts, async () => {

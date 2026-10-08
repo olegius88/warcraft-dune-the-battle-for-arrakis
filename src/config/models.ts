@@ -67,9 +67,10 @@ export const EFFECT_FLIPBOOK = /^(.*%.*?)(\d+)\.tga$/i;
 /** Effect nodes not drawn: helper boxes (#, the points FXData particles come from) and the shadow plane;
  * the effect's meshes are ? nodes (Explosion/explosion.xbf ?firesphere, Muzzle1 ?bigflash1). */
 export const EFFECT_HIDDEN_NODE = (name: string): boolean => name.includes('#') || name.includes('^^');
-/** Effects also fade out from this share of their animation (besides their textures going dark,
- * FXData MASTER), layers at this alpha. */
-export const EFFECT_FADE = { from: 0.6, layerAlpha: 1 } as const;
+/** Effects are drawn in their non-looping sequence (Death) only, their layers at layerAlpha; how they
+ * end is their FXData MASTER events' (textures going dark, nodes hidden: Game.exe has no fade of its
+ * own; they used to fade from 60 % of the animation here, a stand-in for the events). */
+export const EFFECT_SHOWN = { layerAlpha: 1 } as const;
 /** Which effects the runtime plays: [death explosion, muzzle flash, hit]; with none, the converted
  * effects are not imported either. All three play (fx probes, 1.31.1, 2026-10-08: a fireball growing,
  * a smoke sphere, a gun flash at the weapon, the hits' fire debris and smoke as FXData particles,
@@ -105,15 +106,18 @@ export const FX_PARTICLE = { minLifeFrames: 3, latitude: 90, sizeFactor: 4, atla
  * 1; unshaded (FX_PARTICLE.flags 0x8000): blended by their light they were near invisible (probe
  * 2026-10-08). */
 export const FX_PARTICLE_FILTER = (texture: string): number => (texture.includes('@') ? 0 : 1);
-/** FXData track events (Game.exe 1.09: handlers by type at 0x46e31c): 3 starts an emitter at a node
- * (0x4afb30), 4 stops it (0x4afc50), 6 sets a node's texture (0x4afd40). */
-export const FX_EVENT = { emitStart: 3, emitStop: 4, texture: 6 } as const;
+/** FXData track events (Game.exe 1.09: handlers by type at 0x46e31c): 1 hides a node and 2 shows it
+ * (0x4afa50 / 0x4afac0 -> 0x4130a0, the node's hidden flag +0x4b), 3 starts an emitter at a node
+ * (0x4afb30), 4 stops it (0x4afc50), 6 sets a node's texture (0x4afd40), 7 scrolls a node's texture by
+ * two values a tick (0x4afde0; 0x575630 adds them to the mesh's UVs), 8 stops that (0x4afee0). */
+export const FX_EVENT = { hide: 1, show: 2, emitStart: 3, emitStop: 4, texture: 6, scroll: 7, scrollStop: 8 } as const;
 /** The track the effect plays (FXData; Game.exe reads every track by name). */
 export const FX_MASTER_TRACK = 'MASTER';
 /** What an event's flags word carries, in this order (Game.exe 1.09 0x46e360): [flag, kind, bytes]; a
- * string is zero-terminated: 0x2 the emitter id, 0x4 the node, 0x10 a texture / particle name. */
-export const FX_EVENT_FIELDS: ReadonlyArray<readonly [number, 'id' | 'node' | 'name' | 'skip', number]> = [
-  [0x2, 'id', 0], [0x4, 'node', 0], [0x8, 'skip', 8], [0x10, 'name', 0], [0x20, 'skip', 4], [0x40, 'skip', 8], [0x80, 'skip', 4], [0x100, 'skip', 0x68],
+ * string is zero-terminated: 0x2 the emitter id, 0x4 the node, 0x8 two f32 (a scroll), 0x10 a texture /
+ * particle name. */
+export const FX_EVENT_FIELDS: ReadonlyArray<readonly [number, 'id' | 'node' | 'name' | 'pair' | 'skip', number]> = [
+  [0x2, 'id', 0], [0x4, 'node', 0], [0x8, 'pair', 8], [0x10, 'name', 0], [0x20, 'skip', 4], [0x40, 'skip', 8], [0x80, 'skip', 4], [0x100, 'skip', 0x68],
 ];
 /** Name of an emitter's texture atlas: its frame prefix + this (Emperor\Textures\!cexp_atlas.blp). */
 export const FX_ATLAS_SUFFIX = '_atlas';
