@@ -545,4 +545,14 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   };
 }
 
-export { xbfToMdx, K as AXES };
+/** Where every node of the scene is in the bind pose, in WC3 model space (the pivot a bone or a
+ * particle emitter at that node gets), by node name (the first of a name wins). */
+function nodePivots(scene: XbfScene): Map<string, V3> {
+  const flat = flatten(scene.nodes);
+  const bind = worldAt(flat, null);
+  const out = new Map<string, V3>();
+  flat.forEach(({ node }, i) => { if (!out.has(node.name)) out.set(node.name, apply(mul(K, bind[i] as Mat), [0, 0, 0])); });
+  return out;
+}
+
+export { xbfToMdx, nodePivots, K as AXES };

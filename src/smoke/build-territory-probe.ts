@@ -26,7 +26,7 @@ const all = loadAll();
 const trike = all.units.rawcode.get('ATTrike') as string;
 const trikeOrder = [...all.units.portOrders].find(([, real]) => real === trike)?.[0] as string;
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
-const fxShown = [...new Map([...all.units.effects.values()].flatMap((fx) => fx.map((m, k) => [m, k] as const)).filter(([m]) => m)).entries()];
+const fxShown = [...new Map([...all.units.effects.values()].flatMap((fx) => fx.map((m, k) => [m, k] as const)).filter(([m, k]) => m && (!flag('--fxhits') || k === 2))).entries()];
 const meta = readMeta(path.join(ensureMap(territoryMapPrefix(n))[0] as string, 'test.xbf'));
 const scripts = names.map((s, i) => ({ tok: fs.readFileSync(path.join(RAW_DIR, `${s}.tok`)), phase: i + 1, name: s }));
 const m = buildMission({

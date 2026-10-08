@@ -65,6 +65,16 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
   return set;
 }
 
+/** A glow drawn additive on black in Emperor: its light becomes its alpha, so blending shows the colour
+ * where it shines and nothing where it is black, without burning to white. A texture with an alpha
+ * of its own (the @ ones, !@%Bru: 0..201) keeps it; all 255 or all 0 is no alpha (!05gunstr). */
+function lightAlpha(rgba: Uint8Array | Buffer): void {
+  let lo = 255, hi = 0;
+  for (let i = 3; i < rgba.length; i += 4) { lo = Math.min(lo, rgba[i] as number); hi = Math.max(hi, rgba[i] as number); }
+  if (lo !== hi) return;
+  for (let i = 0; i < rgba.length; i += 4) rgba[i + 3] = Math.max(rgba[i] as number, rgba[i + 1] as number, rgba[i + 2] as number);
+}
+
 /** Textures/<file>.tga of the archive (names in lower case) -> BLP (power-of-two sides, at most
  * MAX_TEXTURE_SIZE, mipmaps, alpha when used), by archive path. */
 function convertTextures(archive: string, textureFiles: Set<string>, alphaFromLight?: (name: string) => boolean): Record<string, Buffer> {
@@ -74,9 +84,7 @@ function convertTextures(archive: string, textureFiles: Set<string>, alphaFromLi
     const side = (n: number): number => Math.min(MAX_TEXTURE_SIZE, pow2Ceil(n));
     let alpha = false;
     if (alphaFromLight?.(baseName(f.name))) {
-      // a glow drawn additive on black in Emperor: its light becomes its alpha, so blending shows the
-      // colour where it shines and nothing where it is black, without burning to white
-      for (let i = 0; i < img.rgba.length; i += 4) img.rgba[i + 3] = Math.max(img.rgba[i] as number, img.rgba[i + 1] as number, img.rgba[i + 2] as number);
+      lightAlpha(img.rgba);
       alpha = true;
     } else if (HOUSE_COLOUR_TEXTURE(baseName(f.name))) {
       // house-colour panels become see-through: the team colour layer under them shows
@@ -89,4 +97,4 @@ function convertTextures(archive: string, textureFiles: Set<string>, alphaFromLi
   return files;
 }
 
-export { buildModels, convertTextures };
+export { buildModels, convertTextures, lightAlpha };

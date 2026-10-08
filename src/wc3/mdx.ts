@@ -86,7 +86,8 @@ type V3i = [number, number, number];
 /** Particle emitter 2 (particleemitter2.ts): sprites shot from the pivot, coloured / faded / scaled over
  * three segments; filterMode 0 blend, 1 additive, 2 modulate, 3 modulate 2x, 4 alpha key; rows x
  * columns cells of the texture, head intervals [start, end, repeat] of cells over life (first half,
- * second half). Object ids follow the attachments'. */
+ * second half). width / length: the area particles start in; their size is segment scaling (world
+ * units: [1, 1.5, 2] drew dots, probe 2026-10-08). Object ids follow the attachments'. */
 export interface ParticleEmitter2 {
   name: string; parentId: number;
   /** generic object flags besides 0x1000 (0x8000 unshaded, 0x80000 model space, 0x100000 XY quad) */

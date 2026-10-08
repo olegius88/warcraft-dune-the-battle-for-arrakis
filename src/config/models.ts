@@ -67,14 +67,14 @@ export const EFFECT_HIDDEN_NODE = (name: string): boolean => name.includes('#') 
  * FXData MASTER), layers at this alpha. */
 export const EFFECT_FADE = { from: 0.6, layerAlpha: 1 } as const;
 /** Which effects the runtime plays: [death explosion, muzzle flash, hit]; with none, the converted
- * effects are not imported either. Explosions and muzzle flashes play (fx probes, 1.31.1,
- * 2026-10-08: a fireball growing, a smoke sphere, a gun flash at the weapon).
- * TODO(models): the hits are not played: they are FXData particle emitters only (mghit, MissileHit,
- * SniperHit, ShellHit, DevImpact, DeviateHit, BloodSplat), and the explosions' sparks and smoke
- * trails are emitters too. The emitter records are read in part (texture, count, life, speed, size,
- * colour and its change per frame, src/emperor/effects.ts notes); MDX particle emitters (PRE2) are not
- * written yet. Risk: no hit effects, explosions without sparks. */
-export const EFFECT_PLAYED: readonly [boolean, boolean, boolean] = [true, true, false];
+ * effects are not imported either. All three play (fx probes, 1.31.1, 2026-10-08: a fireball growing,
+ * a smoke sphere, a gun flash at the weapon, the hits' fire debris and smoke as FXData particles,
+ * FX_PARTICLE).
+ * TODO(models): the meaning of the FXData emitter fields is guessed from their values (FX_PARTICLE),
+ * the MASTER events carry no times (spread evenly / at the emitter's delay), and the other header
+ * variants (bullets/Conceptual.xbf, version word 2) are not read. Risk: effects look somewhat
+ * different from Emperor's (timing, spread, sizes). */
+export const EFFECT_PLAYED: readonly [boolean, boolean, boolean] = [true, true, true];
 /** Effects are shown at most this radius (WC3 units) [death, muzzle, hit]. TODO(models): an
  * approximation: converted,
  * the explosions span 280 (SmExplosion) .. 2800 (BigExplosion); BigExplosion filled the screen and
@@ -86,6 +86,21 @@ export const EFFECT_MAX_RADIUS: readonly [number, number, number] = [600, 80, 12
 export const EFFECT_MIN_SCALE = 0.05;
 /** An effect of more geosets (vertex animation copies: SFX_Wormsign_3 has 260) stalled the game. */
 export const EFFECT_MAX_GEOSETS = 64;
+/** FXData particle emitters as particle emitters 2 (src/emperor/effects.ts fxEmitters). The record's
+ * fields are read from the files, their meanings guessed from their values (TODO(models)): each record
+ * is one burst of `count` sprites at its delay, living `life` frames (at least minLifeFrames), flying
+ * at `speed` Emperor units a frame within `latitude` degrees of up, `size` wide (x sizeFactor model
+ * units), colour changing by the record's per-frame step, growing by its per-frame factor, the texture
+ * frames (prefix0..N) laid out atlasColumns to a row and played over the life. */
+export const FX_PARTICLE = { minLifeFrames: 3, latitude: 90, sizeFactor: 4, atlasColumns: 8, burstMs: 100, areaShare: 0.5, flags: 0x8000, alphas: [255, 220, 0] as [number, number, number] } as const;
+/** Particle filter by the texture flag: @ (an alpha of its own) blend 0, else (! glows on black) additive
+ * 1; unshaded (FX_PARTICLE.flags 0x8000): blended by their light they were near invisible (probe
+ * 2026-10-08). */
+export const FX_PARTICLE_FILTER = (texture: string): number => (texture.includes('@') ? 0 : 1);
+/** MASTER event types that start an emitter at a node: 3 (emitter id, node), 4 (+ animation name). */
+export const FX_EMIT_EVENTS: readonly number[] = [3, 4];
+/** Name of an emitter's texture atlas: its frame prefix + this (Emperor\Textures\!cexp_atlas.blp). */
+export const FX_ATLAS_SUFFIX = '_atlas';
 /** FXData MASTER events (src/emperor/effects.ts nodeTextures): u32 type, u32 FX_EVENT_MARK, u32 size;
  * type FX_TEXTURE_EVENT sets a node's texture. */
 export const FX_EVENT_MARK = 100;

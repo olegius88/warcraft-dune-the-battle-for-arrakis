@@ -527,14 +527,20 @@ test('effects: an explosion where an object dies, a muzzle flash where it fires 
   assert.deepStrictEqual(starts, [...starts].sort((a, b) => a - b), 'sequences in time order');
   assert.ok(boom.materials.some((x: { layers: Array<{ animations: Array<{ name: string }> }> }) => x.layers[0]?.animations.some((a) => a.name === 'KMTF')), '!%boom0..10 flipped');
   assert.ok(parse('muzzle1').geosets.length > 0, 'the flash mesh (? nodes) is drawn');
-  assert.match(set.failed.get('missilehit') ?? '', /FXData particles/, 'a hit made of particles only is left out');
+  // a hit made of FXData particles only: particle emitters 2 (4 records, at the ?#bing nodes MASTER
+  // names), textures as atlases of their frames (!cexp0..15)
+  const hit = parse('missilehit');
+  assert.ok(hit.particleEmitters2.length >= 4, `emitters ${hit.particleEmitters2.length}`);
+  assert.ok(hit.textures.some((t: { path: string }) => /_cexp_atlas\.blp$/i.test(t.path)) && set.files['Emperor\\Textures\\_cexp_atlas.blp'], 'atlas');
+  const e = hit.particleEmitters2.find((x: { name: string }) => /#49/.test(x.name));
+  assert.ok(e && e.columns * e.rows >= 16 && e.animations.some((a: { name: string }) => a.name === 'KP2E'), 'burst of the cexp emitter');
   // the shockwave's textures from FXData MASTER (choc0 .. choc7): one flipping layer
   assert.ok(boom.textures.some((t: { path: string }) => /_choc7\.blp$/i.test(t.path)), 'MASTER texture list');
-  // explosions and muzzle flashes played, hits not; the trike's are in the runtime table, shrunk
-  assert.deepStrictEqual(EFFECT_PLAYED, [true, true, false]);
+  // explosions, muzzle flashes and hits played; the trike's are in the runtime table, shrunk
+  assert.deepStrictEqual(EFFECT_PLAYED, [true, true, true]);
   const trike = all.units.rawcode.get('ATTrike') as string;
   const fx = all.units.effects.get(trike) as [string, string, string];
-  assert.ok(fx[0].endsWith('FX_SmallExplosion.mdl') && fx[1].endsWith('FX_Muzzle1.mdl') && fx[2] === '', fx.join(' | '));
+  assert.ok(fx[0].endsWith('FX_SmallExplosion.mdl') && fx[1].endsWith('FX_Muzzle1.mdl'), fx.join(' | '));
   assert.ok(all.units.models[fx[0].replace(/\.mdl$/, '.mdx')], 'imported');
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'fx', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
