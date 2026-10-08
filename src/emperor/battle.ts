@@ -15,15 +15,18 @@
 // ai_difficulty.ini) are in src/jass/battle/ai.j.
 // A building appears whole after its BuildTime, as in Emperor (built in the side bar, then placed:
 // tools/vm/build.sh waits for "Готово" before it places one).
-// TODO(ai): simplified against Game.exe 1.09: the start base is a fixed template rebuilt first; sites
-// are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not turn); a lost
-// building is replaced by the category furthest below its share, where Game.exe's maintenance path
-// (0x42fca0) takes the group short of its share by over 0.6 on a coin flip, a sub-house building first,
-// and its decisions pass the AI skill rolls (0x46c5d0: rand % (10 k) < skill): its builder state 4
-// (0x42f3d0) builds by ratio when rand % 70 < skill, else maintains. The skill starts at -1 (0x4310aa)
-// and only a personality sets it (skirmish setup, or SideAIBehaviourAggressive / Defensive: the side
-// record's difficulty + 2, 0x432541), so a campaign AI without those always maintains. Risk: the AI's
-// base grows at another pace and in another order than Emperor's.
+// The builder's phases follow Game.exe 1.09 (0x42ef30, ai.j EmpAiBuild): by ratio every BuildingDelay
+// until NumBuildings buildings but walls, then maintenance every MaintenanceDelay (a coin flip, the
+// category short of its share by over AI_MAINTAIN_SHORT). In its maintenance state Game.exe builds by
+// ratio instead when rand % 70 < the AI skill (0x42f3d0); the skill starts at -1 (0x4310aa) and only a
+// personality sets it, so a campaign AI without SideAIBehaviourAggressive / Defensive never does.
+// TODO(ai): still simplified against Game.exe: the start base is a fixed template rebuilt first, where
+// Game.exe runs the ai.ini StartScript (builder states 0 / 1, at a tenth of BuildingDelay) unless the
+// map placed a base; sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings
+// do not turn); maintenance does not try a sub-house building first (0x42fcb3); builder state 3
+// (0x430c90) and the skill rolls of AIs given a personality are not reproduced; a windtrap goes first
+// when short of power (not traced in Game.exe). Risk: the AI's base grows in another order than
+// Emperor's.
 
 import { real, str } from '../wc3/jass.ts';
 import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS } from '../config/campaign.ts';
@@ -324,7 +327,8 @@ endfunction`;
       `    set EmpAiTBuildDelay[${lvl}] = ${real(Math.max(1, t.buildingDelay) / TICKS_PER_SECOND)}`, `    set EmpAiTUnitDelay[${lvl}] = ${real(Math.max(1, t.unitDelay) / TICKS_PER_SECOND)}`,
       `    set EmpAiTGap[${lvl}] = ${real((Math.max(1, t.gapBetweenScripts) / TICKS_PER_SECOND) * (100 / Math.max(1, ai.largeAttackModifier)))}`,
       `    set EmpAiTFirst[${lvl}] = ${t.firstAttackDelay}`, `    set EmpAiTMinDef[${lvl}] = ${t.minDefence}`, `    set EmpAiTMaxDef[${lvl}] = ${t.maxDefence}`, `    set EmpAiTTurrets[${lvl}] = ${t.maxTurrets}`,
-      `    set EmpAiTBuildTicks[${lvl}] = ${t.buildingDelay}`, `    set EmpAiTGapTicks[${lvl}] = ${t.gapBetweenScripts}`);
+      `    set EmpAiTBuildTicks[${lvl}] = ${t.buildingDelay}`, `    set EmpAiTGapTicks[${lvl}] = ${t.gapBetweenScripts}`,
+      `    set EmpAiTMaintTicks[${lvl}] = ${t.maintenanceDelay}`, `    set EmpAiTMaintDelay[${lvl}] = ${real(Math.max(1, t.maintenanceDelay) / TICKS_PER_SECOND)}`);
   });
   // the losing test (ai.j EmpAiLosingCase): Rules.txt AiManufacturing types and the MCV's price
   for (const r of o.rules?.objects.values() ?? []) {

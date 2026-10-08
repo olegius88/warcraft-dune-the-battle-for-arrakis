@@ -67,6 +67,8 @@ export interface AiTech {
   maxUnits: number;
   numBuildings: number;
   buildingDelay: number;
+  /** MaintenanceDelay: the builder's pace once it has NumBuildings (Game.exe 1.09 0x430e95) */
+  maintenanceDelay: number;
   firstAttackDelay: number;
   gapBetweenScripts: number;
   unitDelay: number;
@@ -91,7 +93,7 @@ function parseAiDifficulty(text: string): AiTech[] {
   return Array.from({ length: AI_TECH_LEVELS + 1 }, (_, i) => {
     const l = Math.max(1, i);
     return {
-      maxUnits: get(l, 'MaxAiUnits'), numBuildings: get(l, 'NumBuildings'), buildingDelay: get(l, 'BuildingDelay'),
+      maxUnits: get(l, 'MaxAiUnits'), numBuildings: get(l, 'NumBuildings'), buildingDelay: get(l, 'BuildingDelay'), maintenanceDelay: get(l, 'MaintenanceDelay'),
       firstAttackDelay: get(l, 'FirstAttackDelay'), gapBetweenScripts: get(l, 'GapBetweenNewScripts'), unitDelay: get(l, 'UnitDelay'),
       minDefence: get(l, 'MinimumUnitsForDefence'), maxDefence: get(l, 'MaximumUnitsForDefence'), maxTurrets: get(l, 'MaxTurretsAllowed'),
     };

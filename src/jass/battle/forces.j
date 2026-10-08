@@ -142,8 +142,12 @@ function EmpEnemyBuildTurn takes nothing returns nothing
             return
         endif
     endloop
-    // the template stands: the base builder grows the base (ai.j)
+    // the template stands: the base builder grows the base (ai.j); once it maintains, at the
+    // MaintenanceDelay pace (Game.exe 1.09 0x430e95)
     call EmpAiBuild()
+    if EmpAiMaintaining and TimerGetTimeout(EmpAiBuildTimer) != EmpAiTMaintDelay[EmpAiT()] then
+        call TimerStart(EmpAiBuildTimer, EmpAiTMaintDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
+    endif
 endfunction
 
 // the pace of the enemy by its tech level (ai_difficulty.ini; after EmpAiInit, which loads it)
@@ -172,6 +176,7 @@ function EmpAiBehave takes nothing returns nothing
 {{defensiveTech}}
         endif
         set EmpAiTBuildDelay[l] = I2R(IMaxBJ(1, EmpAiTBuildTicks[l])) / {{TPS}}
+        set EmpAiTMaintDelay[l] = I2R(IMaxBJ(1, EmpAiTMaintTicks[l])) / {{TPS}}
         set EmpAiTGap[l] = I2R(IMaxBJ(1, EmpAiTGapTicks[l])) / {{TPS}} * {{real gapFactor}}
         set l = l + 1
     endloop
@@ -183,7 +188,9 @@ function EmpAiBehave takes nothing returns nothing
     if EmpAiWaveTimer != null then
         call TimerStart(EmpAiWaveTimer, EmpAiTGap[EmpAiT()], true, function EmpAiWave)
     endif
-    if EmpAiBuildTimer != null then
+    if EmpAiBuildTimer != null and EmpAiMaintaining then
+        call TimerStart(EmpAiBuildTimer, EmpAiTMaintDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
+    elseif EmpAiBuildTimer != null then
         call TimerStart(EmpAiBuildTimer, EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
     endif
 endfunction

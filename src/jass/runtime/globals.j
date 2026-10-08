@@ -221,6 +221,9 @@
     // re-tunes (battle forces.j EmpAiBehave); EmpAiOn: the AI runs side 1 (ai.j EmpAiInit)
     integer array EmpAiTBuildTicks
     integer array EmpAiTGapTicks
+    integer array EmpAiTMaintTicks
+    real array EmpAiTMaintDelay
+    boolean EmpAiMaintaining = false
     integer EmpAiDefPct = 0
     integer EmpAiWander = 0
     boolean EmpAiBuildsDef = false

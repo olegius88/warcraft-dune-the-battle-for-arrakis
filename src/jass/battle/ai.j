@@ -407,6 +407,11 @@ function EmpAiBuild takes nothing returns nothing
         call EmpAiWait(2, "gold " + I2S(EmpEnemyGold()) + " < MinMoneyToConstructBuildings")
         return
     endif
+    // Game.exe's builder state (0x42ef30) moves on to maintenance whatever it builds next
+    if not EmpAiMaintaining and EmpAiCount(0) + EmpAiCount(1) + EmpAiCount(2) + EmpAiCount(3) >= EmpAiTBuildings[EmpAiT()] then
+        set EmpAiMaintaining = true
+        call EmpAiLog("maintains")
+    endif
     // short of power: a windtrap first (MinMoneyToBuildMaintenanceBuildings)
     if EmpPowerSum[1] < 0 and EmpAiPower[EmpEnemyHouse] != 0 and EmpEnemyGold() >= {{ai.minMoneyMaintenance}} then
         set t = EmpAiPower[EmpEnemyHouse]
@@ -422,11 +427,29 @@ function EmpAiBuild takes nothing returns nothing
             set skip[c] = EmpAiRatio[c] <= 0
             set c = c + 1
         endloop
-        // ai_difficulty.ini NumBuildings: beyond it only defences (MaxTurretsAllowed) are added
-        if count[0] + count[2] + count[3] >= EmpAiTBuildings[EmpAiT()] then
-            set skip[0] = true
-            set skip[2] = true
-            set skip[3] = true
+        // Game.exe 1.09 (0x42ef30): by ratio until NumBuildings buildings but walls (0x42f042), then it
+        // maintains (every MaintenanceDelay, forces.j): on a coin flip (0x42fd51) the category whose
+        // share of all buildings is short of its ratio share by over AI_MAINTAIN_SHORT (0x4307e0)
+        if EmpAiMaintaining or total >= EmpAiTBuildings[EmpAiT()] then
+            set EmpAiMaintaining = true
+            if GetRandomInt(0, 1) != 0 then
+                call EmpAiWait(6, "maintenance: not this time")
+                return
+            endif
+            set c = 0
+            set d = 0.0
+            loop
+                exitwhen c > 3
+                set d = d + EmpAiRatio[c]
+                set c = c + 1
+            endloop
+            set c = 0
+            loop
+                exitwhen c > 3
+                // short: its share minus its ratio share, Game.exe's group diff
+                set skip[c] = skip[c] or I2R(count[c]) / IMaxBJ(1, total) - EmpAiRatio[c] / RMaxBJ(1.0, d) >= {{real C.AI_MAINTAIN_SHORT}}
+                set c = c + 1
+            endloop
         endif
         // the category furthest below its share; one that cannot be built now (turrets before
         // their tech level or over the low-tech limit, refineries at the limit, no allowed type)

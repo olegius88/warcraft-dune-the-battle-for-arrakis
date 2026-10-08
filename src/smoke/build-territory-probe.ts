@@ -437,6 +437,22 @@ function BehaveProbeRun takes nothing returns nothing
     call PreloadGenEnd("DuneSmoke\\\\behave.pld")
 endfunction`,
   } : {}),
+  // --maintain: the base builder goes to maintenance at once (NumBuildings 1, MaintenanceDelay 3 s); the
+  // AI report (CustomMapData\\DuneTest\\Territory9_AI.pld) shows its turns
+  ...(flag('--maintain') ? {
+    extraStart: 'MaintainProbeRun',
+    extraFunctions: `function MaintainProbeRun takes nothing returns nothing
+    local integer l = 1
+    set EmpNormalConditions = false
+    loop
+        exitwhen l > ${BATTLE.AI_TECH_LEVELS}
+        set EmpAiTBuildings[l] = 1
+        set EmpAiTMaintDelay[l] = 3.0
+        set l = l + 1
+    endloop
+    call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 20000)
+endfunction`,
+  } : {}),
   // --losing: the AI's losing test (ai.j EmpAiLosingCase / Check): side 1 loses its refineries and
   // credits, the clock passes 15000 ticks; the case, then retreat (units leave) or last gasp (attack)
   ...(flag('--losing') ? {

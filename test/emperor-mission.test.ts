@@ -1079,6 +1079,26 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   assert.ok(pick.includes('set have = EmpCount(1, t)') && pick.includes('if have < fewest then'), 'fewest-first pick');
 });
 
+// The base builder's phases (Game.exe 1.09 0x42ef30): it builds by ratio (the group furthest below its
+// share) every BuildingDelay until it has NumBuildings buildings but walls (0x42f042, turrets counted),
+// then it maintains every MaintenanceDelay (0x430e95): on a coin flip (0x42fd51) the group whose share
+// is short by over 0.15 of all buildings (0x4307e0 / 0x5d0928; shares are ratio / sum, 0x4315f0).
+// Ours counted only core, manufacturing and resource buildings for NumBuildings and then added only
+// turrets, every BuildingDelay: a lost factory was never replaced.
+test('the AI base builder: ratio phase to NumBuildings, then maintenance every MaintenanceDelay (Game.exe)', opts, () => {
+  const all = loadAll();
+  assert.ok(all.ai?.tech[1]?.maintenanceDelay && all.ai.tech[1].maintenanceDelay > 0, 'MaintenanceDelay read');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const build = body('EmpAiBuild');
+  assert.ok(build.includes('EmpAiCount(0) + EmpAiCount(1) + EmpAiCount(2) + EmpAiCount(3) >= EmpAiTBuildings[EmpAiT()]'), 'NumBuildings counts every building but walls');
+  assert.ok(build.includes('GetRandomInt(0, 1) != 0') && build.includes('-0.15'), 'maintenance: coin flip, short by over 0.15');
+  assert.ok(body('EmpEnemyBuildTurn').includes('call TimerStart(EmpAiBuildTimer, EmpAiTMaintDelay[EmpAiT()], true, function EmpEnemyBuildTurn)'), 'MaintenanceDelay pace');
+  assert.ok(m.script.includes(`    set EmpAiTMaintDelay[1] = `), 'maintenance delay data');
+  assert.ok(body('EmpAiBehave').includes('set EmpAiTMaintTicks[l] = EmpAiPct(EmpAiTMaintTicks[l], -25)'), 'STRONG: MaintenanceDelay -25 %');
+});
+
 // ChanceOfRetreating: Game.exe 1.09 reads it once (key 27: only 0x43f51d), when the AI is losing
 // (pattern 0x43f260, from tick 15000): then it retreats with 1 - 1 / (100 / ChanceOfRetreating) odds,
 // else it turns AGGRESSIVE and sends everything at the enemy (0x43f4b0; ai.ini: "50% chance of
