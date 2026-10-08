@@ -152,10 +152,17 @@ function loadAiRules(file: string, override?: string | null): AiRules {
   return parseAiRules(over + fs.readFileSync(file, 'latin1'), fs.existsSync(difficulty) ? fs.readFileSync(difficulty, 'latin1') : '');
 }
 
-/** ai_<house>_t<jump point>.ini ("<House> Jump Point"): the AI defending its capital; null if absent */
-function capitalAiOverride(dir: string, h: HouseCode): string | null {
-  const file = path.join(dir, `ai_${HOUSE_BY_CODE[h].toLowerCase()}_t${JUMP_POINT[h]}.ini`);
+/** ai_<house>_<map>.ini: the AI playing house h on a map, <map> its folder prefix in lower case
+ * ('#A1 ' -> ai_atreides_a1.ini "Homeworld attack with AI playing Atreides", 't33' -> the jump
+ * point); null if absent */
+function aiOverride(dir: string, h: HouseCode, map: string): string | null {
+  const file = path.join(dir, `ai_${HOUSE_BY_CODE[h].toLowerCase()}_${map.trim().replace(/^#/, '').toLowerCase()}.ini`);
   return fs.existsSync(file) ? file : null;
 }
 
-export { parseAiRules, parseAiDifficulty, loadAiRules, capitalAiOverride };
+/** ai_<house>_t<jump point>.ini ("<House> Jump Point"): the AI defending its capital; null if absent */
+function capitalAiOverride(dir: string, h: HouseCode): string | null {
+  return aiOverride(dir, h, `t${JUMP_POINT[h]}`);
+}
+
+export { parseAiRules, parseAiDifficulty, loadAiRules, aiOverride, capitalAiOverride };

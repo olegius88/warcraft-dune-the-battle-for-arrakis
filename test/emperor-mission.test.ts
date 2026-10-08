@@ -697,3 +697,27 @@ test('sides start neutral to each other except the player vs the main enemy', op
   const d = start.indexOf('call EmpDefaultDiplomacy()');
   assert.ok(d >= 0 && d < start.indexOf('call EmpPlaced()'), 'diplomacy set before placed objects and scripts');
 });
+
+// Story maps with a base of side 1 (#A1 / #A2 / #A3 homeworld assaults, #C1 civil war: a construction
+// yard, factories, barracks placed on the map) had a dead base: the AI that builds, produces and
+// attacks ran only in territory battles. In Emperor the AI runs it, tuned by ai_<house>_<map>.ini
+// (ai_atreides_a1.ini "Homeworld attack with AI playing Atreides"), with the credits the script gives
+// (T36 Atreides Homeworld Assault: AddSideCash(GetEnemySide(),40000)). Found 2026-10-08.
+test('the AI runs the map\'s own base of side 1 in story missions, with ai_<house>_<map>.ini', opts, async () => {
+  const { storyAiHouse } = await import('../src/emperor/battle.ts');
+  const { loadAiRules, aiOverride } = await import('../src/emperor/ai-rules.ts');
+  const all = loadAll();
+  const metaOf = (p: string) => readMeta(path.join(ensureMap(p)[0] as string, 'test.xbf'));
+  assert.deepStrictEqual(['#A1 ', '#A2 ', '#A3 ', '#C1 ', '#H1 ', '#D1 ', '#V1 '].map((p) => storyAiHouse(metaOf(p))), ['AT', 'OR', 'HK', 'HK', null, null, null]);
+  assert.strictEqual(path.basename(aiOverride(RAW_DIR, 'AT', '#A1 ') ?? ''), 'ai_atreides_a1.ini');
+  assert.strictEqual(path.basename(aiOverride(RAW_DIR, 'HK', '#C1 ') ?? ''), 'ai_harkonnen_c1.ini');
+  assert.strictEqual(aiOverride(RAW_DIR, 'AT', '#Q9 '), null);
+  const ai = loadAiRules(path.join(RAW_DIR, 'ai.ini'), aiOverride(RAW_DIR, 'AT', '#A1 '));
+  assert.strictEqual(ai.buildsDefences, false);
+  assert.strictEqual(ai.defencePercent, 20);
+  const m = buildMission({ scripts: [], meta: metaOf('#A1 '), ...all, ai, name: 'a1', playerHouse: 'Harkonnen', kind: 'story', hubMap: 'HK_Hub.w3x' });
+  assert.ok(m.script.includes('function EmpStoryAiStart') && m.script.includes('    call EmpStoryAiStart()'), 'started');
+  assert.ok(m.script.includes('    set EmpEnemyHouse = 0'), 'side 1 plays Atreides');
+  const h1 = buildMission({ scripts: [], meta: metaOf('#H1 '), ...all, name: 'h1', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x' });
+  assert.ok(!h1.script.includes('    call EmpStoryAiStart()'), 'no base, no AI');
+});

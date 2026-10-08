@@ -37,7 +37,7 @@ import type { MapMeta } from './mapxbf.ts';
 import type { EmperorTerrain } from './terrain.ts';
 import type { UnitData } from './units.ts';
 
-import type { House } from '../config/houses.ts';
+import type { House, HouseCode } from '../config/houses.ts';
 export type { House };
 
 export interface SpiceCluster {
@@ -64,6 +64,14 @@ export interface BattleOptions {
   ai?: AiRules;
   /** CustomMapData path of the AI report (src/jass/battle/ai.j); none: no report */
   aiReport?: string;
+  /** story mission: the AI runs the base of side 1 placed on the map, if it has one (storyAiHouse) */
+  storyAi?: boolean;
+}
+
+/** House of the base of side 1 placed on a story map (owner STORY_AI_OWNER with a construction yard:
+ * #A1 AT, #A2 OR, #A3 HK, #C1 HK); null where the map has none (the scripts' squads only) */
+function storyAiHouse(meta: MapMeta): HouseCode | null {
+  return HOUSE_CODES.find((h) => (meta.buildings ?? []).some((b) => b.owner === C.STORY_AI_OWNER && b.name === `${h}${C.STORY_AI_BUILDING}`)) ?? null;
 }
 
 export interface BattleSetup {
@@ -304,8 +312,11 @@ endfunction`;
     aiReport: o.aiReport ?? '',
     dataFunction: `function EmpAiData takes nothing returns nothing\n${aiLines.join('\n')}\nendfunction\n`,
   });
+  // story mission: index of the house whose base of side 1 the AI runs, -1 none
+  const storyCode = !o.territoryBattle && o.storyAi ? storyAiHouse(o.meta) : null;
+  const storyHouse = storyCode ? PREFIXES.indexOf(storyCode) : -1;
   fns.push(jass('forces', {
-    aiFunctions,
+    aiFunctions, storyAi: storyHouse >= 0, storyHouse,
     harvester, playerBase,
     vehMax: C.ENEMY_VEHICLES.length - 1, infMax: C.ENEMY_INFANTRY.length - 1,
     supportLines: support.map((id) => `    call CreateUnit(Player(0), '${id}', GetLocationX(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), GetLocationY(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), ${FACING})`).join('\n'),
@@ -318,9 +329,9 @@ endfunction`;
     money: o.rules?.campaignMoney ?? { attack: C.FALLBACK_CREDITS, defend: C.FALLBACK_CREDITS },
   }));
 
-  fns.push(jass('init', { territoryBattle: o.territoryBattle, attackBattle: o.territoryBattle && !o.defend, defendBattle: o.territoryBattle && Boolean(o.defend) }));
+  fns.push(jass('init', { storyAi: storyHouse >= 0, territoryBattle: o.territoryBattle, attackBattle: o.territoryBattle && !o.defend, defendBattle: o.territoryBattle && Boolean(o.defend) }));
   lines.push('    call EmpBattleInit()');
   return { functions: fns.join('\n\n'), init: lines.join('\n'), clusters: clusters.length };
 }
 
-export { battleSetup, spiceClusters };
+export { battleSetup, spiceClusters, storyAiHouse };

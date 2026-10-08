@@ -9,7 +9,7 @@ import { renderFile } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
 import { translateScript } from './translate.ts';
 import { buildTerrain } from './terrain.ts';
-import { battleSetup } from './battle.ts';
+import { battleSetup, storyAiHouse } from './battle.ts';
 import type { House } from '../config/houses.ts';
 import type { ScriptPlayer } from '../wc3/jass.ts';
 import type { MapMeta, GamePoint } from './mapxbf.ts';
@@ -113,7 +113,9 @@ function buildMission(p: MissionParams): BuiltMission {
   const tooltips = new Set<number>();
   for (const s of scripts) { s.tr.used.forEach((x) => used.add(x)); s.tr.messages.forEach((x) => messages.add(x)); s.tr.tooltips.forEach((x) => tooltips.add(x)); }
 
-  const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend', worms: p.rules?.worms, rules: p.rules, ...(p.ai ? { ai: p.ai } : {}), ...(p.debugName ? { aiReport: `${RT.DEBUG_REPORT_DIR}\\${p.debugName}_AI.pld` } : {}) });
+  const battle = battleSetup({ meta: p.meta, terrain: t, units: p.units, playerHouse: p.playerHouse, territoryBattle: Boolean(p.territoryBattle), defend: p.kind === 'defend', worms: p.rules?.worms, rules: p.rules, storyAi: p.kind === 'story', ...(p.ai ? { ai: p.ai } : {}), ...(p.debugName ? { aiReport: `${RT.DEBUG_REPORT_DIR}\\${p.debugName}_AI.pld` } : {}) });
+  // story maps with a base of side 1 (battle.ts storyAiHouse): that house is side 1's
+  const storyHouse = p.kind === 'story' ? storyAiHouse(p.meta) : null;
   const deployMap: Record<string, string> = { [String(p.units.rawcode.get('MCV'))]: String(p.units.rawcode.get(`${CODE_BY_HOUSE[p.playerHouse]}ConYard`)) };
   const rt = buildRuntime(p.table, { deployMap });
 
@@ -380,6 +382,7 @@ function buildMission(p: MissionParams): BuiltMission {
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
+    storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
     hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),

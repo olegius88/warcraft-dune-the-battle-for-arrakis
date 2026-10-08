@@ -19,7 +19,8 @@ import type { MissionKindKey } from './campaign-data.ts';
 import type { StoryRef } from '../config/story.ts';
 import { TUTORIAL_SCRIPT, TUTORIAL_MAP, territoryMapPrefix } from '../config/story.ts';
 import { HOUSE_BY_CODE as HOUSE_NAME, HOUSE_RU, HOUSE_CODES, isHouseCode } from '../config/houses.ts';
-import { loadAiRules, capitalAiOverride } from './ai-rules.ts';
+import { loadAiRules, capitalAiOverride, aiOverride } from './ai-rules.ts';
+import { storyAiHouse } from './battle.ts';
 import type { HouseCode } from '../config/houses.ts';
 import * as CP from '../config/campaign.ts';
 import { buildMission } from './mission.ts';
@@ -156,12 +157,19 @@ for (const h of houses) {
   const story = camp.story[h];
   console.log(`== ${player}`);
   const mission = (fileName: string, title: string, scripts: ScriptRef[], mapNeedle: string, kind: MissionKind, extra: Partial<MissionParams> = {}): string => {
+    // a story map with a base of side 1: its AI follows ai_<house>_<map>.ini over ai.ini
+    // TODO(ai): ai_<house>_h1..h3 / d1 / d2 / v1 / z99.ini are not used: those maps have no base of
+    // side 1, their AI sides are the scripts' squads (SideAIControl) run by the order-based side AI
+    // (helpers.j EmpAITick), which has no ai.ini tactics. Risk: their defence share / scouting differ.
+    const storyCode = kind === 'story' ? storyAiHouse(metaOf(mapNeedle)) : null;
+    const storyAi = storyCode ? aiOverride(RAW_DIR, storyCode, mapNeedle) : null;
     const m = buildMission({
       scripts: scripts.map((s) => ({ tok: tok(s.name), phase: s.phase, name: s.name, ...(s.whenWon ? { whenWon: s.whenWon } : {}) })),
       meta: metaOf(mapNeedle), ...all, name: title, playerHouse: player, kind, hubMap: hub,
       territoryBattle: kind === 'attack' || kind === 'defend', briefing: scripts[0] ? briefing(scripts[0].name) : '',
       debugName: fileName.replace(/\.w3x$/, ''), ...(autoTest ? { autoWinSeconds: CP.AUTOTEST_WIN_SECONDS } : {}),
-      music: useMusic(music ? music.battle(h) : []), iconsInMap: false, ...extra,
+      music: useMusic(music ? music.battle(h) : []), iconsInMap: false,
+      ...(storyAi ? { ai: loadAiRules(path.join(RAW_DIR, AI_INI_FILE), storyAi) } : {}), ...extra,
     });
     add(fileName, m.buffer, title, '', false, m.script);
     return fileName;

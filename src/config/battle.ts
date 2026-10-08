@@ -2,6 +2,10 @@
 // Distances are WC3 world units, offsets in the base template are Emperor tiles, times seconds.
 
 /** Enemy base: [Emperor building suffix, dx, dy] in tiles from the base point (house prefix added). */
+/** Story maps: the map owner whose placed base the AI runs (owner 1 = Player(1), mission.ts) when it
+ * has this building (#A1 / #A2 / #A3 / #C1; battle.ts storyAiHouse). */
+export const STORY_AI_OWNER = 1;
+export const STORY_AI_BUILDING = 'ConYard';
 export const BASE_TEMPLATE: ReadonlyArray<readonly [string, number, number]> = [
   ['ConYard', 0, 0], ['SmWindtrap', -5, -4], ['SmWindtrap', -5, 0], ['Refinery', 5, -4], ['Barracks', 5, 2],
   ['Factory', 0, 6], ['Outpost', -5, 5], ['Pillbox', -8, -8], ['Pillbox', 8, -8], ['GunTurret', 8, 8], ['GunTurret', -8, 8],

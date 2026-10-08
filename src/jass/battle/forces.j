@@ -150,7 +150,42 @@ function EmpAiStartPace takes nothing returns nothing
     call TimerStart(CreateTimer(), EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
 endfunction
 
-// ---- defence battles: the player holds a base; the attacker's army (UnitValueAttacker) arrives
+{{#if storyAi}}// ---- story missions: the base of side 1 placed on the map (battle.ts storyAiHouse) is run by the AI
+// of territory battles with ai.ini and ai_<house>_<map>.ini; its credits are what the script gives
+// (AddSideCash).
+// TODO(ai): the template is only its construction yard: destroyed map buildings come back by the
+// base builder's ratios (ai.j), not at their map places; whether Emperor rebuilds them in place is
+// not in the data. Risk: a story base may grow differently from the original.
+function EmpStoryAiStart takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local integer b = EmpBaseOfSide(1)
+    local integer k = {{storyHouse}} * {{C.TEMPLATE_SLOTS}}
+    set EmpEnemyHouse = {{storyHouse}}
+    set EmpTplCount[EmpEnemyHouse] = 1
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpTplUnit[k] == null and EmpAlive(u) and GetUnitTypeId(u) == EmpTplType[k] then
+            set EmpTplUnit[k] = u
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    if EmpTplUnit[k] == null then
+        return
+    endif
+    // the AI builds around its yard. EmpAIMode[1] stays as the script sets it: "normal" (8) would pull
+    // the guards the map places away from the base back to the yard.
+    set EmpBaseX[b] = GetUnitX(EmpTplUnit[k])
+    set EmpBaseY[b] = GetUnitY(EmpTplUnit[k])
+    call EmpAiInit()
+    call EmpAiStartPace()
+endfunction
+
+{{/if}}// ---- defence battles: the player holds a base; the attacker's army (UnitValueAttacker) arrives
 // from its entrance after DEFEND_ATTACK_DELAY, then the reinforcement sets keep coming
 function EmpDefendStart takes nothing returns nothing
     local integer b = EmpBaseOfSide(0)

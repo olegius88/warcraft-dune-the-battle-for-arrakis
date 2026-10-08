@@ -33,7 +33,9 @@ function EmpBattleInit takes nothing returns nothing
     // production, the builder and the tactics start with their ai_difficulty.ini pace (ai.j)
     call EmpAiInit()
     call EmpAiStartPace(){{/if}}
-{{#if defendBattle}}    call EmpDefendStart()
+{{#if storyAi}}    // the map's own base of side 1 (after EmpPlaced, start.j)
+    call EmpStoryAiStart()
+{{/if}}{{#if defendBattle}}    call EmpDefendStart()
     call TimerStart(CreateTimer(), {{real C.DEFEND_ATTACK_DELAY}}, false, function EmpDefendWave){{/if}}
     set tr = null
 endfunction

@@ -3,7 +3,10 @@ function EmpStart takes nothing returns nothing
     local integer i = 0
     set EmpTmpGroup = CreateGroup()
     call EmpCampaignLoad()
-    call EmpData()
+{{#if storyEnemyKnown}}    // side 1 of this story map is the house of the base placed on it, whatever the campaign cache
+    // kept from the last battle (colour, AI: battle forces.j EmpStoryAiStart)
+    set EmpEnemyHouse = {{storyEnemy}}
+{{/if}}    call EmpData()
     call EmpDefaultDiplomacy()
     call EmpPlaced()
     call EmpVetData()
