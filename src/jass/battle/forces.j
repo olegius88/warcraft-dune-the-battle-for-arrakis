@@ -273,7 +273,10 @@ endfunction
 // joining a team gets no order (0x45fd50). TODO(ai): here those near the yard go with its waves (#A1
 // before the posts: 68 of 74 sent at 140 s), those beyond DefenceTacticWanderDistance keep their
 // posts, also after a fight; whether an idle reserve team walks to its point once assembled (team states
-// 0x4602be, "units assembled - awaiting orders") is not traced. Risk: early waves stronger or weaker
+// 0x4602be, "units assembled - awaiting orders") is not traced; the points are script targets of a
+// building cluster (0x42acc0: 1 "T AP", 3 "D AP", 4 "S AP" via 0x44c260) placed with the rock's ramps
+// (0x42caf0 "CreateRampInDirectionArray"), not traced either; here home units gather at the yard.
+// Risk: early waves stronger or weaker
 // than in the original.
 function EmpStoryAiStart takes nothing returns nothing
     local group g = CreateGroup()
