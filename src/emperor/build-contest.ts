@@ -5,6 +5,7 @@
 // models, icons, music, speech, the movie frames (converted again at --quality into build/contest so
 // the map stays small) and their sound.
 // Usage: node src/emperor/build-contest.ts [--house AT|HK|OR] [--quality 70] [--out file.w3x] [--check]
+//        [--autowin seconds]   (tests: the mission is won that long after it starts)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,7 +25,9 @@ import { convertMovies, blackTexture, localFile } from './fmv.ts';
 import { loadSubtitles, loadCaptions } from './subtitles.ts';
 import type { PlayerMovies } from './movie-player.ts';
 import { MOVIE_PATH } from '../config/movies.ts';
-import { readIndex } from './rfh.ts';
+import { readIndex, readArchive } from './rfh.ts';
+import { readTga, writeTga } from '../wc3/tga.ts';
+import { resize } from '../wc3/blp.ts';
 import { RAW_DIR, BUILD_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
 
 const args = process.argv.slice(2);
@@ -35,6 +38,7 @@ const h: HouseCode = house;
 const quality = Number(opt('--quality', String(CONTEST.movieQuality)));
 const out = opt('--out', path.join(BUILD_DIR, 'contest', CONTEST.file(h)));
 const movieRoot = path.join(BUILD_DIR, 'contest', 'movies');
+const autoWin = Number(opt('--autowin', '0'));
 
 const all = loadAll({ models: true });
 const music = loadMusic();
@@ -56,6 +60,25 @@ for (const [name, mi] of info) {
   for (let i = 0; i < mi.frames; i++) extraImports[MOVIE_PATH.frame(name, i)] = fs.readFileSync(localFile(movieRoot, MOVIE_PATH.frame(name, i)));
   if (mi.sound) extraImports[MOVIE_PATH.sound(name)] = fs.readFileSync(localFile(movieRoot, MOVIE_PATH.sound(name)));
 }
+// the map list preview: a frame of the house movie with the house logo (CONTEST.preview)
+{
+  const P = CONTEST.preview;
+  const raw = execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-ss', String(P.at), '-i', gameData('MOVIES', `${P.movie}.BIK`), '-frames:v', '1', '-vf', `crop=ih:ih,scale=${P.size}:${P.size}`, '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { maxBuffer: 1 << 24 });
+  const img = { width: P.size, height: P.size, rgba: new Uint8Array(raw) };
+  const logoFile = [...readArchive(gameData('3DDATA0001'), (n) => n.toLowerCase() === `textures/${h.toLowerCase()}logo.tga`)][0];
+  if (logoFile) {
+    const logo = resize(readTga(logoFile.data), P.logo, P.logo);
+    const x0 = P.size - P.logo - P.margin, y0 = P.size - P.logo - P.margin;
+    for (let y = 0; y < P.logo; y++) for (let x = 0; x < P.logo; x++) {
+      const s = (y * P.logo + x) * 4, d = ((y0 + y) * P.size + x0 + x) * 4, al = (logo.rgba[s + 3] as number) / 255;
+      for (let k = 0; k < 3; k++) img.rgba[d + k] = Math.round((logo.rgba[s + k] as number) * al + (img.rgba[d + k] as number) * (1 - al));
+    }
+  }
+  extraImports['war3mapPreview.tga'] = writeTga(img);
+  // also next to the map: a cover for the contest entry
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out.replace(/\.w3x$/i, '_preview.tga'), extraImports['war3mapPreview.tga']);
+}
 // the battle music of the house, inside the map
 const tracks = music ? music.battle(h) : [];
 for (const p of tracks) {
@@ -71,7 +94,7 @@ const m = buildMission({
   meta, ...all, name: title, playerHouse: HOUSE_NAME[h], kind: 'start', standalone: true,
   defaultPhase: CP.START_MISSION_PHASE, defaultTech: CP.START_MISSION_TECH,
   briefing: all.ctx.textByKey(script) || '', debugName: `Contest_${h}`,
-  music: tracks, intro: { movies, player }, extraImports,
+  music: tracks, intro: { movies, player }, extraImports, mapDescription: CONTEST.description(CONTEST.houseFor[h]), ...(autoWin ? { autoWinSeconds: autoWin } : {}),
 });
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, m.buffer);

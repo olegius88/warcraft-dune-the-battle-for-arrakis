@@ -76,4 +76,21 @@ function pixelOf(buf: Buffer, at: number, depth: number): number[] {
   throw new Error(`TGA pixel depth ${depth} not supported`);
 }
 
-export { readTga };
+/** Uncompressed 32-bit TGA, origin top-left (the map preview war3mapPreview.tga). */
+function writeTga(img: Image): Buffer {
+  const out = Buffer.alloc(18 + img.width * img.height * 4);
+  out.writeUInt8(2, 2);
+  out.writeUInt16LE(img.width, 12);
+  out.writeUInt16LE(img.height, 14);
+  out.writeUInt8(32, 16);
+  out.writeUInt8(0x28, 17); // top-left origin, 8 alpha bits
+  for (let i = 0; i < img.width * img.height; i++) {
+    out[18 + i * 4] = img.rgba[i * 4 + 2] as number;
+    out[18 + i * 4 + 1] = img.rgba[i * 4 + 1] as number;
+    out[18 + i * 4 + 2] = img.rgba[i * 4] as number;
+    out[18 + i * 4 + 3] = img.rgba[i * 4 + 3] as number;
+  }
+  return out;
+}
+
+export { readTga, writeTga };

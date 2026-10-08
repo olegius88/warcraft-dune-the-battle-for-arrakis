@@ -12,6 +12,9 @@
   миссии `standalone`, `intro`, `extraImports`; качество кадров роликов передаётся параметром
   ([fmv.ts](src/emperor/fmv.ts)). Проверено в 1.31.1: ролики, затем миссия с речью и музыкой. Пробник
   размера ([build-size-probe.ts](src/smoke/build-size-probe.ts)): 1.31.1 загружает одиночную карту на 428 МБ.
+  Превью для списка карт (кадр с Арракисом и герб дома, `war3mapPreview.tga` и файл обложки рядом с
+  картой, [tga.ts](src/wc3/tga.ts) `writeTga`), описание с версией игры (`mapDescription`), `--autowin`
+  для проверки финала: окно «Победа!» после роликов и миссии.
 - 2026-10-08 Стартовый сценарий ИИ из ai.ini `[StartScript]` по `Game.exe` 1.09 ([ai.j](src/jass/battle/ai.j)
   `EmpAiStartStep`): ИИ сначала строит группы по порядку (Resource, Manufacturing, Core, Manufacturing,
   Resource) в темпе десятой доли `BuildingDelay`. Сценарий не запускается, если стоящая база

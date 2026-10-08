@@ -2,7 +2,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert';
-import { readTga } from '../src/wc3/tga.ts';
+import { readTga, writeTga } from '../src/wc3/tga.ts';
 import { writeBlpImage, readBlpPaletted } from '../src/wc3/blp.ts';
 
 /** A TGA of the given type/depth with optional RLE packets (pixels given top row first). */
@@ -31,6 +31,13 @@ test('TGA: 24/32 bit, bottom-left and top-left origin, RLE', () => {
   }
   const img24 = readTga(tga(2, 2, 24, pixels));
   assert.deepStrictEqual(Array.from(img24.rgba.slice(0, 8)), [255, 0, 0, 255, 0, 255, 0, 255]);
+});
+
+// the map preview (war3mapPreview.tga) is written as a 32-bit top-left TGA
+test('TGA: written 32-bit top-left, read back the same', () => {
+  const rgba = new Uint8Array([255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 0, 10, 20, 30, 40]);
+  const back = readTga(writeTga({ width: 2, height: 2, rgba }));
+  assert.deepStrictEqual([back.width, back.height, [...back.rgba]], [2, 2, [...rgba]]);
 });
 
 test('BLP1 palette image: colours survive when there are <= 256, alpha, mipmaps down to 1x1', () => {

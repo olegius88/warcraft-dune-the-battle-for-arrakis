@@ -96,6 +96,8 @@ export interface MissionParams {
   intro?: { movies: string[]; player: PlayerMovies };
   /** more archive files (the movies and music of a standalone map) */
   extraImports?: Record<string, Buffer>;
+  /** the map list description (default: the briefing) */
+  mapDescription?: string;
 }
 
 export interface BuiltMission {
@@ -511,7 +513,7 @@ function buildMission(p: MissionParams): BuiltMission {
 
   const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3map.w3q': p.units.w3q, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports, ...(p.iconsInMap === false ? {} : { ...p.units.icons, ...p.units.models }), ...p.extraImports };
   const m = buildMap({
-    name: p.name, description: p.briefing || '', width: t.width, height: t.height, boundary: t.boundary,
+    name: p.name, description: p.mapDescription ?? (p.briefing || ''), width: t.width, height: t.height, boundary: t.boundary,
     tileset: t.tileset, ground: t.ground, cliffs: t.cliffs, corner: t.corner, pathing: t.pathing, minimapColor: t.minimapColor,
     players, globals: rt.globals + glueGlobals + '\n' + scripts.map((s) => s.tr.globals).join('\n') + (intro ? `\n${intro.globals}` : ''), functions,
     init: `    call TimerStart( CreateTimer(), 0.0, false, function ${intro ? 'EmpIntroMovies' : 'EmpStart'} )`,
