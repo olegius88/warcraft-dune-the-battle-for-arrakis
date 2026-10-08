@@ -12,6 +12,7 @@ import { buildMission } from '../emperor/mission.ts';
 import { BUILD_DIR, RAW_DIR } from '../config/paths.ts';
 import { territoryMapPrefix } from '../config/story.ts';
 import { ART_ABILITY } from '../config/wc3.ts';
+import * as RT from '../config/runtime.ts';
 
 // node src/smoke/build-territory-probe.ts <territory> [script ...]: the scripts (phase 1, 2, ...) too
 // flags as build-campaign.ts sets them: --briefing (of the first script), --no-icons, --autowin
@@ -77,18 +78,30 @@ endfunction`,
     extraFunctions: `function PortProbeRun takes nothing returns nothing
     local unit b
     local integer before
+    local integer started
+    local integer cancelled
     local boolean ok
     set EmpNormalConditions = false
     call TriggerSleepAction(3.0)
     set b = CreateUnit(Player(0), '${all.units.rawcode.get('ATStarport')}', EmpEntrX[EmpEntranceFor(0)], EmpEntrY[EmpEntranceFor(0)], 270.0)
     call SetPlayerTechMaxAllowed(Player(0), '${all.units.rawcode.get('ATTrike')}', -1)
     call SetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD, 10000)
+    // a price away from 100 %, so that the difference shows
+    set EmpPortPct[LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 0)] = 70
     set before = GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)
     set ok = IssueImmediateOrderById(b, '${all.units.rawcode.get('ATTrike')}')
     call TriggerSleepAction(1.0)
+    set started = GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)
+    // a second trike queued and cancelled: the gold must be as before it
+    call IssueImmediateOrderById(b, '${all.units.rawcode.get('ATTrike')}')
+    call TriggerSleepAction(0.5)
+    call IssueImmediateOrderById(b, ${RT.ORDER_CANCEL})
+    call TriggerSleepAction(0.5)
+    set cancelled = GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)
+    call TriggerSleepAction(20.0)
     call PreloadGenClear()
     call PreloadGenStart()
-    call Preload("port order=" + I2S(IntegerTertiaryOp(ok, 1, 0)) + " gold " + I2S(before) + " -> " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " trike pct=" + I2S(EmpPortPct[LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 0)]) + " cost=" + I2S(LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 1)))
+    call Preload("port order=" + I2S(IntegerTertiaryOp(ok, 1, 0)) + " gold " + I2S(before) + " started " + I2S(started) + " queued+cancelled " + I2S(cancelled) + " out " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " trike pct=" + I2S(EmpPortPct[LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 0)]) + " cost=" + I2S(LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 1)))
     call PreloadGenEnd("DuneSmoke\\\\port.pld")
     set b = null
 endfunction`,

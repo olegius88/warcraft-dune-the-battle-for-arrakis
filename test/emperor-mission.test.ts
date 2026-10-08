@@ -471,6 +471,9 @@ test('starport prices change every StarportCostUpdateDelay ticks within Starport
   assert.match(m.script, /TimerStart\(CreateTimer\(\), 60\.0, true, function EmpPortPrices\)/, '1500 ticks = 60 s');
   assert.ok(m.script.includes(`call SaveInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 1, `), 'base cost of a starport type');
   assert.ok(m.script.includes('EVENT_PLAYER_UNIT_TRAIN_START') && m.script.includes('function EmpPortTrain'), 'charged at purchase');
+  // Regression (third audit): a cancelled purchase got the full stock price back from WC3 and kept
+  // the starport's difference: below 100 % every buy-and-cancel made money. The difference goes back too.
+  assert.ok(m.script.includes('EVENT_PLAYER_UNIT_TRAIN_FINISH') && m.script.includes('function EmpPortFinish'), 'difference settled when the unit is out, so a cancel needs nothing');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
