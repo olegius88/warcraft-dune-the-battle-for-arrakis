@@ -470,7 +470,8 @@ function EmpAiBuild takes nothing returns nothing
 endfunction
 
 // ---- tactics ----
-// the role of a unit in EmpWaveTab child 1: 0 home, 1 scout, 2 escort, 3 wave
+// the role of a unit in EmpWaveTab child 1: 0 home, 1 scout, 2 escort, 3 wave, 4 post (a story map's guard
+// away from the base or a story character: left alone, forces.j EmpStoryAiStart)
 function EmpAiRole takes unit u returns integer
     return LoadInteger(EmpWaveTab, GetHandleId(u), 1)
 endfunction

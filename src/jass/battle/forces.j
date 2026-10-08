@@ -156,14 +156,14 @@ endfunction
 // TODO(ai): the template is only its construction yard: destroyed map buildings come back by the
 // base builder's ratios (ai.j), not at their map places; whether Emperor rebuilds them in place is
 // not in the data. Risk: a story base may grow differently from the original.
-// TODO(ai): the units the map places for side 1 are the AI's like any other: they fill MaxAiUnits (no
-// production until they fall) and go with its waves (#A1 in 1.31.1: 68 of 74 sent at 140 s, once it
-// sees into the shroud). Whether Emperor's attack tactic takes map-placed guards is not in the data.
-// Risk: these missions may be much harder than the original early on.
+// TODO(ai): the units the map places for side 1 fill MaxAiUnits (no production until they fall);
+// those near the yard go with its waves (#A1 before the posts: 68 of 74 sent at 140 s), those beyond
+// DefenceTacticWanderDistance keep their posts. How Emperor's tactics treat map-placed units is not in
+// the data. Risk: early waves stronger or weaker than in the original.
 function EmpStoryAiStart takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
-    local integer b = EmpBaseOfSide(1)
+    local integer b
     local integer k = {{storyHouse}} * {{C.TEMPLATE_SLOTS}}
     set EmpEnemyHouse = {{storyHouse}}
     set EmpTplCount[EmpEnemyHouse] = 1
@@ -176,15 +176,37 @@ function EmpStoryAiStart takes nothing returns nothing
             set EmpTplUnit[k] = u
         endif
     endloop
-    call DestroyGroup(g)
-    set g = null
     if EmpTplUnit[k] == null then
+        call DestroyGroup(g)
+        set g = null
         return
     endif
-    // the AI builds around its yard. EmpAIMode[1] stays as the script sets it: "normal" (8) would pull
-    // the guards the map places away from the base back to the yard.
+    // a base point of its own at its yard (fourth audit: taking one of the map's points with
+    // EmpBaseOfSide left script sides that ask for a base later the player's point); a point the
+    // script gave side 1 before is free again
+    if EmpSideBase[1] >= 0 and EmpSideBase[1] < EmpBaseCount then
+        set EmpBaseOwner[EmpSideBase[1]] = -1
+    endif
+    set b = EmpBaseCount
+    set EmpBaseCount = EmpBaseCount + 1
     set EmpBaseX[b] = GetUnitX(EmpTplUnit[k])
     set EmpBaseY[b] = GetUnitY(EmpTplUnit[k])
+    set EmpBaseOwner[b] = 1
+    set EmpSideBase[1] = b
+    // guards the map places beyond DefenceTacticWanderDistance and story characters keep their posts
+    // (role 4, ai.j): the tactics pulled them to the yard and sent them in waves. EmpAIMode[1] stays as
+    // the script sets it for the same reason.
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and (LoadBoolean(EmpSpTab, GetUnitTypeId(u), 14) or not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], EmpTiles({{ai.defenceWanderTiles}}))) then
+            call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 4)
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
     call EmpAiInit()
     call EmpAiStartPace()
 endfunction

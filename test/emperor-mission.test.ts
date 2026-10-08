@@ -727,4 +727,11 @@ test('the AI runs the map\'s own base of side 1 in story missions, with ai_<hous
   assert.ok(m.script.includes('    set EmpEnemyHouse = 0'), 'side 1 plays Atreides');
   const h1 = buildMission({ scripts: [], meta: metaOf('#H1 '), ...all, name: 'h1', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x' });
   assert.ok(!h1.script.includes('    call EmpStoryAiStart()'), 'no base, no AI');
+  // fourth audit: the AI took one of the map's two base points (EmpBaseOfSide), so script sides that
+  // ask for a base later fell back to the player's point. It gets a point of its own at its yard.
+  const start = m.script.slice(m.script.indexOf('function EmpStoryAiStart'), m.script.indexOf('endfunction', m.script.indexOf('function EmpStoryAiStart')));
+  assert.ok(!start.includes('EmpBaseOfSide(1)') && start.includes('set EmpBaseCount = EmpBaseCount + 1') && start.includes('set EmpSideBase[1] = b'), 'own base point');
+  // guards the map places away from the yard and story characters keep their posts (role 4): the
+  // tactics pulled them home and sent them in waves
+  assert.ok(start.includes('call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 4)'), 'posts');
 });
