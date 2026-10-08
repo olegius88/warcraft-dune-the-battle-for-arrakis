@@ -507,7 +507,7 @@ test('starport prices change every StarportCostUpdateDelay ticks within Starport
 // XBF (Explosion/*.xbf), converted like the unit models (src/emperor/effects.ts). The runtime plays
 // them where a unit dies and where it fires.
 // The textures a node shows over time come from the FXData MASTER events (the explosion fades by
-// them); effects are shown at most EFFECT_MAX_RADIUS; hits (FXData particles only) are not played.
+// them); effects are shown at most EFFECT_MAX_RADIUS; hits are FXData particles (PRE2 emitters).
 test('effects: an explosion where an object dies, a muzzle flash where it fires (Rules.txt, ArtIni.txt, FXData)', opts, async () => {
   const { effectUse, buildEffects } = await import('../src/emperor/effects.ts');
   const { loadArtIni } = await import('../src/emperor/artini.ts');
@@ -516,7 +516,7 @@ test('effects: an explosion where an object dies, a muzzle flash where it fires 
   const use = effectUse(all.rules);
   assert.strictEqual(use.death.get('ATTrike'), 'SmExplosion');
   assert.strictEqual(use.muzzle.get('ATTrike'), 'Muzzle1');
-  const set = buildEffects(['Explosion', 'Muzzle1', 'MissileHit'], loadArtIni(path.join(RAW, 'ArtIni.txt')));
+  const set = buildEffects(['Explosion', 'Muzzle1', 'MissileHit', 'DeviateHit'], loadArtIni(path.join(RAW, 'ArtIni.txt')));
   const parse = (name: string) => { const m = new MdlxModel(); m.load(new Uint8Array(set.files[(set.model.get(name) as string).replace(/\.mdl$/, '.mdx')] as Buffer)); return m; };
   const boom = parse('explosion');
   assert.ok(boom.sequences.some((s: { name: string }) => s.name === 'Death'), 'the animation plays as Death');
@@ -534,6 +534,13 @@ test('effects: an explosion where an object dies, a muzzle flash where it fires 
   assert.ok(hit.textures.some((t: { path: string }) => /_cexp_atlas\.blp$/i.test(t.path)) && set.files['Emperor\\Textures\\_cexp_atlas.blp'], 'atlas');
   const e = hit.particleEmitters2.find((x: { name: string }) => /#49/.test(x.name));
   assert.ok(e && e.columns * e.rows >= 16 && e.animations.some((a: { name: string }) => a.name === 'KP2E'), 'burst of the cexp emitter');
+  // sixth audit: DeviateHit grows x2 a frame: its sprites reached 5120 units (scale is not applied to
+  // particles-only effects); a sprite is at most FX_PARTICLE.maxSize
+  const dev = parse('deviatehit');
+  assert.ok(dev.particleEmitters2.every((x: { segmentScaling: ArrayLike<number> }) => Math.max(...Array.from(x.segmentScaling)) <= 256), 'particle size capped');
+  // ?innerfire's MASTER list ends with !%boom0 again: the bright first frame flashed before the end
+  const fire = boom.materials.find((x: { layers: Array<{ animations: Array<{ name: string; values: ArrayLike<number>[] }> }> }) => x.layers[0]?.animations.some((a) => a.name === 'KMTF' && a.values.length === 12 * 2));
+  assert.ok(!fire, 'the wrap-around frame is dropped');
   // the shockwave's textures from FXData MASTER (choc0 .. choc7): one flipping layer
   assert.ok(boom.textures.some((t: { path: string }) => /_choc7\.blp$/i.test(t.path)), 'MASTER texture list');
   // explosions, muzzle flashes and hits played; the trike's are in the runtime table, shrunk
@@ -547,7 +554,30 @@ test('effects: an explosion where an object dies, a muzzle flash where it fires 
   assert.ok(m.script.includes(`call SaveStr(EmpFxTab, '${trike}', 1, ${JSON.stringify(fx[1])})`), 'muzzle of the trike');
   assert.match(m.script, new RegExp(`call SaveReal\\(EmpFxTab, '${trike}', 11, 0\\.\\d+\\)`), 'the flash shrunk to EFFECT_MAX_RADIUS');
   assert.ok(m.script.includes('function EmpFxDeath') && m.script.includes('call EmpFxInit()'), 'runtime');
-  assert.ok(m.script.includes('call EmpFxPlay(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, "weapon"), t, 1)'), 'muzzle at the weapon');
+  assert.ok(m.script.includes('local string at = "weapon"') && m.script.includes('call EmpFxPlay(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, at), t, 1)'), 'muzzle at the weapon');
+});
+
+// Sixth audit: 17 converted models have no "Weapon Ref" (no #fire node: HKBuzzsaw, ATMongoose...); the
+// muzzle flash asked for "weapon" on them. Those flash at "chest".
+test('a muzzle flash goes to the chest of a converted model without a weapon attachment', opts, async () => {
+  const { buildModels } = await import('../src/emperor/models.ts');
+  const { buildUnitData } = await import('../src/emperor/units.ts');
+  const { effectUse, buildEffects } = await import('../src/emperor/effects.ts');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const all = loadAll();
+  const art = loadArtIni(path.join(RAW, 'ArtIni.txt'));
+  const models = buildModels(['HKBuzzsaw', 'ATTrike'], art);
+  assert.ok(models.weapon.has('ATTrike') && !models.weapon.has('HKBuzzsaw'), 'weapon attachments');
+  const use = effectUse(all.rules);
+  const units = buildUnitData(all.rules, (n) => n, undefined, models, { use, set: buildEffects([...use.muzzle.values()], art) });
+  assert.strictEqual(units.muzzleAt.get(units.rawcode.get('HKBuzzsaw') as string), 'chest');
+  assert.ok(!units.muzzleAt.has(units.rawcode.get('ATTrike') as string), 'the trike fires from its weapon');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, units, name: 'fx', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call SaveStr(EmpFxTab, '${units.rawcode.get('HKBuzzsaw')}', 21, "chest")`), 'attach point in the table');
+  assert.ok(m.script.includes('function EmpFxFire') && m.script.includes('LoadStr(EmpFxTab, t, 21)'), 'runtime reads it');
+  // sixth audit: damage and attacks of neutral hostile (the worm) were not registered, deaths were
+  assert.match(m.script, /TriggerRegisterPlayerUnitEvent\(hit, Player\(PLAYER_NEUTRAL_AGGRESSIVE\), EVENT_PLAYER_UNIT_DAMAGED, null\)/);
 });
 
 // The hub said nothing when an alliance was made or lost; E_Output_Pickup holds the house's debrief

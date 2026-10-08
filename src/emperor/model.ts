@@ -12,7 +12,7 @@
 // Sequences: Emperor animation ranges (FX data) named per config SEQUENCE_MAP, laid out one after
 // the other on the MDX timeline. Vertex (morph) animation (infantry): a geoset copy per sampled frame,
 // shown by a step alpha track. Attachment points: origin, chest, overhead, weapon (first fire node).
-// TODO(models): Emperor's particle effects (muzzle flashes, smoke) are not converted.
+// Effects (src/emperor/effects.ts) use the options below; their FXData particles become PRE2 emitters there.
 
 import type { XbfScene, XbfNode, AnimationRange } from './xbf.ts';
 import type { MdxModel, Geoset, GeosetAnimation, Bone, Track, Extent, Material, Texture, V3, Attachment } from '../wc3/mdx.ts';
@@ -538,7 +538,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   attach('Origin Ref', [0, 0, 0]);
   attach('Chest Ref', [0, 0, top / 2]);
   attach('Overhead Ref', [0, 0, top + M.OVERHEAD_GAP]);
-  if (fire >= 0) attach('Weapon Ref', apply(mul(K, bind[fire] as Mat), [0, 0, 0]));
+  if (fire >= 0) attach(M.WEAPON_ATTACHMENT, apply(mul(K, bind[fire] as Mat), [0, 0, 0]));
   return {
     model: { name, extent, sequences, textures, materials, geosets, geosetAnimations, bones, attachments, pivots, ...(globalSequences.length ? { globalSequences } : {}) },
     textures: usedFiles,

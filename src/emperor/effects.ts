@@ -66,6 +66,9 @@ function nodeTextures(fx: Buffer): Map<string, string[]> {
     out.set(node, list);
     p = q - 1;
   }
+  // a list that comes back to its first frame (?innerfire ... !%boom10, !%boom0) ends on the frame before:
+  // the bright first frame flashed again before the end (sixth audit)
+  for (const list of out.values()) if (list.length > 2 && list[list.length - 1]?.toLowerCase() === list[0]?.toLowerCase()) list.pop();
   return out;
 }
 
@@ -183,7 +186,8 @@ function addParticles(model: MdxModel, fx: ReturnType<typeof fxEmitters>, pivots
         latitude: e.kind === 0 ? 0 : FX_PARTICLE.latitude, gravity: -e.vec[1] * MODEL_SCALE / sec, lifeSpan: life * sec,
         // width / length: the area particles start in; their size is the segment scaling (world units)
         emissionRate: Math.max(1, e.count), width: width * FX_PARTICLE.areaShare, length: width * FX_PARTICLE.areaShare, filterMode: FX_PARTICLE_FILTER(e.texture), rows, columns, headOrTail: 0, tailLength: 0, timeMiddle: 0.5,
-        colors: [c0, c0.map((v, i) => (v + (c2[i] as number)) / 2) as V3, c2], alphas: [...FX_PARTICLE.alphas], scaling: [width, width * scale(life / 2), width * scale(life)],
+        colors: [c0, c0.map((v, i) => (v + (c2[i] as number)) / 2) as V3, c2], alphas: [...FX_PARTICLE.alphas], // a sprite is at most FX_PARTICLE.maxSize: DeviateHit grows x2 a frame and reached 5120 (sixth audit)
+        scaling: [Math.min(FX_PARTICLE.maxSize, width), Math.min(FX_PARTICLE.maxSize, width * scale(life / 2)), Math.min(FX_PARTICLE.maxSize, width * scale(life))],
         headIntervals: [[0, half - 1, 1], [Math.min(half, e.frames - 1), e.frames - 1, 1]], tailIntervals: [[0, 0, 1], [0, 0, 1]],
         // emitted at its rate over a short window from its delay (a squirt keyed once emitted nothing
         // in 1.31.1, hits probe 2026-10-08)

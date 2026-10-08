@@ -1,6 +1,7 @@
 // ---- effects (src/emperor/effects.ts; Rules.txt ExplosionType / TurretMuzzleFlash, ArtIni.txt Xaf):
 // EmpFxTab[type]: 0 the model where it dies, 1 where it fires (at its "weapon" attachment), 2 where
-// its bullet hits; 10 + those: the scale it is shown at (config EFFECT_MAX_RADIUS). An effect model
+// its bullet hits; 10 + those: the scale it is shown at (config EFFECT_MAX_RADIUS); 21 where the
+// muzzle flash goes if not "weapon" (a converted model without one, config MUZZLE_FALLBACK). An effect model
 // plays its one animation as Death: DestroyEffect right away.
 function EmpFxData takes nothing returns nothing
     set EmpFxTab = InitHashtable()
@@ -28,8 +29,12 @@ endfunction
 function EmpFxFire takes nothing returns nothing
     local unit u = GetAttacker()
     local integer t = GetUnitTypeId(u)
+    local string at = "weapon"
+    if HaveSavedString(EmpFxTab, t, 21) then
+        set at = LoadStr(EmpFxTab, t, 21)
+    endif
     if HaveSavedString(EmpFxTab, t, 1) then
-        call EmpFxPlay(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, "weapon"), t, 1)
+        call EmpFxPlay(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, at), t, 1)
     endif
     set u = null
 endfunction
@@ -58,7 +63,10 @@ function EmpFxInit takes nothing returns nothing
         call TriggerRegisterPlayerUnitEvent(hit, Player(i), EVENT_PLAYER_UNIT_DAMAGED, null)
         set i = i + 1
     endloop
+    // neutral hostile (the worm) too, for all three (sixth audit: only its deaths were registered)
     call TriggerRegisterPlayerUnitEvent(die, Player(PLAYER_NEUTRAL_AGGRESSIVE), EVENT_PLAYER_UNIT_DEATH, null)
+    call TriggerRegisterPlayerUnitEvent(fire, Player(PLAYER_NEUTRAL_AGGRESSIVE), EVENT_PLAYER_UNIT_ATTACKED, null)
+    call TriggerRegisterPlayerUnitEvent(hit, Player(PLAYER_NEUTRAL_AGGRESSIVE), EVENT_PLAYER_UNIT_DAMAGED, null)
     call TriggerAddAction(die, function EmpFxDeath)
     call TriggerAddAction(fire, function EmpFxFire)
     call TriggerAddAction(hit, function EmpFxHit)

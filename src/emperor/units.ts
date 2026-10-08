@@ -19,7 +19,7 @@ import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
 import { superweaponKind } from './superweapons.ts';
 import type { EffectUse, EffectSet } from './effects.ts';
-import { EFFECT_PLAYED, EFFECT_MAX_RADIUS, EFFECT_MIN_SCALE } from '../config/models.ts';
+import { EFFECT_PLAYED, EFFECT_MAX_RADIUS, EFFECT_MIN_SCALE, MUZZLE_FALLBACK } from '../config/models.ts';
 import { SUBHOUSE_BUILDINGS } from '../config/campaign.ts';
 
 type RaceOrNeutral = Wc3Race | 'neutral';
@@ -82,6 +82,8 @@ export interface UnitData {
   /** WC3 type -> its effect models [when it dies, where it fires, where its bullet hits] ('' none;
    * src/emperor/effects.ts, mission effects.j) */
   effects: Map<string, [string, string, string]>;
+  /** WC3 type -> the attachment its muzzle flash goes to when not "weapon" (converted model without one) */
+  muzzleAt: Map<string, string>;
   /** effect model path -> how far it reaches (src/emperor/effects.ts; shown at most config EFFECT_MAX_RADIUS) */
   effectRadius: Map<string, number>;
   /** starport order type -> the unit a frigate delivers for it (mission starport.j) */
@@ -362,6 +364,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),
     effectRadius: effects?.set.radius ?? new Map(),
+    muzzleAt: new Map([...rules.objects.values()].filter((o) => models?.model.has(o.name) && !models.weapon.has(o.name)).map((o) => [rawcode.get(o.name) as string, MUZZLE_FALLBACK])),
     w3u: writeObjects(objects.map(({ base, id, mods }) => ({ base, id, mods }))),
     w3a: writeObjects(abilities, true),
     upgrades,

@@ -52,6 +52,10 @@ export const MODEL_PATH = {
   texture: (file: string): string => `Emperor\\Textures\\${file.replace(/\.tga$/i, '').replace(/[^A-Za-z0-9_]/g, '_')}.blp`,
 } as const;
 
+/** The attachment point of a converted model's first fire node (model.ts); a muzzle flash goes there,
+ * or to MUZZLE_FALLBACK on a converted model without one (17 of them: HKBuzzsaw, ATMongoose...). */
+export const WEAPON_ATTACHMENT = 'Weapon Ref';
+export const MUZZLE_FALLBACK = 'chest';
 /** Effects (src/emperor/effects.ts): their one animation plays as Death, once, when the runtime
  * destroys the effect it has just made (DestroyEffect(AddSpecialEffect(...))). */
 export const EFFECT_SEQUENCES: ReadonlyArray<readonly [string, string, boolean]> = [['Stationary', 'Death', false]];
@@ -92,12 +96,14 @@ export const EFFECT_MAX_GEOSETS = 64;
  * at `speed` Emperor units a frame within `latitude` degrees of up, `size` wide (x sizeFactor model
  * units), colour changing by the record's per-frame step, growing by its per-frame factor, the texture
  * frames (prefix0..N) laid out atlasColumns to a row and played over the life. */
-export const FX_PARTICLE = { minLifeFrames: 3, latitude: 90, sizeFactor: 4, atlasColumns: 8, burstMs: 100, areaShare: 0.5, flags: 0x8000, alphas: [255, 220, 0] as [number, number, number] } as const;
+export const FX_PARTICLE = { minLifeFrames: 3, latitude: 90, sizeFactor: 4, atlasColumns: 8, burstMs: 100, areaShare: 0.5, flags: 0x8000, maxSize: 256, alphas: [255, 220, 0] as [number, number, number] } as const;
 /** Particle filter by the texture flag: @ (an alpha of its own) blend 0, else (! glows on black) additive
  * 1; unshaded (FX_PARTICLE.flags 0x8000): blended by their light they were near invisible (probe
  * 2026-10-08). */
 export const FX_PARTICLE_FILTER = (texture: string): number => (texture.includes('@') ? 0 : 1);
-/** MASTER event types that start an emitter at a node: 3 (emitter id, node), 4 (+ animation name). */
+/** MASTER event types naming an emitter and a node (emitter id, node): 3 and 4 seem to start and stop
+ * one (explosion.xbf: 3 #17, 3 #18, 4 #18; sixth audit); the stop time is not used, a burst lasts
+ * FX_PARTICLE.burstMs. */
 export const FX_EMIT_EVENTS: readonly number[] = [3, 4];
 /** Name of an emitter's texture atlas: its frame prefix + this (Emperor\Textures\!cexp_atlas.blp). */
 export const FX_ATLAS_SUFFIX = '_atlas';

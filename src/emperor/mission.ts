@@ -304,7 +304,10 @@ function buildMission(p: MissionParams): BuiltMission {
     fxLines: [...(p.units.effects ?? [])].flatMap(([id, fx]) => fx.flatMap((model, k) => {
       if (!model) return [];
       const scale = Math.min(1, (EFFECT_MAX_RADIUS[k] as number) / Math.max(1, p.units.effectRadius?.get(model) ?? 1));
-      return [`    call SaveStr(EmpFxTab, '${id}', ${k}, ${str(model)})`, ...(scale < 1 ? [`    call SaveReal(EmpFxTab, '${id}', ${10 + k}, ${real(scale)})`] : [])];
+      // a muzzle flash of a converted model without a weapon attachment: where it goes (key 21)
+      const at = k === 1 ? p.units.muzzleAt?.get(id) : undefined;
+      return [`    call SaveStr(EmpFxTab, '${id}', ${k}, ${str(model)})`, ...(scale < 1 ? [`    call SaveReal(EmpFxTab, '${id}', ${10 + k}, ${real(scale)})`] : []),
+        ...(at ? [`    call SaveStr(EmpFxTab, '${id}', 21, ${str(at)})`] : [])];
     })).join('\n'),
     // the frigate ([Frigate]) shown flying in and out
     portFrigateUnit: p.units.rawcode.get('Frigate') ?? UNIT.fallback,

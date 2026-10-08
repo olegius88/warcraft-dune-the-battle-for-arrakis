@@ -12,7 +12,7 @@ import { readTga } from '../wc3/tga.ts';
 import { writeBlpImage, resize, pow2Ceil } from '../wc3/blp.ts';
 import { writeMdx } from '../wc3/mdx.ts';
 import { gameData } from '../config/paths.ts';
-import { MODEL_PATH, MAX_TEXTURE_SIZE, HOUSE_COLOUR_TEXTURE, HOUSE_COLOUR_PIXEL } from '../config/models.ts';
+import { MODEL_PATH, MAX_TEXTURE_SIZE, HOUSE_COLOUR_TEXTURE, HOUSE_COLOUR_PIXEL, WEAPON_ATTACHMENT } from '../config/models.ts';
 
 export interface ModelSet {
   /** Emperor object name -> value of the unit model field */
@@ -21,11 +21,14 @@ export interface ModelSet {
   files: Record<string, Buffer>;
   /** objects whose model could not be converted, with the reason */
   failed: Map<string, string>;
+  /** objects whose converted model has a weapon attachment (a #fire node: model.ts) */
+  weapon: Set<string>;
 }
 
 /** Convert the models of the given objects (those ArtIni.txt gives an Xaf whose _H0 file exists). */
 function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archive = gameData('3DDATA0001')): ModelSet {
-  const set: ModelSet = { model: new Map(), files: {}, failed: new Map() };
+  const set: ModelSet = { model: new Map(), files: {}, failed: new Map(), weapon: new Set() };
+  const armed = new Set<string>(); // archive model files with a weapon attachment
   const index = readIndex(archive + '.RFH');
   const byLower = new Map(index.map((e) => [e.name.toLowerCase(), e.name]));
   // object -> archive name of its model
@@ -51,6 +54,7 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
         const scene = readXbf(data);
         const ref = (tex: string): TextureRef => { textureFiles.add(tex.toLowerCase()); return { path: MODEL_PATH.texture(tex), alpha: false, teamColour: HOUSE_COLOUR_TEXTURE(tex) }; };
         const { model } = xbfToMdx(key, scene, readAnimations(data), ref);
+        if (model.attachments?.some((a) => a.name === WEAPON_ATTACHMENT)) armed.add(file);
         set.files[MODEL_PATH.model(key)] = writeMdx(model);
         field = MODEL_PATH.modelField(key);
         converted.set(file, field);
@@ -60,6 +64,7 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
       }
     }
     set.model.set(obj, field);
+    if (armed.has(file)) set.weapon.add(obj);
   }
   Object.assign(set.files, convertTextures(archive, textureFiles));
   return set;
