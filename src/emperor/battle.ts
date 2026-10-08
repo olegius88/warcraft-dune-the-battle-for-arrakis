@@ -152,6 +152,7 @@ function battleSetup(o: BattleOptions): BattleSetup {
     fieldLines: clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, ${FACING})\n    call SetResourceAmount(m, ${Math.max(C.SPICE_FIELD_MIN, c.tiles * C.SPICE_PER_TILE)})`; }).join('\n'),
     moundLines: (o.rules ? o.meta.spiceMounds ?? [] : []).map(([tx, ty]) => { const [x, y] = o.terrain.toWorld(tx, ty); return `    call EmpMoundAdd(${real(x)}, ${real(y)})`; }).join('\n'),
     mound, spiceField: o.units.ids.spiceField, spiceMound: o.units.ids.spiceMound, ART_ABILITY,
+    WC3_UNITS_PER_TILE, tiles: { sand: TERRAIN.ground[TEX.SAND], dust: TERRAIN.ground[TEX.DUST], spice: TERRAIN.ground[TEX.SPICE] },
     burstMin: mound.minTicks / TICKS_PER_SECOND, burstMax: (mound.minTicks + mound.randomTicks) / TICKS_PER_SECOND,
     regrowMin: mound.regrowMin / TICKS_PER_SECOND, regrowMax: mound.regrowMax / TICKS_PER_SECOND,
   }));

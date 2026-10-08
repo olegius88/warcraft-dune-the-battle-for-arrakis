@@ -2,8 +2,33 @@
 // to Cost ticks, or when it is destroyed, into a spice field of SpiceCapacity, and grows again on the
 // same spot after MinRange..MaxRange ticks. One timer per spot; EmpMoundTab[timer]: 0 the mound,
 // 1/2 x / y, 3 what is next (0 burst, 1 grow); EmpMoundTab[mound]: 0 its timer.
-// TODO(mounds): the bloom is one field (a WC3 mine) at the mound, not spice spread over BlastRadius
-// tiles: harvesters gather it from one spot. Risk: looks and plays more compact than in Emperor.
+// The bloom is one field (a WC3 mine) at the mound, as a map's contiguous spice patch is one field
+// (battle.ts spiceClusters); its BlastRadius patch is painted with the spice ground (EmpMoundPatch).
+// the bloom's patch ([SpiceMound] BlastRadius "Radius of spice bloom patch (in tiles)"): the sand
+// and dust cells within it take the spice ground, one cell at a time (Emperor has spice only on sand)
+function EmpMoundPatch takes real x, real y returns nothing
+    local integer dx
+    local integer dy = -{{mound.radiusTiles}}
+    local real cx
+    local real cy
+    loop
+        exitwhen dy > {{mound.radiusTiles}}
+        set dx = -{{mound.radiusTiles}}
+        loop
+            exitwhen dx > {{mound.radiusTiles}}
+            if dx * dx + dy * dy <= {{mound.radiusTiles}} * {{mound.radiusTiles}} then
+                set cx = x + dx * {{real WC3_UNITS_PER_TILE}}
+                set cy = y + dy * {{real WC3_UNITS_PER_TILE}}
+                if GetTerrainType(cx, cy) == '{{tiles.sand}}' or GetTerrainType(cx, cy) == '{{tiles.dust}}' then
+                    call SetTerrainType(cx, cy, '{{tiles.spice}}', -1, 1, 0)
+                endif
+            endif
+            set dx = dx + 1
+        endloop
+        set dy = dy + 1
+    endloop
+endfunction
+
 function EmpMoundTimer takes nothing returns nothing
     local timer tm = GetExpiredTimer()
     local integer h = GetHandleId(tm)
@@ -20,6 +45,7 @@ function EmpMoundTimer takes nothing returns nothing
         endif
         call RemoveSavedHandle(EmpMoundTab, h, 0)
         call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.spiceBloom.id}}', {{ART_ABILITY.spiceBloom.type}}, 0), x, y))
+        call EmpMoundPatch(x, y)
         set f = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '{{spiceField}}', x, y, {{FACING}})
         call SetResourceAmount(f, {{mound.capacity}})
         call SaveInteger(EmpMoundTab, h, 3, 1)

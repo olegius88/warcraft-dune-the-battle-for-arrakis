@@ -445,6 +445,11 @@ test('spice mounds burst into spice blooms and grow again', opts, () => {
   const m = buildMission({ scripts: [], meta, ...all, name: 'mounds', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.strictEqual((m.script.match(/call EmpMoundAdd\(/g) ?? []).length, 4, 'one per mound of the map');
   assert.ok(m.script.includes('function EmpMoundTimer') && m.script.includes('call SetResourceAmount(f, 50000)'), 'bloom of SpiceCapacity');
+  // the bloom was only a mine: the BlastRadius patch ('Radius of spice bloom patch (in tiles)') is
+  // now painted with the spice ground on the sand cells within 6 tiles (no spice on rock)
+  assert.ok(m.script.includes('function EmpMoundPatch') && m.script.includes("call SetTerrainType(cx, cy, 'Bdrt', -1, 1, 0)"), 'spice patch');
+  assert.ok(m.script.includes("GetTerrainType(cx, cy) == 'Bdsr'"), 'only on sand');
+  assert.ok(m.script.includes('exitwhen dy > 6'), 'BlastRadius');
 });
 
 // Sandstorms ([General] Storm*, [StormUnit], StormDamage of 174 objects) were missing.

@@ -11,7 +11,8 @@ import { ensureMap } from '../emperor/preview-map.ts';
 import { buildMission } from '../emperor/mission.ts';
 import { BUILD_DIR, RAW_DIR } from '../config/paths.ts';
 import { territoryMapPrefix } from '../config/story.ts';
-import { ART_ABILITY } from '../config/wc3.ts';
+import { ART_ABILITY, TERRAIN } from '../config/wc3.ts';
+import { TEX } from '../config/terrain.ts';
 import * as BATTLE from '../config/battle.ts';
 
 // node src/smoke/build-territory-probe.ts <territory> [script ...]: the scripts (phase 1, 2, ...) too
@@ -246,16 +247,64 @@ endfunction`,
     return "game s " + I2S(EmpTick / 25) + " mounds=" + I2S(mounds) + " fields=" + I2S(fields)
 endfunction
 
+// spice ground cells within 6 tiles of the mounds seen at the start (the bloom patch, EmpMoundPatch)
+function MoundProbeSpice takes real x, real y returns integer
+    local integer n = 0
+    local integer dx
+    local integer dy
+        set dy = -6
+        loop
+            exitwhen dy > 6
+            set dx = -6
+            loop
+                exitwhen dx > 6
+                if GetTerrainType(x + dx * 128.0, y + dy * 128.0) == '${TERRAIN.ground[TEX.SPICE]}' then
+                    set n = n + 1
+                endif
+                set dx = dx + 1
+            endloop
+            set dy = dy + 1
+        endloop
+    return n
+endfunction
+
 function MoundProbeRun takes nothing returns nothing
     local string a
+    local group g = CreateGroup()
+    local unit u
+    local real array mx
+    local real array my
+    local integer mn = 0
+    local integer i
+    local integer before = 0
+    local integer after = 0
     set EmpNormalConditions = false
     call TriggerSleepAction(5.0)
-    set a = MoundProbeCount()
+    call GroupEnumUnitsOfPlayer(g, Player(PLAYER_NEUTRAL_PASSIVE), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if GetUnitTypeId(u) == '${all.units.ids.spiceMound}' then
+            set mx[mn] = GetUnitX(u)
+            set my[mn] = GetUnitY(u)
+            set before = before + MoundProbeSpice(mx[mn], my[mn])
+            set mn = mn + 1
+        endif
+    endloop
+    call DestroyGroup(g)
+    set a = MoundProbeCount() + " spice cells=" + I2S(before)
     call TriggerSleepAction(65.0)
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(a)
-    call Preload(MoundProbeCount())
+    set i = 0
+    loop
+        exitwhen i >= mn
+        set after = after + MoundProbeSpice(mx[i], my[i])
+        set i = i + 1
+    endloop
+    call Preload(MoundProbeCount() + " spice cells=" + I2S(after))
     call PreloadGenEnd("DuneSmoke\\\\mounds.pld")
 endfunction`,
   } : {}),
