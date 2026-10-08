@@ -587,6 +587,10 @@ endfunction
 
 // a unit trained (a super weapon charge: ready to fire), building started / finished, research
 function EmpUiTrained takes nothing returns nothing
+    // a starport order is no unit yet: its frigate is announced (mission starport.j)
+    if HaveSavedInteger(EmpPortTab, GetUnitTypeId(GetTrainedUnit()), 3) then
+        return
+    endif
     if HaveSavedInteger(EmpSwTab, GetUnitTypeId(GetTrainedUnit()), 0) then
         call EmpUiSay({{UI.specWepReady}})
     else

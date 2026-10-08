@@ -276,7 +276,8 @@ test('palace super weapons: Rules.txt strike data, trained by the palace, fired 
 test('starports train the Starportable units of their house', opts, () => {
   const all = loadAll();
   const trains = (b: string): string[] => all.units.objects.find((o) => o.id === all.units.rawcode.get(b))?.mods.filter((m) => m.field === 'utra').map((m) => String(m.value)).at(-1)?.split(',') ?? [];
-  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  // a starport sells orders of the units (the frigate delivers them; mission starport.j)
+  const id = (n: string): string => [...all.units.portOrders].find(([, real]) => real === all.units.rawcode.get(n))?.[0] ?? `none:${n}`;
   const at = trains('ATStarport');
   for (const n of ['ATTrike', 'ATMinotaurus', 'ATOrni', 'Harvester', 'MCV', 'Carryall']) assert.ok(at.includes(id(n)), `ATStarport sells ${n}`);
   for (const n of ['HKDevastator', 'ORLaserTank', 'SMQuad', 'GUMaker']) assert.ok(!at.includes(id(n)), `ATStarport does not sell ${n}`);
@@ -474,7 +475,8 @@ test('starport prices change every StarportCostUpdateDelay ticks within Starport
   const m = buildMission({ scripts: [], meta, ...all, name: 'port', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes('GetRandomInt(60, 140)'), '±40 %');
   assert.match(m.script, /TimerStart\(CreateTimer\(\), 60\.0, true, function EmpPortPrices\)/, '1500 ticks = 60 s');
-  assert.ok(m.script.includes(`call SaveInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 1, `), 'base cost of a starport type');
+  const trikeOrder = [...all.units.portOrders].find(([, real]) => real === all.units.rawcode.get('ATTrike'))?.[0];
+  assert.ok(m.script.includes(`call SaveInteger(EmpPortTab, '${trikeOrder}', 1, `), 'base cost of a starport type (its order)');
   assert.ok(m.script.includes('EVENT_PLAYER_UNIT_TRAIN_START') && m.script.includes('function EmpPortTrain'), 'charged at purchase');
   // Regression (third audit): a cancelled purchase got the full stock price back from WC3 and kept
   // the starport's difference: below 100 % every buy-and-cancel made money. The difference goes back too.
@@ -483,6 +485,26 @@ test('starport prices change every StarportCostUpdateDelay ticks within Starport
   // settled a starport price for its own trike. Only starports settle, and the record goes with it.
   const fin = m.script.slice(m.script.indexOf('function EmpPortFinish'), m.script.indexOf('endfunction', m.script.indexOf('function EmpPortFinish')));
   assert.ok(fin.includes('LoadBoolean(EmpPortTab, GetUnitTypeId(b), 2)') && fin.includes('call RemoveSavedInteger(EmpPortTab, GetHandleId(b), t)'), 'starport only, record removed');
+});
+
+// The starport delivered after the unit's BuildTime; in Emperor a CHOAM frigate brings the order:
+// [General] FrigateCountdown = 2500 ('time for frigate to arrive'), StarportMaxDeliverySingle = 6. A
+// starport now sells orders (one per Starportable type, ready in a second); a finished order goes to
+// the starport's frigate, which lands after FrigateCountdown with up to 6 units. Found 2026-10-08.
+test('a starport sells orders that a frigate delivers after FrigateCountdown, up to 6 at a time', opts, () => {
+  const all = loadAll();
+  const trike = all.units.rawcode.get('ATTrike') as string;
+  const order = [...all.units.portOrders].find(([, real]) => real === trike)?.[0] as string;
+  assert.ok(order && order !== trike, 'an order type for the trike');
+  const trainsOf = (name: string): string[] => all.units.objects.find((o) => o.emperor?.name === name)?.mods.filter((x) => x.field === 'utra').map((x) => String(x.value)).at(-1)?.split(',') ?? [];
+  assert.ok(trainsOf('ATStarport').includes(order) && !trainsOf('ATStarport').includes(trike), 'the starport trains the order, not the unit');
+  assert.ok(trainsOf('ATFactory').includes(trike), 'the factory still builds trikes');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'frigate', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call SaveInteger(EmpPortTab, '${order}', 3, '${trike}')`), 'order -> unit');
+  assert.ok(m.script.includes('function EmpPortFrigate'), 'frigate');
+  assert.match(m.script, /TimerStart\(tm, 100\.0, false, function EmpPortFrigate\)/, '2500 ticks = 100 s');
+  assert.ok(m.script.includes('exitwhen k >= 6'), 'StarportMaxDeliverySingle');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

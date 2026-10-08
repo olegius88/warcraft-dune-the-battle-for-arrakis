@@ -77,6 +77,8 @@ export interface UnitData {
   icons: Record<string, Buffer>;
   /** converted Emperor models and their textures: archive path -> MDX / BLP (import once per campaign) */
   models: Record<string, Buffer>;
+  /** starport order type -> the unit a frigate delivers for it (mission starport.j) */
+  portOrders: Map<string, string>;
 }
 
 export interface CombatTable {
@@ -217,6 +219,11 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     real(F.scale, U.TERRITORY_MARKER_SCALE), real(F.selectionScale, U.TERRITORY_MARKER_SCALE), str(F.upgrades, ''), str(F.researches, '')], emperor: null });
 
   const houseOf = (o: RulesObject): string | null => (/^(AT|HK|OR)/.exec(o.name) || [])[1] || null;
+  // Starport orders: one type per Starportable unit, which a starport trains in PORT_ORDER_SECONDS
+  // (Emperor: no build time, a CHOAM frigate brings the order after FrigateCountdown; mission
+  // starport.j). The unit keeps its own type, cost and BuildTime at the factory.
+  const portable = all.filter((u) => u.category === 'Unit' && u.cost > 0 && /^true$/i.test((u.raw.Starportable ?? '').trim()));
+  const orderOf = new Map(portable.map((u) => [u.name, nextId(CUSTOM_ID.unitPrefix)]));
   const houseBuildings = (h: string): RulesObject[] => all.filter((b) => b.category === 'Building' && b.cost > 0 && houseOf(b) === h && /ConYard/.test(b.primaryBuilding.join(',')));
   const ownVariant = (list: string[], h: string): string => list.find((n) => n.startsWith(h)) || (list[0] as string);
 
@@ -247,14 +254,15 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       // Production: units whose PrimaryBuilding names this building.
       // (super weapon charges cost nothing: Cost 0, trained for their BuildTime)
       // A starport (Starport = TRUE) sells the Starportable types of its house and the houseless
-      // ones (Harvester, MCV, Carryall). Their prices change at run time (mission starport.j; the stock
-      // and the frigate delivery are TODO(starport) there).
+      // ones (Harvester, MCV, Carryall), as orders (portOrders) a frigate delivers; their prices change
+      // at run time (mission starport.j; the stock is TODO(starport) there).
       const sells = /^true$/i.test((o.raw.Starport ?? '').trim())
-        ? all.filter((u) => u.category === 'Unit' && u.cost > 0 && /^true$/i.test((u.raw.Starportable ?? '').trim()) && (u.house === o.house || (!u.house && !houseOf(u))))
+        ? portable.filter((u) => u.house === o.house || (!u.house && !houseOf(u)))
         : [];
       const trains = [...new Set([
-        ...all.filter((u) => u.category === 'Unit' && (u.cost > 0 || superweaponKind(u)) && u.primaryBuilding.includes(o.name)), ...sells,
-      ])].map((u) => rawcode.get(u.name));
+        ...all.filter((u) => u.category === 'Unit' && (u.cost > 0 || superweaponKind(u)) && u.primaryBuilding.includes(o.name)).map((u) => rawcode.get(u.name)),
+        ...sells.map((u) => orderOf.get(u.name)),
+      ])];
       obj.mods.push(str(F.trains, trains.join(',')));
       const abil: string[] = [];
       if (/Refinery/i.test(o.name)) abil.push(ABILITY.returnResources);
@@ -283,6 +291,18 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     }
     if (reqs.length) obj.mods.push(str(F.requires, reqs.join(',')));
   }
+  // the order types: the unit's look and requirements, its Rules.txt Cost, unarmed, PORT_ORDER_SECONDS
+  const portOrders = new Map<string, string>();
+  for (const u of portable) {
+    const real = objects.find((x) => x.emperor === u) as UnitObject;
+    const keep = [F.icon, F.model, F.scale, F.selectionScale, F.race, F.requires];
+    const kept = keep.map((f) => real.mods.filter((m) => m.field === f).at(-1)).filter((m): m is ObjectMod => Boolean(m));
+    const id = orderOf.get(u.name) as string;
+    portOrders.set(id, real.id);
+    objects.push({ base: real.base, id, emperor: null, mods: [...kept,
+      str(F.name, displayName(u.name) + U.PORT_ORDER_SUFFIX), int(F.goldCost, u.cost), int(F.lumberCost, 0), int(F.foodCost, 0),
+      int(F.buildTime, U.PORT_ORDER_SECONDS), int(F.attacksEnabled, 0), str(F.abilities, ''), str(F.upgrades, ''), str(F.researches, '')] });
+  }
   // Command card cells of the train / research buttons: without them a type keeps its stock base's
   // cell and types of the same base hide each other. Buildings with the most buttons first; each
   // button takes the first cell free in every building that shows it (test/emperor-mission.test.ts).
@@ -310,7 +330,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {},
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders,
     models: Object.fromEntries(Object.entries(models?.files ?? {})),
     w3u: writeObjects(objects.map(({ base, id, mods }) => ({ base, id, mods }))),
     w3a: writeObjects(abilities, true),

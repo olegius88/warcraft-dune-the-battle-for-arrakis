@@ -131,6 +131,8 @@ export const UI_EVENTS: ReadonlyArray<readonly [string, string, number]> = [
   ['incomingHawk', 'IncomingHawk', 5], ['incomingChaos', 'IncomingChaos', 5], ['bldgCaptured', 'BldgCaptured', 5],
   ['bldgStolen', 'BldgStolen', 5], ['wormSign', 'WormSign', 30], ['reinforceArr', 'ReinforceArr', 10],
   ['leechAttack', 'LeechAttack', 10], ['contAttack', 'ContAttack', 10], ['reinforceApp', 'ReinforceApp', 10],
+  // a starport order: E_Output_Pickup ATGenDelivery "There is a delivery, inbound." (mission starport.j)
+  ['delivery', 'GenDelivery', 5],
 ];
 /** Event name -> id for the JASS templates ({{UI.lowPower}}). */
 export const UI = Object.fromEntries(UI_EVENTS.map(([name], i) => [name, i + 1])) as Readonly<Record<string, number>>;
@@ -142,6 +144,11 @@ export const SP_TICK = 0.5;
 export const ORDER_CANCEL = 851976;
 /** Shown at a starport purchase with the price paid (mission starport.j). */
 export const PORT_PRICE_TEXT = 'Космопорт: цена ';
+/** Frigate delivery (mission starport.j): first hashtable child of the waiting types under a starport's
+ * handle; where the units appear, below the starport and spread sideways. */
+export const PORT_SLOT = 10;
+export const PORT_DELIVERY_OFFSET = 192;
+export const PORT_DELIVERY_SPREAD = 128;
 export const SP_REACH = 400;
 export const SP_TOUCH = 48;
 export const SP_CRUSH = 64;

@@ -281,8 +281,11 @@ function buildMission(p: MissionParams): BuiltMission {
     const id = p.units.rawcode.get(o.name);
     if (!id) continue;
     if (/^true$/i.test((o.raw.Starport ?? '').trim())) portLines.push(`    call SaveBoolean(EmpPortTab, '${id}', 2, true)`);
-    if (o.category === 'Unit' && o.cost > 0 && /^true$/i.test((o.raw.Starportable ?? '').trim())) {
-      portLines.push(`    call SaveInteger(EmpPortTab, '${id}', 0, ${portTypes})`, `    call SaveInteger(EmpPortTab, '${id}', 1, ${o.cost})`);
+    // a starport sells orders (src/emperor/units.ts portOrders): price data on the order, and the unit
+    // the frigate brings for it
+    const order = [...(p.units.portOrders ?? [])].find(([, real]) => real === id)?.[0];
+    if (order && o.category === 'Unit' && o.cost > 0) {
+      portLines.push(`    call SaveInteger(EmpPortTab, '${order}', 0, ${portTypes})`, `    call SaveInteger(EmpPortTab, '${order}', 1, ${o.cost})`, `    call SaveInteger(EmpPortTab, '${order}', 3, '${id}')`);
       portTypes++;
     }
   }
@@ -290,6 +293,9 @@ function buildMission(p: MissionParams): BuiltMission {
   const portScope = {
     portLines: portLines.join('\n'), portTypes, pctMin: 100 - portVariation, pctMax: 100 + portVariation,
     updateSeconds: (Number(p.rules?.general.StarportCostUpdateDelay ?? 0) || TICKS_PER_SECOND) / TICKS_PER_SECOND,
+    // [General] FrigateCountdown ('time for frigate to arrive', ticks), StarportMaxDeliverySingle
+    portFrigateSeconds: (Number(p.rules?.general.FrigateCountdown ?? 0) || TICKS_PER_SECOND) / TICKS_PER_SECOND,
+    portMaxDelivery: Number(p.rules?.general.StarportMaxDeliverySingle ?? 0) || 1,
     ORDER_CANCEL: RT.ORDER_CANCEL, PORT_PRICE_TEXT: RT.PORT_PRICE_TEXT,
   };
 

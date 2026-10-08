@@ -12,7 +12,6 @@ import { buildMission } from '../emperor/mission.ts';
 import { BUILD_DIR, RAW_DIR } from '../config/paths.ts';
 import { territoryMapPrefix } from '../config/story.ts';
 import { ART_ABILITY } from '../config/wc3.ts';
-import * as RT from '../config/runtime.ts';
 import * as BATTLE from '../config/battle.ts';
 
 // node src/smoke/build-territory-probe.ts <territory> [script ...]: the scripts (phase 1, 2, ...) too
@@ -22,6 +21,8 @@ const args = process.argv.slice(3);
 const names = args.filter((a) => !a.startsWith('--'));
 const flag = (f: string): boolean => args.includes(f);
 const all = loadAll();
+const trike = all.units.rawcode.get('ATTrike') as string;
+const trikeOrder = [...all.units.portOrders].find(([, real]) => real === trike)?.[0] as string;
 const meta = readMeta(path.join(ensureMap(territoryMapPrefix(n))[0] as string, 'test.xbf'));
 const scripts = names.map((s, i) => ({ tok: fs.readFileSync(path.join(RAW_DIR, `${s}.tok`)), phase: i + 1, name: s }));
 const m = buildMission({
@@ -73,36 +74,53 @@ const m = buildMission({
     call PreloadGenEnd("DuneSmoke\\\\storm.pld")
 endfunction`,
   } : {}),
-  // --port: a purchase at a starport pays the current price (Rules.txt Cost * EmpPortPct %)
+  // --port: a starport sells trike orders at the current price (Rules.txt Cost * EmpPortPct %); a
+  // frigate brings them after FrigateCountdown, StarportMaxDeliverySingle at a time
   ...(flag('--port') ? {
     extraStart: 'PortProbeRun',
-    extraFunctions: `function PortProbeRun takes nothing returns nothing
+    extraFunctions: `function PortProbeTrikes takes nothing returns integer
+    local group g = CreateGroup()
+    local integer n = 0
+    local unit u
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if GetUnitTypeId(u) == '${trike}' then
+            set n = n + 1
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return n
+endfunction
+
+function PortProbeRun takes nothing returns nothing
     local unit b
     local integer before
-    local integer started
-    local integer cancelled
-    local boolean ok
+    local integer k = 0
+    local string s
     set EmpNormalConditions = false
     call TriggerSleepAction(3.0)
     set b = CreateUnit(Player(0), '${all.units.rawcode.get('ATStarport')}', EmpEntrX[EmpEntranceFor(0)], EmpEntrY[EmpEntranceFor(0)], 270.0)
-    call SetPlayerTechMaxAllowed(Player(0), '${all.units.rawcode.get('ATTrike')}', -1)
+    call SetPlayerTechMaxAllowed(Player(0), '${trikeOrder}', -1)
     call SetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD, 10000)
     // a price away from 100 %, so that the difference shows
-    set EmpPortPct[LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 0)] = 70
-    set before = GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)
-    set ok = IssueImmediateOrderById(b, '${all.units.rawcode.get('ATTrike')}')
-    call TriggerSleepAction(1.0)
-    set started = GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)
-    // a second trike queued and cancelled: the gold must be as before it
-    call IssueImmediateOrderById(b, '${all.units.rawcode.get('ATTrike')}')
-    call TriggerSleepAction(0.5)
-    call IssueImmediateOrderById(b, ${RT.ORDER_CANCEL})
-    call TriggerSleepAction(0.5)
-    set cancelled = GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)
-    call TriggerSleepAction(20.0)
+    set EmpPortPct[LoadInteger(EmpPortTab, '${trikeOrder}', 0)] = 70
+    set before = PortProbeTrikes()
+    // seven orders: the first frigate brings six, one waits for the next
+    loop
+        exitwhen k >= 7
+        call IssueImmediateOrderById(b, '${trikeOrder}')
+        set k = k + 1
+    endloop
+    call TriggerSleepAction(30.0)
+    set s = "port trikes before=" + I2S(before) + " at 30 s=" + I2S(PortProbeTrikes()) + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1))
+    call TriggerSleepAction(80.0)
     call PreloadGenClear()
     call PreloadGenStart()
-    call Preload("port order=" + I2S(IntegerTertiaryOp(ok, 1, 0)) + " gold " + I2S(before) + " started " + I2S(started) + " queued+cancelled " + I2S(cancelled) + " out " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " trike pct=" + I2S(EmpPortPct[LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 0)]) + " cost=" + I2S(LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 1)))
+    call Preload(s + " | at 110 s=" + I2S(PortProbeTrikes()) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1)) + " pct=" + I2S(EmpPortPct[LoadInteger(EmpPortTab, '${trikeOrder}', 0)]) + " cost=" + I2S(LoadInteger(EmpPortTab, '${trikeOrder}', 1)))
     call PreloadGenEnd("DuneSmoke\\\\port.pld")
     set b = null
 endfunction`,

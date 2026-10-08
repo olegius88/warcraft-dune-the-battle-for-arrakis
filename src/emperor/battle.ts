@@ -133,6 +133,11 @@ function battleSetup(o: BattleOptions): BattleSetup {
     if (!x.emperor || x.emperor.techLevel <= 1) continue;
     (byLevel[x.emperor.techLevel] = byLevel[x.emperor.techLevel] || []).push(x.id);
   }
+  // starport orders wait for the tech level of their unit
+  for (const [order, real] of o.units.portOrders ?? []) {
+    const lvl = o.units.objects.find((x) => x.id === real)?.emperor?.techLevel ?? 1;
+    if (lvl > 1) (byLevel[lvl] = byLevel[lvl] || []).push(order);
+  }
   // building upgrades wait for their UpgradeTechLevel
   for (const u of o.units.upgrades) if (u.techLevel > 1) (byLevel[u.techLevel] = byLevel[u.techLevel] || []).push(u.id);
   fns.push(jass('tech-limits', {
