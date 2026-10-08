@@ -12,6 +12,10 @@
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
 
 ### Changed
+- 2026-10-08 Критические нужды строителя проверяются и на каждом тике, как в `Game.exe` 0x430e30
+  ([ai.j](src/jass/battle/ai.j) `EmpAiCriticalTick`): после первого хода, при деньгах ≥
+  MinMoneyToConstructBuildings и rand%1000 < навык барраки ставятся сразу. Пробник `--critical`:
+  через 5 тиков после сноса.
 - 2026-10-08 Особые юниты ИИ по `Game.exe` 0x465473 ([forces.j](src/jass/battle/forces.j)
   `EmpAiSpecialTurn`, `AI_SPECIAL_UNIT`, Rules.txt `AiSpecial` в [rules.ts](src/emperor/rules.ts)).
   Девастатор, ракетный танк, Минотавр и Кобра больше не строятся как обычные юниты (0x43a5bf). Их

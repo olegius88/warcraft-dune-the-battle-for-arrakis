@@ -1243,6 +1243,11 @@ test('the campaign enemy gets the personality, strength and skill of its phase (
   const crit = body('EmpAiCriticalBarracks');
   assert.ok(crit.includes('if EmpAiStrength == 0 or EmpAiSkill < 4 then') && crit.includes('if EmpTick <= m * 1500 or GetRandomInt(0, 99) >= EmpAiSkill then'), 'barracks roll');
   assert.ok(body('EmpAiBuild').includes('set t = EmpAiCriticalBarracks()'), 'asked by the builder');
+  // and every builder update (0x430e30: a tick, its state not 0, credits over MinMoneyToConstructBuildings,
+  // rand % 1000 < skill: 0x42f570, the [StartScript] too)
+  const tick = body('EmpAiCriticalTick');
+  assert.ok(tick.includes('EmpAiStartState == 0') && tick.includes('GetRandomInt(0, 999) >= EmpAiSkill') && tick.includes('set t = EmpAiCriticalBarracks()') && tick.includes('call EmpAiStart(t, EmpAiX, EmpAiY)'), 'per update');
+  assert.ok(body('EmpAiHarvTick').includes('call EmpAiCriticalTick()'), 'run each tick');
   assert.ok(t.includes('set EmpAiStrength = strength'), 'strength kept');
   // Game.exe 0x45a8f9: a harvester hit within 16 ticks rolls rand % 10 < skill every AI update (a
   // tick); past FirstCampaignGameTechLevel + 1 (else rand % 100 == 0), with a refinery, it goes to a

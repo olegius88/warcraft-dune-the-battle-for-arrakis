@@ -976,8 +976,27 @@ function EmpAiHarvHurt takes nothing returns nothing
     endif
 endfunction
 
+// Game.exe 1.09 0x430e30, the builder's update every tick: past its first turn, with the credits
+// (0x439890: MinMoneyToConstructBuildings) and no building on its way, on rand % 1000 < skill it asks
+// its critical needs (0x42f570 -> 0x42d6e0: barracks) and builds the one it finds at once
+function EmpAiCriticalTick takes nothing returns nothing
+    local integer t
+    if EmpAiStartState == 0 or EmpAiPending > 0 or EmpEnemyGold() < {{ai.minMoneyToBuild}} or GetRandomInt(0, {{C.AI_CRITICAL_TICK.rollMax}}) >= EmpAiSkill then
+        return
+    endif
+    if not EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
+        return
+    endif
+    set t = EmpAiCriticalBarracks()
+    if t == 0 or EmpEnemyGold() < LoadInteger(EmpCostTab, t, 0) or not EmpAiPlace(t) then
+        return
+    endif
+    call EmpAiLog("start " + GetObjectName(t) + " (critical, update)")
+    call EmpAiStart(t, EmpAiX, EmpAiY)
+endfunction
+
 // Game.exe 1.09 0x45a8f9, every tick (src/config/battle.ts AI_HARV_FLIGHT): the harvester hit lately
-// runs to a random reachable spot near its base
+// runs to a random reachable spot near its base; the builder's update (EmpAiCriticalTick) too
 function EmpAiHarvTick takes nothing returns nothing
     local group g
     local unit u
@@ -987,6 +1006,7 @@ function EmpAiHarvTick takes nothing returns nothing
     local real x
     local real y
     local integer i = 0
+    call EmpAiCriticalTick()
     if EmpAiHarvHit == null then
         return
     endif

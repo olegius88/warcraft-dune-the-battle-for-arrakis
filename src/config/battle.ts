@@ -204,6 +204,8 @@ export const AI_CRITICAL_BARRACKS = { early: 2, late: 6, skillUnder: 4, roll: 10
  * refinery (0x44cc40), goes to FindRandomReachableTileWithinRange (0x46b770) of its base point within
  * rand % 120 + 8 tiles; then it harvests the nearest spice again (economy.j). `tries`: tiles tried. */
 export const AI_HARV_FLIGHT = { window: 16, rollMax: 1 * 10 - 1, luckyMax: 99, rangeRandMax: 119, rangeMin: 8, tries: 20 } as const;
+/** Game.exe 1.09 0x430e30: the builder update asks its critical needs on rand % 1000 < skill (0x46c5d0 n 100). */
+export const AI_CRITICAL_TICK = { rollMax: 100 * 10 - 1 } as const;
 export const AI_MAINTAIN_RATIO = { roll: 7, rollMax: 7 * 10 - 1, gold: 1100 } as const;
 /** EmpAiTab child: the type has Rules.txt AiManufacturing (counted by the losing test). */
 export const AI_TAB_MANUFACTURING = 6;

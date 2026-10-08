@@ -35,8 +35,9 @@
 // maintenance one, the critical barracks (0x42db67, ai.j EmpAiCriticalBarracks, asked in every
 // builder turn like 0x42f07d does), the harvester flight (0x45a91b, ai.j EmpAiHarvTick,
 // AI_HARV_FLIGHT; probe --harvflee) and the special units (0x465500, forces.j EmpAiSpecialTurn,
-// AI_SPECIAL_UNIT; probe --special) are reproduced, the builder update's own critical check (0x430e30:
-// rand % 1000 < skill each update, in the [StartScript] too) not; nor those that need what the port
+// AI_SPECIAL_UNIT; probe --special) are reproduced, and the builder update's own critical check
+// (0x430e30: rand % 1000 < skill every tick, ai.j EmpAiCriticalTick; probe --critical); not those that
+// need what the port
 // has not: 0x44e680 (a pro-active target is the best scored one, the score threshold +- rand 10 unless
 // rand % 10 < skill; the waves here go for the player's base, no target scores), 0x4582a0 (a scout
 // team re-picks one of 5 scout points on rand % 20 < skill; scouts roam here), 0x4304c0 (past tech

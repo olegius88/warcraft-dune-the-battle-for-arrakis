@@ -480,7 +480,7 @@ function CriticalProbeRun takes nothing returns nothing
     call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 20000)
     // the [StartScript] builds barracks (step 4): destroyed again once it is past them
     loop
-        exitwhen EmpTick > 4000
+        exitwhen EmpTick > 4900
         call TriggerSleepAction(1.0)
     endloop
     call GroupEnumUnitsOfPlayer(g, Player(1), Condition(function CriticalProbeKill))
