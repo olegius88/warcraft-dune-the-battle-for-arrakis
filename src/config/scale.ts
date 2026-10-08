@@ -38,8 +38,9 @@ export const SIGHT_NIGHT_PER_TILE = 96;
 export const MIN_ATTACK_COOLDOWN = 0.2;
 /** BuildTime used when Rules.txt gives none (ticks). */
 export const DEFAULT_BUILD_TICKS = 25;
-/** WC3 defence of buildings (units get 0). */
-export const BUILDING_DEFENSE = 2;
+/** WC3 armour points of buildings (units get 0). Emperor has none, its armour is the class the warhead
+ * percentages act on (mission damage.j); 2 here took another 10.7 % off every hit. */
+export const BUILDING_DEFENSE = 0;
 
 /** Emperor value -> WC3 move speed (also for veterancy Speed). */
 export const moveSpeed = (emperorSpeed: number): number => Math.min(MAX_MOVE_SPEED, Math.max(MIN_MOVE_SPEED, emperorSpeed * SPEED_FACTOR));

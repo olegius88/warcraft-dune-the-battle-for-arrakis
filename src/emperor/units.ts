@@ -1,6 +1,6 @@
 // Emperor units/buildings (rules.ts) -> Warcraft III custom object data (war3map.w3u) on stock WC3
 // base objects, with Emperor's own models (src/emperor/models.ts) and icons (icons.ts) when given,
-// plus the combat table (war3mapMisc.txt DamageBonus*) derived from Emperor warheads.
+// plus a neutral combat table (war3mapMisc.txt DamageBonus*): the warheads act at run time (damage.j).
 //
 // Scaling (Emperor -> WC3): HP /2, bullet damage /2, reload ticks /25 = seconds, range tiles *128,
 // speed (game coords per tick) *40, view range tiles *128, build time ticks /25 = seconds.
@@ -9,7 +9,7 @@
 
 import { writeObjects, idAllocator } from '../wc3/objects.ts';
 import type { ObjectDef, ObjectMod } from '../wc3/objects.ts';
-import type { Rules, RulesObject, Warhead } from './rules.ts';
+import type { Rules, RulesObject, Turret } from './rules.ts';
 import type { IconSet } from './icons.ts';
 import type { ModelSet } from './models.ts';
 import { HOUSE_CODES, HOUSE_BY_CODE, HOUSE_RACE } from '../config/houses.ts';
@@ -102,42 +102,24 @@ export interface VetRangeType {
 }
 
 export interface CombatTable {
-  /** warhead name -> WC3 attack type */
-  attackOf: Map<string, string>;
   misc: string;
 }
 
-function warheadVector(w: Warhead): number[] {
-  // average Emperor percentages per WC3 armour class
-  const sums: Record<string, number[]> = Object.fromEntries(U.WC3_ARMOUR_ORDER.map((a) => [a, [] as number[]]));
-  for (const [em, wc] of Object.entries(U.ARMOUR_MAP)) { const v = w.vs[em]; if (v != null && wc) sums[wc].push(v); }
-  return U.WC3_ARMOUR_ORDER.map((a) => (sums[a].length ? sums[a].reduce((x, y) => x + y, 0) / sums[a].length : U.DEFAULT_DAMAGE_PERCENT) / 100);
+/** war3mapMisc.txt: a neutral DamageBonus table (config WC3_ATTACK_TYPES); the warheads act at run
+ * time through each type's weapon (weaponOf, mission.ts EmpDmgTab, damage.j). */
+function combatTable(): CombatTable {
+  const misc = ['[Misc]'];
+  for (const type of U.WC3_ATTACK_TYPES) {
+    const key = (type[0] as string).toUpperCase() + type.slice(1);
+    misc.push(`DamageBonus${key}=${U.WC3_ARMOUR_ORDER.map(() => U.NEUTRAL_DAMAGE_BONUS.toFixed(2)).join(',')}`);
+  }
+  return { misc: misc.join('\r\n') + '\r\n' };
 }
 
-/** k-means (k = 5) of warhead vectors -> WC3 attack type per warhead + DamageBonus table rows. */
-function combatTable(warheads: Map<string, Warhead>): CombatTable {
-  const names = [...warheads.keys()].sort();
-  const vecs = names.map((n) => warheadVector(warheads.get(n) as Warhead));
-  const k = Math.min(U.WC3_ATTACK_TYPES.length, vecs.length);
-  let cent = vecs.slice(0, k).map((v) => v.slice());
-  // deterministic init: spread by index
-  cent = Array.from({ length: k }, (_, i) => vecs[Math.floor((i * vecs.length) / k)].slice());
-  let assign: number[] = Array.from({ length: vecs.length }, () => 0);
-  for (let it = 0; it < U.COMBAT_KMEANS_ITERATIONS; it++) {
-    assign = vecs.map((v) => cent.map((c) => c.reduce((s, x, j) => s + (x - v[j]) ** 2, 0)).reduce((bi, d, i, a) => (d < a[bi] ? i : bi), 0));
-    cent = cent.map((c, i) => {
-      const mem = vecs.filter((_, j) => assign[j] === i);
-      return mem.length ? c.map((_, j) => mem.reduce((s, v) => s + v[j], 0) / mem.length) : c;
-    });
-  }
-  const attackOf = new Map(names.map((n, i): [string, string] => [n, U.WC3_ATTACK_TYPES[assign[i]] as string]));
-  const misc = ['[Misc]'];
-  cent.forEach((c, i) => {
-    const type = U.WC3_ATTACK_TYPES[i] as string;
-    const key = (type[0] as string).toUpperCase() + type.slice(1);
-    misc.push(`DamageBonus${key}=${c.map((x) => x.toFixed(2)).join(',')}`);
-  });
-  return { attackOf, misc: misc.join('\r\n') + '\r\n' };
+/** The weapon of an Emperor object in WC3: its first turret whose bullet does damage (WC3 units here
+ * have one attack). */
+function weaponOf(o: RulesObject): Turret | undefined {
+  return o.turrets.find((t) => t.bullet && t.bullet.damage > 0);
 }
 
 const str = (field: string, value: string | number | undefined): ObjectMod => ({ field, type: 'string', value: String(value) });
@@ -165,9 +147,7 @@ function effectsOf(rules: Rules, rawcode: Map<string, string>, effects?: { use: 
 
 function buildUnitData(rules: Rules, displayName: (name: string) => string = (n) => n, icons?: IconSet, models?: ModelSet, effects?: { use: EffectUse; set: EffectSet }): UnitData {
   const nextId = idAllocator();
-  const warheads = new Map<string, Warhead>();
-  for (const o of rules.objects.values()) for (const t of o.turrets) if (t.bullet && t.bullet.warhead) warheads.set(t.bullet.warhead.name, t.bullet.warhead);
-  const combat = combatTable(warheads);
+  const combat = combatTable();
 
   const rawcode = new Map<string, string>(); // Emperor name -> WC3 id
   const objects: UnitObject[] = [];
@@ -217,14 +197,14 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     // Emperor's own model (src/emperor/models.ts)
     const model = models?.model.get(o.name);
     if (model) mods.push(str(F.model, model));
-    const weapon = o.turrets.find((t) => t.bullet && t.bullet.damage > 0);
+    const weapon = weaponOf(o);
     if (weapon && weapon.bullet) {
       const b = weapon.bullet;
       mods.push(int(F.attacksEnabled, 1));
       mods.push(int(F.damageBase, Math.max(1, b.damage / S.DAMAGE_DIVISOR)), int(F.damageDice, 1), int(F.damageSides, 1));
       mods.push(int(F.range, Math.max(1, b.range) * S.RANGE_PER_TILE), unreal(F.acquireRange, Math.max(b.range, o.viewRange) * S.RANGE_PER_TILE));
       mods.push(unreal(F.cooldown, Math.max(S.MIN_ATTACK_COOLDOWN, weapon.reload / S.TICKS_PER_SECOND)));
-      mods.push(str(F.attackType, (b.warhead && combat.attackOf.get(b.warhead.name)) || U.DEFAULT_ATTACK_TYPE));
+      mods.push(str(F.attackType, U.DEFAULT_ATTACK_TYPE));
       mods.push(str(F.targets, b.antiAircraft ? U.TARGETS_AIR : U.TARGETS_GROUND));
     } else if (!charge && (o.category !== 'Building' || /Wall/i.test(o.name))) {
       mods.push(int(F.attacksEnabled, 0));
@@ -422,4 +402,4 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   };
 }
 
-export { buildUnitData, combatTable };
+export { buildUnitData, combatTable, weaponOf };

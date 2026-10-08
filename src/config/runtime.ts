@@ -140,6 +140,11 @@ export const SW_ARMOUR_KEY = 20;
 export const SW_STRIKE_PCT_KEY = 30;
 export const SW_FALLOUT_PCT_KEY = 60;
 export const SW_DEFAULT_PCT = 100;
+/** Attack damage by warhead (mission damage.j EmpDmgHit, data mission.ts): EmpDmgTab children of a
+ * type's armour index (same armour list as the super weapons) and of its weapon's percentage per armour
+ * (key + index); an attacker or target without them hits unchanged. */
+export const DMG_ARMOUR_KEY = 1;
+export const DMG_PCT_KEY = 10;
 
 /** Buildings whose loss is not announced: the name after the house prefix (Game.exe 1.09 0x4f9c69,
  * strings 0x60f93c / 0x60f944). */

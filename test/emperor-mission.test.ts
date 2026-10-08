@@ -13,6 +13,7 @@ import { loadCampaign, defendVariant } from '../src/emperor/campaign-data.ts';
 import { superweapons } from '../src/emperor/superweapons.ts';
 import { specialAbilities } from '../src/emperor/specials.ts';
 import { UI_EVENTS } from '../src/config/runtime.ts';
+import * as RT from '../src/config/runtime.ts';
 import modelModule from 'mdx-m3-viewer/dist/cjs/parsers/mdlx/model.js';
 
 const MdlxModel = modelModule.default;
@@ -1375,4 +1376,31 @@ test('the AI runs the map\'s own base of side 1 in story missions, with ai_<hous
   assert.ok(m.script.includes('if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] + 100 then'), 'story mission cap');
   const battle = buildMission({ scripts: [], meta: readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf')), ...all, name: 't9', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(battle.script.includes('if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] then'), 'territory battle cap');
+});
+
+// Regression (contest map, 2026-10-09, build-contest.ts --deathlog): the Atreides construction yard of
+// the start mission died 9 s in to six Harkonnen light infantry. Its LMG_W hits Building / CY at 5 % in
+// Rules.txt, but the WC3 combat table averaged Concrete 100 / Walls 20 / Building 5 / CY 5 into the one
+// "fort" class (no object even has Concrete or Walls armour) and k-means folded LMG_W with HMG_W and
+// Howitzer_W: 44 %. Not caught before: nothing compared the table with Rules.txt. Guaranteed now: the
+// WC3 table is neutral and every attack is scaled at run time by the attacker's warhead percentage for
+// the target's armour (damage.j EmpDmgHit), buildings have no WC3 armour points.
+test('attacks hit by the Rules.txt warhead percentage of the target armour', opts, () => {
+  const all = loadAll();
+  for (const row of all.units.misc.split(/\r?\n/).filter((l) => l.startsWith('DamageBonus'))) {
+    assert.ok(row.split('=')[1]?.split(',').every((x) => x === '1.00'), `neutral WC3 table: ${row}`);
+  }
+  const fieldOf = (name: string, field: string) => all.units.objects.find((o) => o.id === all.units.rawcode.get(name))?.mods.filter((m) => m.field === field).map((m) => String(m.value)).at(-1) ?? '';
+  assert.strictEqual(fieldOf('ATConYard', 'udef'), '0', 'no WC3 armour points');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'dmg', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const armours = [...new Set([...all.rules.armourTypes, 'Earplugs'])];
+  const cy = armours.indexOf('CY') + 1, light = armours.indexOf('Light') + 1;
+  const inf = all.units.rawcode.get('HKLightInf');
+  assert.ok(m.script.includes(`call SaveInteger(EmpDmgTab, '${all.units.rawcode.get('ATConYard')}', ${RT.DMG_ARMOUR_KEY}, ${cy})`), 'armour of the yard');
+  assert.ok(m.script.includes(`call SaveInteger(EmpDmgTab, '${inf}', ${RT.DMG_PCT_KEY + cy}, 5)`), 'LMG_W vs CY 5 %');
+  assert.ok(m.script.includes(`call SaveInteger(EmpDmgTab, '${inf}', ${RT.DMG_PCT_KEY + light}, 70)`), 'LMG_W vs Light 70 %');
+  const hit = m.script.slice(m.script.indexOf('function EmpDmgHit takes'), m.script.indexOf('endfunction', m.script.indexOf('function EmpDmgHit takes')));
+  assert.ok(hit.includes('BlzSetEventDamage(') && hit.includes('DAMAGE_TYPE_NORMAL'), 'attack damage scaled');
+  assert.ok(m.script.includes('EVENT_PLAYER_UNIT_DAMAGING') && m.script.includes('call EmpDmgInit()'), 'registered at the start');
 });

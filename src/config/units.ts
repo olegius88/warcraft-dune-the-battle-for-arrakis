@@ -13,14 +13,13 @@ export const ARMOUR_MAP: Readonly<Partial<Record<string, string>>> = {
 export const DEFAULT_DEFENSE_TYPE = 'normal';
 /** WC3 defense types in war3mapMisc.txt DamageBonus column order. */
 export const WC3_ARMOUR_ORDER: readonly string[] = ['small', 'medium', 'large', 'fort', 'normal', 'hero', 'divine', 'none'];
-/** WC3 attack types the Emperor warheads are clustered into: only types without side effects
- * (magic/spells interact with spell immunity). k-means k = this length. */
-export const WC3_ATTACK_TYPES: readonly string[] = ['normal', 'pierce', 'siege', 'chaos', 'hero'];
+/** war3mapMisc.txt DamageBonus rows (every WC3 attack type). The table is neutral (NEUTRAL_DAMAGE_BONUS
+ * everywhere): eight WC3 defense types cannot hold Emperor's eleven armours and eighteen warheads (an
+ * averaged, clustered table gave LMG_W 44 % against buildings instead of 5 %), so the Rules.txt
+ * percentages are applied at run time (mission damage.j EmpDmgHit). */
+export const WC3_ATTACK_TYPES: readonly string[] = ['normal', 'pierce', 'siege', 'magic', 'chaos', 'spells', 'hero'];
+export const NEUTRAL_DAMAGE_BONUS = 1;
 export const DEFAULT_ATTACK_TYPE = 'normal';
-/** k-means iterations of the warhead clustering. */
-export const COMBAT_KMEANS_ITERATIONS = 50;
-/** Damage % used for an armour class a warhead says nothing about. */
-export const DEFAULT_DAMAGE_PERCENT = 100;
 
 /** Weapon targets: anti-aircraft weapons hit air only. */
 export const TARGETS_AIR = 'air';

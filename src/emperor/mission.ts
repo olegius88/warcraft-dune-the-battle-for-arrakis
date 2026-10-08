@@ -20,6 +20,7 @@ import type { MapMeta, GamePoint } from './mapxbf.ts';
 import type { TokenTable } from './tok.ts';
 import type { MissionContext } from './context.ts';
 import type { UnitData } from './units.ts';
+import { weaponOf } from './units.ts';
 import type { Rules } from './rules.ts';
 import { superweapons } from './superweapons.ts';
 import { specialAbilities } from './specials.ts';
@@ -311,6 +312,17 @@ function buildMission(p: MissionParams): BuiltMission {
     const pct = new Map(s.entries.map(([k, v]) => [k, parseFloat(v.split('//')[0] ?? '')]));
     return armours.map((a, i) => `    call SaveInteger(EmpSwTab, '${id}', ${base + i + 1}, ${Number.isFinite(pct.get(a)) ? pct.get(a) : RT.SW_DEFAULT_PCT})`);
   };
+  // attack damage by warhead (damage.j): every type's armour index, every armed type's weapon
+  // (units.ts weaponOf) percentages per armour
+  const dmgLines: string[] = [];
+  for (const o of p.rules ? p.rules.objects.values() : []) {
+    const id = p.units.rawcode.get(o.name);
+    if (!id) continue;
+    const k = armours.indexOf(o.armour);
+    if (k >= 0) dmgLines.push(`    call SaveInteger(EmpDmgTab, '${id}', ${RT.DMG_ARMOUR_KEY}, ${k + 1})`);
+    const warhead = weaponOf(o)?.bullet?.warhead?.name;
+    if (warhead) dmgLines.push(...pctLines(id, RT.DMG_PCT_KEY, warhead).map((l) => l.replace('EmpSwTab', 'EmpDmgTab')));
+  }
   const sws = p.rules ? superweapons(p.rules) : [];
   if (sws.length) {
     for (const o of p.rules ? p.rules.objects.values() : []) {
@@ -467,7 +479,7 @@ function buildMission(p: MissionParams): BuiltMission {
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -487,6 +499,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('reinforcements'),
     jass('stealth'),
     jass('superweapon'),
+    jass('damage'),
     jass('subhouse'),
     jass('specials'),
     jass('starport'),

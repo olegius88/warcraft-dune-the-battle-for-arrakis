@@ -11,6 +11,7 @@ function EmpStart takes nothing returns nothing
     call EmpPlaced()
     call EmpVetData()
     call EmpSwInit()
+    call EmpDmgInit()
     call EmpSubhouseLimits()
     call EmpSpInit()
     call EmpUiInit()

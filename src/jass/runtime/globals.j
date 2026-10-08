@@ -44,6 +44,8 @@
     integer EmpTmpCount = 0
     integer EmpTmpType = 0
     boolean EmpTmpLose = false
+    // attack damage by warhead (mission damage.j)
+    hashtable EmpDmgTab = null
     // palace super weapons (helpers.j EmpSwStrike; data from mission superweapon.j)
     hashtable EmpSwTab = null
     group EmpSwFleeGroup = null
