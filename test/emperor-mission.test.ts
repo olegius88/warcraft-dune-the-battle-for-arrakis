@@ -800,6 +800,18 @@ test('a lost wall or factory frigate is not announced (Game.exe)', opts, () => {
   assert.ok(!m.script.includes('TODO(ui)'), 'TODO closed');
 });
 
+// The Guild's alliance was a TODO(subhouse): nothing grants it. In Emperor the Guild is the campaign's
+// final enemy (ATEndmissionWin) and Game.exe's campaign screen has no allyGain message for it, so its
+// GUPalace stays locked in every campaign mission.
+test('the Guild is never a campaign ally: GUPalace stays locked', opts, () => {
+  const all = loadAll();
+  assert.match(all.ctx.textByKey('ATEndmissionWin') ?? '', /Гильди|Guild/);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'guild', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`if not (false) then\n            call SetPlayerTechMaxAllowed(Player(i), '${all.units.rawcode.get('GUPalace')}', 0)`), 'GUPalace locked');
+  assert.ok(!m.script.includes('TODO(subhouse)'));
+});
+
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
 // lines its scripts use and Message() queues them (one at a time, by known duration).
 test('mission messages play the original speech', opts, () => {

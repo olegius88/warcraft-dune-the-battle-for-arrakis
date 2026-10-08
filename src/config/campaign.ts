@@ -27,9 +27,11 @@ export const KIND_ID: Readonly<Record<MissionKind, number>> = { attack: 0, defen
  * Emperor: Battle for Dune). (The tag in a script's name is not the alliance: ATP3M5TL is fought
  * against the Tleilaxu.)
  * "<H>allybreak<n>" ends one (ALLYBREAK_KEY).
- * TODO(subhouse): no script plays allygain5 / allybreak5 (the Guild: E_Output_Pickup has only the
- * debrief lines ATallydebriefgain5 / break5), so GUPalace stays locked; what grants the Guild's
- * alliance in Emperor is not in the data. Risk: the Guild building is never available. */
+ * The Guild is never an ally in the campaign: no script plays allygain5 / allybreak5, the campaign
+ * screen of Game.exe 1.09 (0x483012..0x48316b) names allyGain / allybreak messages only for the
+ * slots of the four sub-houses above, and the Guild is the final enemy ("The Guild and the Tleilaxu
+ * are fallen", ATEndmissionWin). So GUPalace stays locked in the campaign, as in Emperor; it is a
+ * skirmish building. */
 export const SUBHOUSE_TAGS: Readonly<Record<string, { building: string; rival?: string }>> = {
   FR: { building: 'FRCamp' },
   SA: { building: 'IMBarracks' },
