@@ -33,8 +33,13 @@
 // which sub-house buildings an enemy house may build in Emperor's campaign is not traced;
 // builder state 3, Game.exe's defence plan (0x430c90 / 0x42e5d0: with AiBuildsDefences and a tech
 // level over FirstCampaignGameTechLevel + 1, turrets and walls at a building cluster's defence points,
-// walls given up after 10 minutes, "AI has been building walls for %d minutes so aborting"), stands in
-// as turrets by ratio with a wall row each (ai.j EmpAiWalls); of the 17 skill rolls (0x46c5d0) the
+// walls given up after 10 minutes, "AI has been building walls for %d minutes so aborting"; entered
+// (0x430c90) also with 22 units, no critical need, the plan not done (0x429210) and 600 credits over
+// the reserve; the plan (cluster +0x20, 0x429230) is a list of (tile, turret 0x43c140 or wall 0x43c1c0
+// by 0x436780) along the contour the AI map traces round the cluster box grown 5 tiles, gaps of 1..3
+// closed (0x435d50: 0x435b70, 0x436410 -> 0x436570, 0x435dc0 steps; the tracing is not ported), taken
+// in order where placeable (0x429380)), stands in as turrets by ratio with a wall row each (ai.j
+// EmpAiWalls); of the 17 skill rolls (0x46c5d0) the
 // maintenance one, the critical barracks (0x42db67, ai.j EmpAiCriticalBarracks, asked in every
 // builder turn like 0x42f07d does), the harvester flight (0x45a91b, ai.j EmpAiHarvTick,
 // AI_HARV_FLIGHT; probe --harvflee) and the special units (0x465500, forces.j EmpAiSpecialTurn,
