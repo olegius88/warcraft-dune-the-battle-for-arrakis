@@ -156,6 +156,10 @@ endfunction
 // TODO(ai): the template is only its construction yard: destroyed map buildings come back by the
 // base builder's ratios (ai.j), not at their map places; whether Emperor rebuilds them in place is
 // not in the data. Risk: a story base may grow differently from the original.
+// TODO(ai): the units the map places for side 1 are the AI's like any other: they fill MaxAiUnits (no
+// production until they fall) and go with its waves (#A1 in 1.31.1: 68 of 74 sent at 140 s, once it
+// sees into the shroud). Whether Emperor's attack tactic takes map-placed guards is not in the data.
+// Risk: these missions may be much harder than the original early on.
 function EmpStoryAiStart takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
