@@ -62,6 +62,20 @@ endfunction
 function EmpYardTick takes nothing returns nothing
     local group g = CreateGroup()
     local unit b
+    local boolean builders = false
+    // Regression (third audit): builders came once per yard; when they all died (storm, worm, a
+    // battle) the player could not build again. With none left every yard gives them again.
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set b = FirstOfGroup(g)
+        exitwhen b == null or builders
+        call GroupRemoveUnit(g, b)
+        set builders = EmpAlive(b) and ({{isBuilder}})
+    endloop
+    if not builders then
+        call GroupClear(EmpYardsServed)
+    endif
+    call GroupClear(g)
     call GroupEnumUnitsOfPlayer(g, Player(0), null)
     loop
         set b = FirstOfGroup(g)

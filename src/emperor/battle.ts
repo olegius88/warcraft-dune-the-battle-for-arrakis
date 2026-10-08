@@ -164,6 +164,7 @@ function battleSetup(o: BattleOptions): BattleSetup {
         endif\n    endif`).join('\n'),
     isRefinery: refineries.map((r) => `t == '${r}'`).join(' or '),
     isConYard: conYards.map((c) => `GetUnitTypeId(b) == '${c}'`).join(' or '),
+    isBuilder: PREFIXES.flatMap((h) => [o.units.ids.builders[h], o.units.ids.defenceBuilders[h], o.units.ids.allyBuilders[h]]).map((id) => `GetUnitTypeId(b) == '${id}'`).join(' or '),
   }));
 
   // ---- power (Rules.txt; TODO(power) in src/jass/battle/power.j) ----

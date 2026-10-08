@@ -394,6 +394,9 @@ test('every construction yard of the player gets its builders, also those made w
   assert.ok(m.script.includes('function EmpYardTick') && /TimerStart\(CreateTimer\(\), [\d.]+, true, function EmpYardTick\)/.test(m.script), 'periodic yard check');
   const done = m.script.slice(m.script.indexOf('function EmpOnBuildingDone'), m.script.indexOf('endfunction', m.script.indexOf('function EmpOnBuildingDone')));
   assert.ok(done.includes('call EmpGiveBuilders(b)'), 'built yards too, once');
+  // Regression (third audit): builders came once per yard; when they died (storm, worm) the player could
+  // not build again. A yard gives them again while the player has none.
+  assert.ok(m.script.includes('call GroupClear(EmpYardsServed)'), 'builders again when all are gone');
 });
 
 // In-game announcements were missing or invented ("Ментат: Недостаточно энергии! Турели отключены…"):
