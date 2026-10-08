@@ -18,20 +18,26 @@
 // The builder's phases follow Game.exe 1.09 (0x42ef30, ai.j EmpAiBuild): by ratio every BuildingDelay
 // until NumBuildings buildings but walls, then maintenance every MaintenanceDelay (a coin flip, the
 // category short of its share by over AI_MAINTAIN_SHORT). In its maintenance state Game.exe builds by
-// ratio instead when rand % 70 < the AI skill (0x42f3d0); the skill starts at -1 (0x4310aa) and only a
-// personality sets it, so a campaign AI without SideAIBehaviourAggressive / Defensive never does.
+// ratio instead when rand % 70 < the AI skill with the credits (0x42f3d0, AI_MAINTAIN_RATIO). The
+// skill is -1 for a side without a computer player record (0x4310aa); a territory battle's enemy has
+// one, with the personality, strength and skill of its PhaseRules phase (CreateGame, AI_CAMPAIGN,
+// AI_SKILL, forces.j EmpAiCampaignTune).
 // Before them the ai.ini [StartScript] runs (builder states 0 / 1, a tenth of BuildingDelay) unless the
 // base covers its steps (ai.j EmpAiStartStep).
 // TODO(ai): still simplified against Game.exe: a territory battle's enemy starts from a fixed base
 // template whose lost buildings are rebuilt first (BASE_TEMPLATE; Emperor's campaign start base is not
 // traced); sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not
-// turn); maintenance does not try a sub-house building first (0x42fcb3); builder state 3, Game.exe's
-// defence plan (0x430c90 / 0x42e5d0: with AiBuildsDefences and a tech level over
-// FirstCampaignGameTechLevel + 1, turrets and walls at a building cluster's defence points, walls given
-// up after 10 minutes, "AI has been building walls for %d minutes so aborting"), stands in as turrets by
-// ratio with a wall row each (ai.j EmpAiWalls); the skill rolls of AIs given a personality are not
-// reproduced; a windtrap goes first when short
-// of power (not traced in Game.exe). Risk: the AI's base grows in another order than Emperor's.
+// turn); maintenance does not try a sub-house building first (0x42fcb3: unless rand % 30 < the skill);
+// builder state 3, Game.exe's defence plan (0x430c90 / 0x42e5d0: with AiBuildsDefences and a tech
+// level over FirstCampaignGameTechLevel + 1, turrets and walls at a building cluster's defence points,
+// walls given up after 10 minutes, "AI has been building walls for %d minutes so aborting"), stands in
+// as turrets by ratio with a wall row each (ai.j EmpAiWalls); of the 17 skill rolls (0x46c5d0) only the
+// maintenance one is reproduced, not those at 0x42db67 (more barracks), 0x4304c0, 0x430786, 0x430e30,
+// 0x440613, 0x44e680 (pro-active targets), 0x450575, 0x4582a0 (scouts), 0x45a600, 0x45b030 (extra
+// units), 0x463980, 0x465473, 0x468410 (infiltrators), 0x469c60; a story mission's AI record
+// (SetupMissionData 0x4903b0 -> 0x534d80) is not traced for its personality / skill, so there the skill
+// stays -1 (SideAIBehaviour*: EmpAiSkillBase 0 + 2); a windtrap goes first when short of power (not
+// traced in Game.exe). Risk: the AI's base grows in another order than Emperor's.
 
 import { real, str } from '../wc3/jass.ts';
 import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS } from '../config/campaign.ts';
@@ -377,8 +383,17 @@ endfunction`;
     ...('scoutTeams' in s ? [`        set EmpAiScoutTeams = ${s.scoutTeams}`] : []),
   ];
   const BP = C.AI_BEHAVIOUR_PCT;
+  // AI_CAMPAIGN by phase: a strength / personality of AI_CAMPAIGN.random is rand % 3; low: AI_SKILL.lowPhases
+  const roll = (v: number): string => (v === C.AI_CAMPAIGN.random ? 'GetRandomInt(0, 2)' : String(v));
+  const campaignPhases = C.AI_CAMPAIGN.phases.map(([phase, strength, personality]) => [
+    `    if EmpPhase == ${phase} then`,
+    `        set strength = ${roll(strength)}`,
+    `        set mode = ${roll(personality)}`,
+    ...(C.AI_SKILL.lowPhases.includes(phase) ? ['        set low = 1'] : []),
+    '    endif',
+  ].join('\n')).join('\n');
   fns.push(jass('forces', {
-    strongTech: tuneLines(BP.strong, true, '        '),
+    strongTech: tuneLines(BP.strong, true, '            '), campaignPhases,
     aggressiveTech: tuneLines(BP.aggressive, true, '            '), defensiveTech: tuneLines(BP.defensive, true, '            '),
     aggressiveSide: [tuneLines(BP.aggressive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.aggressive)].join('\n'),
     defensiveSide: [tuneLines(BP.defensive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.defensive)].join('\n'),

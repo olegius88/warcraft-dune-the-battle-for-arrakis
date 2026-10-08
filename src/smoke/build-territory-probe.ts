@@ -425,8 +425,11 @@ function BehaveProbeRun takes nothing returns nothing
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(BehaveProbeLine("start"))
+    // the campaign enemy's start tuning (forces.j EmpAiCampaignTune): phase, tech level, skill
+    call Preload("start skill=" + I2S(EmpAiSkill) + " base=" + I2S(EmpAiSkillBase) + " phase=" + I2S(EmpPhase) + " tech=" + I2S(EmpTechLevel))
     call EF_SideAIBehaviourAggressive(1)
     call Preload(BehaveProbeLine("aggressive"))
+    call Preload("aggressive skill=" + I2S(EmpAiSkill))
     call EF_SideAIBehaviourAggressive(1)
     call Preload(BehaveProbeLine("aggressive x2"))
     call EF_SideAIBehaviourNormal(1)

@@ -237,6 +237,9 @@
     integer EmpAiScoutTeams = 0
     boolean EmpAiOn = false
     integer EmpAiBehaveMode = 0
+    // the AI skill (Game.exe +0x400, battle forces.j EmpAiTune) and the side's difficulty it starts from
+    integer EmpAiSkill = {{AI_SKILL.none}}
+    integer EmpAiSkillBase = 0
     // the losing test (battle ai.j EmpAiLosingCheck): MCV type and price, done once, the AI retreated
     integer EmpAiMcv = 0
     integer EmpAiMcvCost = 0

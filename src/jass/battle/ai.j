@@ -507,6 +507,11 @@ function EmpAiBuild takes nothing returns nothing
         // share of all buildings is short of its ratio share by over AI_MAINTAIN_SHORT (0x4307e0)
         if EmpAiMaintaining or total >= EmpAiTBuildings[EmpAiT()] then
             set EmpAiMaintaining = true
+        endif
+        // the skill roll (0x42f3d0, AI_MAINTAIN_RATIO): rand % 70 < the skill with the credits builds by ratio
+        if EmpAiMaintaining and GetRandomInt(0, {{C.AI_MAINTAIN_RATIO.rollMax}}) < EmpAiSkill and EmpEnemyGold() >= {{C.AI_MAINTAIN_RATIO.gold}} then
+            call EmpAiLog("maintenance: by ratio (skill " + I2S(EmpAiSkill) + ")")
+        elseif EmpAiMaintaining then
             if GetRandomInt(0, 1) != 0 then
                 call EmpAiWait(6, "maintenance: not this time")
                 return

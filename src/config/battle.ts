@@ -169,6 +169,30 @@ export const AI_START_WAITS = 60;
 /** The base builder's maintenance builds a category only when its share of all buildings is short of
  * its ratio share by over this (Game.exe 1.09 0x42fd35: the double at 0x5d0928, -0.15). */
 export const AI_MAINTAIN_SHORT = -0.15;
+/** The campaign enemy's strength and personality in a territory battle (Game.exe 1.09). CreateGame
+ * (0x48e990) gives the enemy side a computer player record (+0x32 = 1, 0x48f023) with the personality
+ * +0x8c / strength +0x90 of a territory (+0x70 / +0x74, 0x48f037 / 0x48f058), which 0x493830 rolls for
+ * every territory at each battle by the PhaseRules phase (the phase manager +0x8, 0x4942e0) and by
+ * whether the attack comes from the human's territory (house flag +0x114, set for the player's house
+ * only, 0x48d510): phase 1 strength 0 and personality 2 (player attacking) or 0; phase 2 both rand % 3
+ * (personality 0 when the AI attacks); phase 3 strength 2, personality as phase 2; any other phase
+ * strength 2, personality 0. The ai.ini load (0x4310e0) passes them to 0x432040 (strength 2: STRONG,
+ * personality 1 / 2: AGGRESSIVE / DEFENSIVE, AI_BEHAVIOUR_PCT). `random`: rand % 3 (GetRandomInt 0..2). */
+export const AI_CAMPAIGN = {
+  random: -1,
+  phases: [[1, 0, 2], [2, -1, -1], [3, 2, -1]] as ReadonlyArray<readonly [phase: number, strength: number, personalityAttacked: number]>,
+  other: { strength: 2, personality: 0 },
+  strong: 2,
+} as const;
+/** The AI skill (Game.exe 1.09 +0x400): the record's difficulty (0x493b20: the tech level +1, -1 in
+ * PhaseRules phases 1 and 2, at most baseMax) + (strength - 1) * step (0x432526), then min .. max
+ * (0x432570; 0x4667a0 returns 10). Without a computer record it stays -1 (0x4310aa). It drives the AI's
+ * rolls rand % (n * 10) < skill (0x46c5d0, 17 places). */
+export const AI_SKILL = { none: -1, baseMax: 8, lowPhases: [1, 2] as readonly number[], step: 2, min: 1, max: 9 } as const;
+/** Game.exe 1.09 0x42f3d0, the builder's choice in maintenance: rand % (ratioRoll * 10) < skill with at
+ * least ratioGold credits (0x439990: the side's credits less a reserve, by a percentage, >= 1100;
+ * here the credits) builds a group by ratio; else the maintenance choice (0x42fca0). */
+export const AI_MAINTAIN_RATIO = { roll: 7, rollMax: 7 * 10 - 1, gold: 1100 } as const;
 /** EmpAiTab child: the type has Rules.txt AiManufacturing (counted by the losing test). */
 export const AI_TAB_MANUFACTURING = 6;
 /** EmpAiTab child: the type is a construction yard (Rules.txt ConYard). Game.exe's losing test asks

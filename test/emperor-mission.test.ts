@@ -1123,7 +1123,7 @@ test('the AI base builder: ratio phase to NumBuildings, then maintenance every M
   assert.ok(build.includes('GetRandomInt(0, 1) != 0') && build.includes('-0.15'), 'maintenance: coin flip, short by over 0.15');
   assert.ok(body('EmpEnemyBuildTurn').includes('set d = EmpAiTMaintDelay[EmpAiT()]') && body('EmpEnemyBuildTurn').includes('call TimerStart(EmpAiBuildTimer, d, true, function EmpEnemyBuildTurn)'), 'MaintenanceDelay pace');
   assert.ok(m.script.includes(`    set EmpAiTMaintDelay[1] = `), 'maintenance delay data');
-  assert.ok(body('EmpAiBehave').includes('set EmpAiTMaintTicks[l] = EmpAiPct(EmpAiTMaintTicks[l], -25)'), 'STRONG: MaintenanceDelay -25 %');
+  assert.ok(body('EmpAiTune').includes('set EmpAiTMaintTicks[l] = EmpAiPct(EmpAiTMaintTicks[l], -25)'), 'STRONG: MaintenanceDelay -25 %');
 });
 
 // ai.ini [StartScript] (Next=Resource, Manufacturing, Core, Manufacturing, Resource): Game.exe 1.09
@@ -1188,7 +1188,9 @@ test('SideAIBehaviour* re-tunes the AI that runs side 1 like Game.exe, compoundi
   const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
   // v + v * pct * 0.01 in single precision (Direct3D 7 default FPU), truncated, on the current value
   assert.ok(body('EmpAiPct').includes('return R2I(I2R(v) * I2R(pct) * 0.01 + I2R(v))'), 'Game.exe arithmetic');
-  const behave = body('EmpAiBehave');
+  // EmpAiBehave calls EmpAiTune (shared with the campaign enemy's start, EmpAiCampaignTune)
+  assert.ok(body('EmpAiBehave').includes('call EmpAiTune(true, m, 2)'), 'AGGRESSIVE / DEFENSIVE + STRONG');
+  const behave = body('EmpAiTune');
   for (const line of [
     'set EmpAiTMax[l] = EmpAiPct(EmpAiTMax[l], 25)', 'set EmpAiTBuildTicks[l] = EmpAiPct(EmpAiTBuildTicks[l], -25)',
     'set EmpAiTGapTicks[l] = EmpAiPct(EmpAiTGapTicks[l], -52)', 'set EmpAiTFirst[l] = EmpAiPct(EmpAiTFirst[l], -25)',
@@ -1211,6 +1213,32 @@ test('SideAIBehaviour* re-tunes the AI that runs side 1 like Game.exe, compoundi
   }
   assert.ok(body('EF_SideAIBehaviourDefensive').includes('set EmpAIMode[a1] = 8') && !body('EF_SideAIBehaviourDefensive').includes('set EmpAIMode[a1] = 0'), 'defensive side stays home');
   assert.ok(body('EmpAiInit').includes('set EmpAiOn = true'), 'flag');
+});
+
+// The campaign enemy is not an AI without a personality (ours: skill -1, no STRONG / AGGRESSIVE /
+// DEFENSIVE unless a script calls SideAIBehaviour*). Game.exe 1.09 CreateGame (0x48e990) gives it a
+// computer player record whose personality / strength 0x493830 rolls by the PhaseRules phase at every
+// battle, and the ai.ini load (0x4310e0 -> 0x432040) applies them: phase 1 DEFENSIVE when the player
+// attacks, phase 2 random, phase 3 STRONG; the skill is the tech level (+1 past phase 2) +- 2 by
+// strength. The skill then lets the maintaining builder build by ratio (0x42f3d0: rand % 70 < skill).
+test('the campaign enemy gets the personality, strength and skill of its phase (Game.exe CreateGame)', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const tune = body('EmpAiCampaignTune');
+  assert.ok(tune.includes('if EmpPhase == 1 then') && tune.includes('set strength = 0') && tune.includes('set mode = 2'), 'phase 1: DEFENSIVE, not strong');
+  assert.ok(tune.includes('if EmpPhase == 2 then') && tune.includes('set strength = GetRandomInt(0, 2)') && tune.includes('set mode = GetRandomInt(0, 2)'), 'phase 2: random');
+  assert.ok(tune.includes('if EmpPhase == 3 then') && tune.includes('set strength = 2'), 'phase 3: STRONG');
+  assert.ok(tune.includes('set EmpAiSkillBase = IMinBJ(8, EmpTechLevel + 1 - low)'), 'difficulty');
+  assert.ok(tune.includes('call EmpAiTune(strength == 2, mode, strength)'), 'tuned');
+  const t = body('EmpAiTune');
+  assert.ok(t.includes('if strong then') && t.includes('set EmpAiTMax[l] = EmpAiPct(EmpAiTMax[l], 25)'), 'STRONG only when strong');
+  assert.ok(t.includes('set EmpAiSkill = IMinBJ(9, IMaxBJ(1, EmpAiSkillBase + (strength - 1) * 2))'), 'skill');
+  // SideAIBehaviour* = AGGRESSIVE / DEFENSIVE + STRONG
+  assert.ok(body('EmpAiBehave').includes('call EmpAiTune(true, m, 2)'), 'behaviour');
+  assert.ok(m.script.includes('    call EmpAiInit()\n    call EmpAiCampaignTune()'), 'at the battle start');
+  assert.ok(body('EmpAiBuild').includes('GetRandomInt(0, 69) < EmpAiSkill and EmpEnemyGold() >= 1100'), 'maintenance: by ratio on the skill roll');
 });
 
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines

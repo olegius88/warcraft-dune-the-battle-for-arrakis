@@ -167,22 +167,21 @@ function EmpAiStartPace takes nothing returns nothing
     call TimerStart(EmpAiBuildTimer, EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
 endfunction
 
-// SideAIBehaviourNormal / Aggressive / Defensive on side 1 while the AI runs it (EmpAiBehaveMode 0 /
-// 1 / 2): Game.exe 1.09 re-tunes the AI's values (src/config/battle.ts AI_BEHAVIOUR_PCT), each on its
-// current value, so a second call compounds; the attack waves and the builder keep the new pace.
-function EmpAiBehave takes nothing returns nothing
-    local integer m = EmpAiBehaveMode
+// Game.exe 1.09 0x432040: a personality m (1 AGGRESSIVE, 2 DEFENSIVE, else none) and a strength
+// (2 STRONG) re-tune the AI's values (src/config/battle.ts AI_BEHAVIOUR_PCT), each on its current
+// value, so a second call compounds; the attack waves and the builder keep the new pace. The skill is
+// the side's difficulty -2 / 0 / +2 by the strength (AI_SKILL).
+function EmpAiTune takes boolean strong, integer m, integer strength returns nothing
     local integer l = 1
-    call EmpAiLog("behaviour " + I2S(m))
-    if m == {{C.AI_BEHAVIOUR.normal}} then
-        return
-    endif
+    call EmpAiLog("tune strength " + I2S(strength) + " personality " + I2S(m))
     loop
         exitwhen l > {{C.AI_TECH_LEVELS}}
+        if strong then
 {{strongTech}}
+        endif
         if m == {{C.AI_BEHAVIOUR.aggressive}} then
 {{aggressiveTech}}
-        else
+        elseif m == {{C.AI_BEHAVIOUR.defensive}} then
 {{defensiveTech}}
         endif
         set EmpAiTBuildDelay[l] = I2R(IMaxBJ(1, EmpAiTBuildTicks[l])) / {{TPS}}
@@ -192,9 +191,11 @@ function EmpAiBehave takes nothing returns nothing
     endloop
     if m == {{C.AI_BEHAVIOUR.aggressive}} then
 {{aggressiveSide}}
-    else
+    elseif m == {{C.AI_BEHAVIOUR.defensive}} then
 {{defensiveSide}}
     endif
+    set EmpAiSkill = IMinBJ({{C.AI_SKILL.max}}, IMaxBJ({{C.AI_SKILL.min}}, EmpAiSkillBase + (strength - 1) * {{C.AI_SKILL.step}}))
+    call EmpAiLog("skill " + I2S(EmpAiSkill))
     if EmpAiWaveTimer != null then
         call TimerStart(EmpAiWaveTimer, EmpAiTGap[EmpAiT()], true, function EmpAiWave)
     endif
@@ -203,6 +204,29 @@ function EmpAiBehave takes nothing returns nothing
     elseif EmpAiBuildTimer != null then
         call TimerStart(EmpAiBuildTimer, EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
     endif
+endfunction
+
+// SideAIBehaviourNormal / Aggressive / Defensive on side 1 while the AI runs it (EmpAiBehaveMode 0 /
+// 1 / 2): Game.exe 1.09 calls 0x432040 with the personality and STRONG (normal: no call).
+function EmpAiBehave takes nothing returns nothing
+    local integer m = EmpAiBehaveMode
+    call EmpAiLog("behaviour " + I2S(m))
+    if m == {{C.AI_BEHAVIOUR.normal}} then
+        return
+    endif
+    call EmpAiTune(true, m, {{C.AI_CAMPAIGN.strong}})
+endfunction
+
+// The territory battle's enemy at its start (src/config/battle.ts AI_CAMPAIGN, AI_SKILL): Game.exe
+// 1.09 CreateGame rolls its personality and strength by the PhaseRules phase (the hub's phases 1..3
+// are PhaseRules phases 1..3), the player attacking; the ai.ini load applies them (0x4310e0).
+function EmpAiCampaignTune takes nothing returns nothing
+    local integer strength = {{C.AI_CAMPAIGN.other.strength}}
+    local integer mode = {{C.AI_CAMPAIGN.other.personality}}
+    local integer low = 0
+{{campaignPhases}}
+    set EmpAiSkillBase = IMinBJ({{C.AI_SKILL.baseMax}}, EmpTechLevel + 1 - low)
+    call EmpAiTune(strength == {{C.AI_CAMPAIGN.strong}}, mode, strength)
 endfunction
 
 {{#if storyAi}}// ---- story missions: the base of side 1 placed on the map (battle.ts storyAiHouse) is run by the AI
@@ -218,10 +242,14 @@ endfunction
 // counter starts at side * 5) 0x45a3d0 walks the side's live objects from id +0xc on (0 at start,
 // 0x45a2e0) into AddNewOwnedUnit (0x45a460, task 1), and task 1 (0x45a600) hands a unit to the reserve
 // tactic (type 2, NumReserveTeams teams of MaxUnitsPerReserveTeam, the last 200: 0x44d980) or the free
-// unit tactic (type 4). TODO(ai): here those near the yard go with its waves (#A1 before the posts: 68
-// of 74 sent at 140 s), those beyond DefenceTacticWanderDistance keep their posts; whether the reserve
-// tactic (its phases 0x4529f0, team states 0x460930) moves such far units is not traced. Risk: early
-// waves stronger or weaker than in the original.
+// unit tactic (type 4). A reserve team's target is a defensive assembly point of the base
+// (0x45fc10: GetAnAssemblyPointLocation 0x42ba50, ePointDefensive k), where it goes back after each
+// battle (0x452940 -> reserve +0x60, 0x460880 -> "Team <%s> moving to <%s>", 0x460740); an armed unit
+// joining a team gets no order (0x45fd50). TODO(ai): here those near the yard go with its waves (#A1
+// before the posts: 68 of 74 sent at 140 s), those beyond DefenceTacticWanderDistance keep their
+// posts, also after a fight; whether an idle reserve team walks to its point once assembled (team states
+// 0x4602be, "units assembled - awaiting orders") is not traced. Risk: early waves stronger or weaker
+// than in the original.
 function EmpStoryAiStart takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
