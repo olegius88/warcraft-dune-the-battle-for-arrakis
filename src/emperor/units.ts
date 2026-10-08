@@ -4,7 +4,7 @@
 //
 // Scaling (Emperor -> WC3): HP /2, bullet damage /2, reload ticks /25 = seconds, range tiles *128,
 // speed (game coords per tick) *40, view range tiles *128, build time ticks /25 = seconds.
-// Power: Rules.txt balance is applied at run time by battle.ts (EmpPowerTick; TODO(power) there).
+// Power: Rules.txt balance is applied at run time by battle.ts (EmpPowerTick, the Game.exe rule).
 // Veterancy: Rules.txt levels are applied at run time by mission.ts (EmpVetData / EmpOnKill).
 
 import { writeObjects, idAllocator } from '../wc3/objects.ts';

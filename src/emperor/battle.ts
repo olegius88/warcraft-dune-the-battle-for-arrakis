@@ -189,11 +189,11 @@ function battleSetup(o: BattleOptions): BattleSetup {
     isBuilder: PREFIXES.flatMap((h) => [o.units.ids.builders[h], o.units.ids.defenceBuilders[h]]).map((id) => `EmpType(b) == '${id}'`).join(' or '),
   }));
 
-  // ---- power (Rules.txt; TODO(power) in src/jass/battle/power.j) ----
+  // ---- power (Rules.txt and Game.exe 1.09; src/jass/battle/power.j) ----
   fns.push(jass('power', {
     powerLines: [...o.units.objects]
-      .filter((x) => x.emperor && (x.emperor.power !== 0 || x.emperor.disableWithLowPower))
-      .map((x) => `    call EmpPowerType('${x.id}', ${x.emperor?.power}, ${x.emperor?.disableWithLowPower})`).join('\n'),
+      .filter((x) => x.emperor && (x.emperor.powerGenerated !== 0 || x.emperor.powerUsed !== 0 || x.emperor.disableWithLowPower))
+      .map((x) => `    call EmpPowerType('${x.id}', ${x.emperor?.powerGenerated}, ${x.emperor?.powerUsed}, ${x.emperor?.disableWithLowPower})`).join('\n'),
   }));
 
   // ---- sandworms (territory battles; src/jass/battle/worms.j) ----

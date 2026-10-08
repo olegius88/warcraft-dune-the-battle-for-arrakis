@@ -847,9 +847,17 @@ test('power: per-type balance table and low-power turret switch in mission maps'
   const m = buildMission({ scripts: [], meta, ...all, name: 'power', playerHouse: 'Harkonnen', kind: 'story', hubMap: 'HK_Hub.w3x' });
   const trapId = all.units.rawcode.get('HKSmWindtrap');
   const turretId = all.units.rawcode.get('HKGunTurret');
-  assert.ok(m.script.includes(`call EmpPowerType('${trapId}', ${trap.power}, false)`), 'windtrap in the power table');
-  assert.ok(m.script.includes(`call EmpPowerType('${turretId}', ${turret.power}, true)`), 'turret in the power table, disabled on low power');
+  // TODO(power) closed by Game.exe 1.09: the side sums PowerGenerated * health / max health of its
+  // buildings and PowerUsed apart (0x53f3c0); the status x = 100 - 50 * used / generated is below 2
+  // when used > generated, and 0 with nothing generated (0x53f640); a DisableWithLowPower object
+  // works at status 2 and above (0x486010). A side without any generator is not exempt.
+  assert.ok(m.script.includes(`call EmpPowerType('${trapId}', ${trap.powerGenerated}, ${trap.powerUsed}, false)`), 'windtrap in the power table');
+  assert.ok(m.script.includes(`call EmpPowerType('${turretId}', ${turret.powerGenerated}, ${turret.powerUsed}, true)`), 'turret in the power table, disabled on low power');
   assert.ok(m.script.includes('function EmpPowerTick takes nothing returns nothing'));
+  const tick = m.script.slice(m.script.indexOf('function EmpPowerTick takes'), m.script.indexOf('endfunction', m.script.indexOf('function EmpPowerTick takes')));
+  assert.ok(tick.includes('GetUnitLifePercent(u)'), 'generation by health');
+  assert.ok(tick.includes('set low = made <= 0.0 or used > made'), 'low when using more than made, or nothing made');
+  assert.ok(!m.script.includes('TODO(power)'), 'TODO closed');
   // Regression: a building counted in the balance from the moment its construction began (a windtrap
   // gave power before it stood). The construction start marks it, the finish unmarks it, and the
   // power tick skips marked buildings.
