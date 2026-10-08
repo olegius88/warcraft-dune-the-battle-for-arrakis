@@ -17,6 +17,7 @@ import { loadCampaign } from './campaign-data.ts';
 import { HOUSE_BY_CODE as HOUSE_NAME, HOUSE_RU, isHouseCode } from '../config/houses.ts';
 import type { HouseCode } from '../config/houses.ts';
 import * as CP from '../config/campaign.ts';
+import * as RT from '../config/runtime.ts';
 import { CONTEST } from '../config/contest.ts';
 import { buildMission } from './mission.ts';
 import { ensureMap } from './preview-map.ts';
@@ -44,6 +45,12 @@ const out = opt('--out', path.join(BUILD_DIR, 'contest', CONTEST.file(h)));
 const movieRoot = path.join(BUILD_DIR, 'contest', 'movies');
 const autoWin = Number(opt('--autowin', '0'));
 const killWin = Number(opt('--killwin', '0'));
+const deathLog = args.includes('--deathlog');
+// test aids run once the mission starts (JASS in src/jass/smoke)
+const tests: { code: string; start: string }[] = [
+  ...(killWin ? [{ code: renderFile(jassFile('smoke/kill-win'), { seconds: killWin }), start: 'EmpKillWin' }] : []),
+  ...(deathLog ? [{ code: renderFile(jassFile('smoke/death-log'), { limit: 40, file: `${RT.DEBUG_REPORT_DIR}\\Contest_${h}_Deaths.pld` }), start: 'EmpDeathLog' }] : []),
+];
 
 const all = loadAll({ models: true });
 const music = loadMusic();
@@ -107,7 +114,10 @@ const m = buildMission({
   defaultPhase: CP.START_MISSION_PHASE, defaultTech: CP.START_MISSION_TECH,
   briefing: all.ctx.textByKey(script) || '', debugName: `Contest_${h}`,
   music: tracks, intro: { movies, player }, extraImports, mapDescription: CONTEST.description(CONTEST.houseFor[h]), loadingScreen: CONTEST.loading.model, ...(autoWin ? { autoWinSeconds: autoWin } : {}),
-  ...(killWin ? { extraFunctions: renderFile(jassFile('smoke/kill-win'), { seconds: killWin }), extraStart: 'EmpKillWin' } : {}),
+  ...(tests.length ? {
+    extraFunctions: [...tests.map((t) => t.code), 'function EmpContestTests takes nothing returns nothing', ...tests.map((t) => `    call ${t.start}()`), 'endfunction'].join('\n'),
+    extraStart: 'EmpContestTests',
+  } : {}),
 });
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, m.buffer);

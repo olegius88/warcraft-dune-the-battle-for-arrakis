@@ -54,6 +54,7 @@ npm test               # tsc + oxlint + тесты
 node src/emperor/extract.ts
 node src/emperor/build-campaign.ts --check
 & ./tools/test-maps.ps1 -Maps 'HK_A05.w3x' -Seconds 40 -Gif
+node src/emperor/build-contest.ts --check   # конкурсная карта, заявка: docs/contest.md
 ```
 
 ## Источники форматов
