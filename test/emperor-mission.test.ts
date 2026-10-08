@@ -678,6 +678,39 @@ test('a starport sells orders that a frigate delivers after FrigateCountdown, up
   assert.ok(body('EmpUiTrained').includes('GetUnitTypeId(GetTrainedUnit()) == 0'), 'removed order is no unit');
 });
 
+// The starport stock was not modelled (TODO(starport)): every type was always available. Rules.txt
+// only names StarportStockIncreaseProb / Delay; the rest is Game.exe 1.09 (disassembly 2026-10-08,
+// side update 0x53bb10 -> starport tick 0x53eda0, order 0x53cd00, side init 0x53b9f8 / 0x53c6d0):
+// - every Starportable type starts at stock 0 (0x53c77d), the stock timer at 0 (0x53b9fe);
+// - while the side has a starport, nothing in its cart and no frigate on the way, the timer counts
+//   down; at 0 each type below StarportMaxDeliverySingle gets +1 if rand % 100 <= Prob, and the
+//   timer restarts at StarportStockIncreaseDelay (0x53eeb2..0x53ef1e);
+// - a type goes into the cart only while fewer of it are in the cart than the stock and the cart
+//   holds fewer than StarportMaxDeliverySingle (0x53cd35..0x53cd60); a delivery empties the cart and
+//   leaves the stock as it is (0x53f1bb..0x53f203 only lowers the cart).
+// Guaranteed now: the runtime keeps that stock per side and type and refuses an order beyond it.
+test('starport stock grows by Game.exe rules and limits what can be ordered', opts, () => {
+  const all = loadAll();
+  assert.strictEqual(all.rules.general.StarportStockIncreaseProb, '90');
+  assert.strictEqual(all.rules.general.StarportStockIncreaseDelay, '1000');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'stock', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (f: string): string => m.script.slice(m.script.indexOf(`function ${f} takes`), m.script.indexOf('endfunction', m.script.indexOf(`function ${f} takes`)));
+  const tick = body('EmpPortStockTick');
+  assert.ok(tick.includes('GetRandomInt(0, 99) <= 90'), 'rand % 100 <= StarportStockIncreaseProb');
+  assert.ok(tick.includes('< 6'), 'up to StarportMaxDeliverySingle');
+  assert.ok(tick.includes('40.0'), '1000 ticks = 40 s');
+  assert.ok(tick.includes('EmpPortCartAll['), 'frozen while the cart is not empty');
+  assert.match(m.script, /TimerStart\(CreateTimer\(\), [0-9.]+, true, function EmpPortStockTick\)/);
+  const refusal = body('EmpPortRefusal');
+  assert.ok(refusal.includes('EmpPortCart[k] >= EmpPortStock[k]'), 'an order needs stock beyond what is on the way');
+  assert.ok(refusal.includes('>= 6'), 'the cart holds at most StarportMaxDeliverySingle');
+  assert.ok(body('EmpPortTrain').includes('EmpPortRefusal(') && body('EmpPortFinish').includes('EmpPortRefusal('), 'checked at the start and when ready');
+  assert.ok(body('EmpPortFinish').includes('set EmpPortCart[k] = EmpPortCart[k] + 1'), 'a ready order is on the way');
+  assert.ok(body('EmpPortFrigate').includes('EmpPortCart[c] - 1'), 'a landing empties the cart, the stock stays');
+  assert.ok(!m.script.includes('TODO(starport): the stock'), 'TODO closed');
+});
+
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
 // lines its scripts use and Message() queues them (one at a time, by known duration).
 test('mission messages play the original speech', opts, () => {

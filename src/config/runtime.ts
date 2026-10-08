@@ -156,6 +156,12 @@ export const PORT_PRICE_TEXT = 'Космопорт: цена ';
 export const PORT_SLOT = 10;
 export const PORT_DELIVERY_OFFSET = 192;
 export const PORT_DELIVERY_SPREAD = 128;
+/** Starport stock (mission starport.j EmpPortStockTick): checked this often (s); Game.exe counts its
+ * stock timer down every tick, this keeps the same delay to within a check. */
+export const PORT_STOCK_CHECK = 1;
+/** Shown when the starport has no more of a type (stock) or the frigate is full (mission starport.j). */
+export const PORT_NO_STOCK_TEXT = 'Космопорт: нет в наличии';
+export const PORT_CART_FULL_TEXT = 'Космопорт: фрегат заполнен';
 /** The frigate arrives this many seconds before its load is out (FrigateCountdown), so that it is seen. */
 export const PORT_FRIGATE_HOVER = 4;
 export const SP_REACH = 400;

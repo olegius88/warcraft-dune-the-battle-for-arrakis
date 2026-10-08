@@ -291,7 +291,8 @@ function buildMission(p: MissionParams): BuiltMission {
     // the frigate brings for it
     const order = [...(p.units.portOrders ?? [])].find(([, real]) => real === id)?.[0];
     if (order && o.category === 'Unit' && o.cost > 0) {
-      portLines.push(`    call SaveInteger(EmpPortTab, '${order}', 0, ${portTypes})`, `    call SaveInteger(EmpPortTab, '${order}', 1, ${o.cost})`, `    call SaveInteger(EmpPortTab, '${order}', 3, '${id}')`);
+      // (the unit: 5 = its index, for the cart at delivery)
+      portLines.push(`    call SaveInteger(EmpPortTab, '${order}', 0, ${portTypes})`, `    call SaveInteger(EmpPortTab, '${order}', 1, ${o.cost})`, `    call SaveInteger(EmpPortTab, '${order}', 3, '${id}')`, `    call SaveInteger(EmpPortTab, '${id}', 5, ${portTypes})`);
       portTypes++;
     }
   }
@@ -302,6 +303,10 @@ function buildMission(p: MissionParams): BuiltMission {
     // [General] FrigateCountdown ('time for frigate to arrive', ticks), StarportMaxDeliverySingle
     portFrigateSeconds: (Number(p.rules?.general.FrigateCountdown ?? 0) || TICKS_PER_SECOND) / TICKS_PER_SECOND,
     portMaxDelivery: Number(p.rules?.general.StarportMaxDeliverySingle ?? 0) || 1,
+    // [General] StarportStockIncreaseProb (percent) / StarportStockIncreaseDelay (ticks): starport.j
+    // EmpPortStockTick, the rest of the rule from Game.exe (test/emperor-mission.test.ts)
+    portStockProb: Number(p.rules?.general.StarportStockIncreaseProb ?? 0) || 0,
+    portStockSeconds: (Number(p.rules?.general.StarportStockIncreaseDelay ?? 0) || TICKS_PER_SECOND) / TICKS_PER_SECOND,
     // effects of every type (src/emperor/effects.ts; mission effects.j)
     fxLines: [...(p.units.effects ?? [])].flatMap(([id, fx]) => fx.flatMap((model, k) => {
       if (!model) return [];
@@ -313,7 +318,7 @@ function buildMission(p: MissionParams): BuiltMission {
     })).join('\n'),
     // the frigate ([Frigate]) shown flying in and out
     portFrigateUnit: p.units.rawcode.get('Frigate') ?? UNIT.fallback,
-    ORDER_CANCEL: RT.ORDER_CANCEL, PORT_PRICE_TEXT: RT.PORT_PRICE_TEXT,
+    ORDER_CANCEL: RT.ORDER_CANCEL, PORT_PRICE_TEXT: RT.PORT_PRICE_TEXT, PORT_NO_STOCK_TEXT: RT.PORT_NO_STOCK_TEXT, PORT_CART_FULL_TEXT: RT.PORT_CART_FULL_TEXT,
   };
 
   // ---- special abilities (src/emperor/specials.ts; runtime mission specials.j) ----

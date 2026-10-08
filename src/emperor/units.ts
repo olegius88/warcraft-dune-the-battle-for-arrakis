@@ -292,7 +292,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       // (super weapon charges cost nothing: Cost 0, trained for their BuildTime)
       // A starport (Starport = TRUE) sells the Starportable types of its house and the houseless
       // ones (Harvester, MCV, Carryall), as orders (portOrders) a frigate delivers; their prices change
-      // at run time (mission starport.j; the stock is TODO(starport) there).
+      // at run time and each side has a stock of them (mission starport.j).
       const sells = /^true$/i.test((o.raw.Starport ?? '').trim())
         ? portable.filter((u) => u.house === o.house || (!u.house && !houseOf(u)))
         : [];

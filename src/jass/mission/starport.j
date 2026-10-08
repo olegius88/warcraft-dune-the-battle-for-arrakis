@@ -13,8 +13,64 @@
 // TRAIN_START fires when an order starts training, not when it is queued: two orders queued at 70 %
 // and 130 % paid 9400 of 10000 (src/smoke/build-territory-probe.ts --portqueue, 1.31.1, 2026-10-08),
 // so each order keeps its own price in the record.
-// TODO(starport): the stock (StarportStockIncreaseProb / Delay) is not modelled: how much of each type a
-// starport starts with and holds at most is not in Rules.txt. Risk: every type is always available.
+// Stock (Game.exe 1.09, test/emperor-mission.test.ts): each side has a stock of every type, 0 at the
+// start; while it has a starport and nothing ordered is on its way (EmpPortCartAll), every
+// StarportStockIncreaseDelay each type below StarportMaxDeliverySingle gets +1 with chance
+// (StarportStockIncreaseProb + 1) %, the first time as soon as a starport stands. An order starts only
+// while fewer of its type are on the way than the stock and fewer than StarportMaxDeliverySingle in all;
+// it is on the way (EmpPortCart) from the moment it is ready until its frigate lands. A delivery does
+// not use the stock up (Game.exe lowers only the cart).
+function EmpPortStockTick takes nothing returns nothing
+    local integer i = 0
+    local integer j
+    local integer k
+    local group g = CreateGroup()
+    local unit u
+    local boolean port
+    loop
+        exitwhen i > {{RT.MAX_SIDE}}
+        set port = false
+        call GroupEnumUnitsOfPlayer(g, Player(i), null)
+        loop
+            set u = FirstOfGroup(g)
+            exitwhen u == null
+            call GroupRemoveUnit(g, u)
+            if EmpAlive(u) and LoadBoolean(EmpPortTab, EmpType(u), 2) then
+                set port = true
+            endif
+        endloop
+        if port and EmpPortCartAll[i] == 0 then
+            set EmpPortStockLeft[i] = EmpPortStockLeft[i] - {{real RT.PORT_STOCK_CHECK}}
+            if EmpPortStockLeft[i] <= 0.0 then
+                set j = 0
+                loop
+                    exitwhen j >= {{portTypes}}
+                    set k = i * {{portTypes}} + j
+                    if EmpPortStock[k] < {{portMaxDelivery}} and GetRandomInt(0, 99) <= {{portStockProb}} then
+                        set EmpPortStock[k] = EmpPortStock[k] + 1
+                    endif
+                    set j = j + 1
+                endloop
+                set EmpPortStockLeft[i] = {{real portStockSeconds}}
+            endif
+        endif
+        set i = i + 1
+    endloop
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
+// why an order of type index idx cannot go on the way for player p now ("" when it can)
+function EmpPortRefusal takes player p, integer idx returns string
+    local integer k = GetPlayerId(p) * {{portTypes}} + idx
+    if EmpPortCartAll[GetPlayerId(p)] >= {{portMaxDelivery}} then
+        return {{str PORT_CART_FULL_TEXT}}
+    elseif EmpPortCart[k] >= EmpPortStock[k] then
+        return {{str PORT_NO_STOCK_TEXT}}
+    endif
+    return ""
+endfunction
+
 function EmpPortPrices takes nothing returns nothing
     local integer i = 0
     loop
@@ -30,10 +86,18 @@ function EmpPortTrain takes nothing returns nothing
     local integer cost
     local integer delta
     local player p = GetOwningPlayer(b)
+    local string no
     if LoadBoolean(EmpPortTab, EmpType(b), 2) and HaveSavedInteger(EmpPortTab, t, 0) then
         set cost = LoadInteger(EmpPortTab, t, 1)
         set delta = cost * EmpPortPct[LoadInteger(EmpPortTab, t, 0)] / 100 - cost
-        if delta > GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) then
+        set no = EmpPortRefusal(p, LoadInteger(EmpPortTab, t, 0))
+        if no != "" then
+            // out of stock or the frigate full (Game.exe: the order button is off then)
+            call IssueImmediateOrderById(b, {{ORDER_CANCEL}})
+            if p == Player(0) then
+                call EmpShow(no)
+            endif
+        elseif delta > GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) then
             // cancel: WC3 gives the stock price back
             call IssueImmediateOrderById(b, {{ORDER_CANCEL}})
         else
@@ -145,6 +209,9 @@ function EmpPortFrigate takes nothing returns nothing
     local real x = LoadReal(EmpPortTab, th, 1)
     local real y = LoadReal(EmpPortTab, th, 2)
     local integer k = 0
+    // whose cart the landed units leave (the buyer, before an engineer's capture changes the owner)
+    local integer buyer = LoadInteger(EmpPortTab, th, 3)
+    local integer c
     if EmpAlive(b) then
         set p = GetOwningPlayer(b)
         set x = GetUnitX(b)
@@ -157,6 +224,9 @@ function EmpPortFrigate takes nothing returns nothing
         exitwhen k >= {{portMaxDelivery}}
         exitwhen k >= n
         call CreateUnit(p, LoadInteger(EmpPortTab, th, {{RT.PORT_SLOT}} + k), x + GetRandomReal(-{{RT.PORT_DELIVERY_SPREAD}}, {{RT.PORT_DELIVERY_SPREAD}}), y - {{real RT.PORT_DELIVERY_OFFSET}}, {{FACING}})
+        set c = buyer * {{portTypes}} + LoadInteger(EmpPortTab, LoadInteger(EmpPortTab, th, {{RT.PORT_SLOT}} + k), 5)
+        set EmpPortCart[c] = IMaxBJ(0, EmpPortCart[c] - 1)
+        set EmpPortCartAll[buyer] = IMaxBJ(0, EmpPortCartAll[buyer] - 1)
         set k = k + 1
     endloop
     if p == Player(0) and k > 0 then
@@ -237,6 +307,7 @@ function EmpPortFinish takes nothing returns nothing
     local unit u = GetTrainedUnit()
     local integer t = EmpType(u)
     local integer delta = 0
+    local integer k
     local player p = GetOwningPlayer(b)
     // only a starport settles, and the record goes: a factory reusing the handle id of a destroyed
     // starport took its old price for its own trike (fourth audit, test/emperor-mission.test.ts)
@@ -246,10 +317,14 @@ function EmpPortFinish takes nothing returns nothing
             call RemoveSavedInteger(EmpPortTab, GetHandleId(b), t)
         endif
         call RemoveUnit(u)
-        if delta > GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) then
+        // (the stock is checked again: another starport of the player may have filled it meanwhile)
+        if delta > GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) or EmpPortRefusal(p, LoadInteger(EmpPortTab, t, 0)) != "" then
             call SetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD, GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) + LoadInteger(EmpPortTab, t, 1))
         else
             call SetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD, GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) - delta)
+            set k = GetPlayerId(p) * {{portTypes}} + LoadInteger(EmpPortTab, t, 0)
+            set EmpPortCart[k] = EmpPortCart[k] + 1
+            set EmpPortCartAll[GetPlayerId(p)] = EmpPortCartAll[GetPlayerId(p)] + 1
             call EmpPortQueue(b, LoadInteger(EmpPortTab, t, 3))
         endif
     endif
@@ -279,5 +354,6 @@ function EmpPortInit takes nothing returns nothing
     set fin = null
     set die = null
     call TimerStart(CreateTimer(), {{real updateSeconds}}, true, function EmpPortPrices)
+    call TimerStart(CreateTimer(), {{real RT.PORT_STOCK_CHECK}}, true, function EmpPortStockTick)
     set tr = null
 endfunction

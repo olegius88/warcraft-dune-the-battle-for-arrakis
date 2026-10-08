@@ -72,6 +72,12 @@
     hashtable EmpPortTab = null
     hashtable EmpFxTab = null
     integer array EmpPortPct
+    // starport stock (mission starport.j): [player * types + type index] stock and units in the cart
+    // (ordered, not landed yet); per player the whole cart and the seconds to the next stock increase
+    integer array EmpPortStock
+    integer array EmpPortCart
+    integer array EmpPortCartAll
+    real array EmpPortStockLeft
     // in-game announcements (helpers.j EmpUiSay; data from mission.ts)
     string array EmpUiText
     string array EmpUiSound

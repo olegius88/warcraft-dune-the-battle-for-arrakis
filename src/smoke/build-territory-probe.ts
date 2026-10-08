@@ -203,6 +203,46 @@ function PortProbeRun takes nothing returns nothing
     set b = null
 endfunction`,
   } : {}),
+  // --portstock: the stock (Game.exe rule, mission starport.j EmpPortStockTick): a starport stands, the
+  // trike stock is set to 2, four trike orders: two go on the way, two are refused; the frigate lands
+  // them, the cart is empty again and the stock is still 2 (then grows every 40 s)
+  ...(flag('--portstock') ? {
+    extraStart: 'PortStockRun',
+    extraFunctions: `function PortStockLine takes string at returns string
+    local integer k = LoadInteger(EmpPortTab, '${trikeOrder}', 0)
+    return at + ": stock=" + I2S(EmpPortStock[k]) + " cart=" + I2S(EmpPortCart[k]) + " all=" + I2S(EmpPortCartAll[0]) + " left=" + R2S(EmpPortStockLeft[0]) + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD))
+endfunction
+
+function PortStockRun takes nothing returns nothing
+    local unit b
+    local integer k = 0
+    local string s
+    set EmpNormalConditions = false
+    call TriggerSleepAction(3.0)
+    set s = PortStockLine("no starport")
+    set b = CreateUnit(Player(0), '${all.units.rawcode.get('ATStarport')}', EmpEntrX[EmpEntranceFor(0)] * 0.5, EmpEntrY[EmpEntranceFor(0)] * 0.5, 270.0)
+    call SetPlayerTechMaxAllowed(Player(0), '${trikeOrder}', -1)
+    call SetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD, 10000)
+    call TriggerSleepAction(2.5)
+    set s = s + " | " + PortStockLine("2.5 s")
+    set EmpPortStock[LoadInteger(EmpPortTab, '${trikeOrder}', 0)] = 2
+    loop
+        exitwhen k >= 4
+        call IssueImmediateOrderById(b, '${trikeOrder}')
+        set k = k + 1
+    endloop
+    call TriggerSleepAction(15.0)
+    set s = s + " | " + PortStockLine("orders +15 s")
+    call TriggerSleepAction(100.0)
+    set s = s + " | " + PortStockLine("landed +115 s")
+    call TriggerSleepAction(42.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s + " | " + PortStockLine("+157 s"))
+    call PreloadGenEnd("DuneSmoke\\\\portstock.pld")
+    set b = null
+endfunction`,
+  } : {}),
   // --harv: the player's harvesters go, a refinery of his stays: one is back after HarvReplacementDelay
   ...(flag('--harv') ? {
     extraStart: 'HarvProbeRun',
