@@ -12,16 +12,15 @@
   миссии `standalone`, `intro`, `extraImports`; качество кадров роликов передаётся параметром
   ([fmv.ts](src/emperor/fmv.ts)). Проверено в 1.31.1: ролики, затем миссия с речью и музыкой. Пробник
   размера ([build-size-probe.ts](src/smoke/build-size-probe.ts)): 1.31.1 загружает одиночную карту на 428 МБ.
-
-### Fixed
-- 2026-10-09 Фаза 0 стартовых миссий терялась при явном `defaultPhase` (`||` вместо `??`,
-  [mission.ts](src/emperor/mission.ts); тест «a standalone start mission»).
-
 - 2026-10-08 Стартовый сценарий ИИ из ai.ini `[StartScript]` по `Game.exe` 1.09 ([ai.j](src/jass/battle/ai.j)
   `EmpAiStartStep`): ИИ сначала строит группы по порядку (Resource, Manufacturing, Core, Manufacturing,
   Resource) в темпе десятой доли `BuildingDelay`. Сценарий не запускается, если стоящая база
   покрывает все его шаги (`0x430930`). Шаг без доступного здания ждёт до 60 ходов, а нехватка денег
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
+
+### Fixed
+- 2026-10-09 Фаза 0 стартовых миссий терялась при явном `defaultPhase` (`||` вместо `??`,
+  [mission.ts](src/emperor/mission.ts); тест «a standalone start mission»).
 
 ### Changed
 - 2026-10-09 Резервная тактика ИИ по `Game.exe` 0x44d980 ([ai.j](src/jass/battle/ai.j) `EmpAiResTeam`,
