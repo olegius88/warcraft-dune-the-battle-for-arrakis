@@ -1253,6 +1253,16 @@ test('the campaign enemy gets the personality, strength and skill of its phase (
   assert.ok(harv.includes('EmpTechLevel <= 3 and GetRandomInt(0, 99) != 0'), 'tech gate');
   assert.ok(harv.includes('GetRandomInt(0, 119) + 8'), 'range');
   assert.ok(m.script.includes('call TriggerRegisterPlayerUnitEvent(EmpAiHarvHitTrig, Player(1), EVENT_PLAYER_UNIT_DAMAGED, null)'), 'hits watched');
+  // Rules.txt AiSpecial units (Devastator, Missile tank, Minotaurus, Kobra) are left out of the team
+  // types (Game.exe 0x43a5bf) and come only as a special unit (0x465473): tech >= 5, past 3 minutes,
+  // 800 credits, 16 units, rand % 30 < skill
+  assert.strictEqual(all.rules.objects.get('HKDevastator')?.aiSpecial, true);
+  assert.strictEqual(all.rules.objects.get('HKAssault')?.aiSpecial, false);
+  const dev = all.units.rawcode.get('HKDevastator') as string;
+  assert.ok(m.script.includes(`call SaveBoolean(EmpAiTab, '${dev}', 8, true)`), 'special flag');
+  assert.ok(body('EmpEnemyPick').includes('LoadBoolean(EmpAiTab, t, 8) == special'), 'regular picks skip specials');
+  const sp = body('EmpAiSpecialTurn');
+  assert.ok(sp.includes('EmpTechLevel < 5 or EmpTick < 4500 or EmpEnemyGold() < 800 or EmpCount(1, 1) < 16 then') && sp.includes('if GetRandomInt(0, 29) >= EmpAiSkill then'), 'special gate');
 });
 
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines

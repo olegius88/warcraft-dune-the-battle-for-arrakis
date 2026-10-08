@@ -491,6 +491,27 @@ function CriticalProbeRun takes nothing returns nothing
     set g = null
 endfunction`,
   } : {}),
+  // --special: the special units (forces.j EmpAiSpecialTurn): tech 8, skill 99, credits, 16 units of
+  // side 1; past 4500 ticks the AI report logs "special unit <name>" (Rules.txt AiSpecial types)
+  ...(flag('--special') ? {
+    defaultTech: 8,
+    extraStart: 'SpecialProbeRun',
+    extraFunctions: `function SpecialProbeRun takes nothing returns nothing
+    local integer i = 0
+    set EmpNormalConditions = false
+    call TriggerSleepAction(2.0)
+    set EmpAiSkill = 99
+    loop
+        exitwhen i >= 16
+        call CreateUnit(Player(1), '${all.units.rawcode.get('HKLightInf')}', EmpBaseX[EmpBaseOfSide(1)], EmpBaseY[EmpBaseOfSide(1)], 0.0)
+        set i = i + 1
+    endloop
+    loop
+        call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 30000)
+        call TriggerSleepAction(5.0)
+    endloop
+endfunction`,
+  } : {}),
   // --harvflee: the harvester flight (ai.j EmpAiHarvTick): skill 99, tech 8; a unit of the player hits
   // side 1's harvester; the AI report logs "harvester under attack" and where it went
   ...(flag('--harvflee') ? {

@@ -211,6 +211,13 @@ export const AI_TAB_MANUFACTURING = 6;
  * the per-side flag at game +0xc4 (0x44cc20); where it is false the AI builds an MCV ("Emergency
  * building an MCV", 0x42d72f), so it stands for "has a construction yard". */
 export const AI_TAB_YARD = 7;
+/** EmpAiTab child: the unit type has Rules.txt AiSpecial (AI_SPECIAL_UNIT). */
+export const AI_TAB_SPECIAL = 8;
+/** Game.exe 1.09 0x465473: the AI makes a special unit (Rules.txt AiSpecial, left out of its team types
+ * at 0x43a5bf) only at tech >= `tech`, past `ticks` (0x46c180: 3 minutes), with `gold` credits
+ * (0x439580 >= 800), `units` units (0x44c670 >= 16) and rand % (roll * 10) < skill; a rand % 30 == 0
+ * then asks tech >= `superTech` (its other limit, +0x44, is not identified). */
+export const AI_SPECIAL_UNIT = { tech: 5, ticks: 3 * 1500, gold: 800, units: 16, rollMax: 3 * 10 - 1, superOneIn: 30, superTech: 8 } as const;
 /** Units the AI may have beyond MaxAiUnits in a story mission (Game.exe 1.09 0x464473: +100 when
  * the mission came from CCampaignManager::SetupMissionData, not from a territory battle). */
 export const STORY_AI_EXTRA_UNITS = 100;

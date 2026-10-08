@@ -1,5 +1,6 @@
 // random unit of the enemy house allowed at the current tech level (vehicles if veh)
-function EmpEnemyPick takes boolean veh returns integer
+// special: Rules.txt AiSpecial types only (EmpAiSpecialTurn), else none of them (Game.exe 0x43a5bf)
+function EmpEnemyPick takes boolean veh, boolean special returns integer
     local integer tries = 0
     local integer t
     loop
@@ -9,12 +10,15 @@ function EmpEnemyPick takes boolean veh returns integer
             set t = EmpEnemyInf(GetRandomInt(0, {{infMax}}))
         endif
         // a type that needs a building upgrade (EmpAiTab child 5, ai.j) waits until the AI has it
-        if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 and (LoadInteger(EmpAiTab, t, 5) == 0 or GetPlayerTechCount(Player(1), LoadInteger(EmpAiTab, t, 5), true) > 0) then
+        if t != 0 and LoadBoolean(EmpAiTab, t, {{C.AI_TAB_SPECIAL}}) == special and GetPlayerTechMaxAllowed(Player(1), t) != 0 and (LoadInteger(EmpAiTab, t, 5) == 0 or GetPlayerTechCount(Player(1), LoadInteger(EmpAiTab, t, 5), true) > 0) then
             return t
         endif
         set tries = tries + 1
         exitwhen tries > {{C.ENEMY_PICK_TRIES}}
     endloop
+    if special then
+        return 0
+    endif
     return EmpEnemyInf(0)
 endfunction
 
@@ -70,16 +74,33 @@ endfunction
 // Tank) from a barracks or factory, up to MaxAiUnits. Game.exe 1.09 (0x464473) counts every unit of
 // the side (0x44c670), map-placed ones too, and allows 100 more in a story mission (the game flag that
 // CCampaignManager::SetupMissionData sets, 0x4903b0).
+// Game.exe 1.09 0x465473 (src/config/battle.ts AI_SPECIAL_UNIT): this unit is a special one
+function EmpAiSpecialTurn takes nothing returns boolean
+    if not EmpAiOn or EmpTechLevel < {{C.AI_SPECIAL_UNIT.tech}} or EmpTick < {{C.AI_SPECIAL_UNIT.ticks}} or EmpEnemyGold() < {{C.AI_SPECIAL_UNIT.gold}} or EmpCount(1, 1) < {{C.AI_SPECIAL_UNIT.units}} then
+        return false
+    endif
+    if GetRandomInt(0, {{C.AI_SPECIAL_UNIT.rollMax}}) >= EmpAiSkill then
+        return false
+    endif
+    return GetRandomInt(1, {{C.AI_SPECIAL_UNIT.superOneIn}}) != 1 or EmpTechLevel >= {{C.AI_SPECIAL_UNIT.superTech}}
+endfunction
+
 function EmpEnemyProduce takes nothing returns nothing
     local group g
     local unit u
     local unit at = null
     local boolean veh = GetRandomInt(1, {{ai.foot}} + {{ai.tank}}) > {{ai.foot}}
+    local boolean special = false
     local integer t
     local integer n
     local integer c
     if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()]{{#if storyAi}} + {{C.STORY_AI_EXTRA_UNITS}}{{/if}} then
         return
+    endif
+    // the special units are vehicles (Devastator, Missile tank, Minotaurus, Kobra)
+    set special = EmpAiSpecialTurn()
+    if special then
+        set veh = true
     endif
     set g = CreateGroup()
     call GroupEnumUnitsOfPlayer(g, Player(1), null)
@@ -95,7 +116,10 @@ function EmpEnemyProduce takes nothing returns nothing
     call DestroyGroup(g)
     set g = null
     if at != null then
-        set n = EmpEnemyPick(veh)
+        set n = EmpEnemyPick(veh, special)
+        if special and n != 0 then
+            call EmpAiLog("special unit " + GetObjectName(n))
+        endif
         set c = LoadInteger(EmpCostTab, n, 0)
         // units spend only what is above the money the base builder saves (EmpAiReserve, ai.j)
         if n != 0 and EmpEnemyGold() >= c + EmpAiReserve then

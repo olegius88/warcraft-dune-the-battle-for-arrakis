@@ -33,8 +33,9 @@
 // walls given up after 10 minutes, "AI has been building walls for %d minutes so aborting"), stands in
 // as turrets by ratio with a wall row each (ai.j EmpAiWalls); of the 17 skill rolls (0x46c5d0) the
 // maintenance one, the critical barracks (0x42db67, ai.j EmpAiCriticalBarracks, asked in every
-// builder turn like 0x42f07d does) and the harvester flight (0x45a91b, ai.j EmpAiHarvTick,
-// AI_HARV_FLIGHT; probe --harvflee) are reproduced, the builder update's own critical check (0x430e30:
+// builder turn like 0x42f07d does), the harvester flight (0x45a91b, ai.j EmpAiHarvTick,
+// AI_HARV_FLIGHT; probe --harvflee) and the special units (0x465500, forces.j EmpAiSpecialTurn,
+// AI_SPECIAL_UNIT; probe --special) are reproduced, the builder update's own critical check (0x430e30:
 // rand % 1000 < skill each update, in the [StartScript] too) not; nor those that need what the port
 // has not: 0x44e680 (a pro-active target is the best scored one, the score threshold +- rand 10 unless
 // rand % 10 < skill; the waves here go for the player's base, no target scores), 0x4582a0 (a scout
@@ -47,8 +48,11 @@
 // tactic short of units takes them from another; on rand % 10 < skill also EXTRA units beyond its
 // teams' needs: Game.exe's tactics (built in code, 15 types, 0x45aac0; no AI script file in the game
 // data) are waves here), 0x468410 (an AI infiltrator next to a target deploys unless rand % 40 < skill;
-// the AI here makes no infiltrators, ENEMY_INFANTRY); not looked into: 0x440613, 0x450575, 0x463980,
-// 0x465473, 0x469c60; a story mission's AI record
+// the AI here makes no infiltrators, ENEMY_INFANTRY); off in the campaign: 0x450575 (a crate grab,
+// "Crate Get T", only where the setup's game type is 1: the campaign sets 2 / 3, 0x490435) and
+// 0x440613 (pattern triggers, rand % 75000 < skill); the unit AIs 0x463980 (AiUnitADP, "Attacking %s":
+// an ADP picks its target, rand % 20) and 0x469c60 (saboteur / scout units, rand % 200) need the
+// per-unit AI the port has not; a story mission's AI record
 // (SetupMissionData 0x4903b0 -> 0x534d80) is not traced for its personality / skill, so there the skill
 // stays -1 (SideAIBehaviour*: EmpAiSkillBase 0 + 2); a windtrap goes first when short of power (not
 // traced in Game.exe). Risk: the AI's base grows in another order than Emperor's.
@@ -379,6 +383,9 @@ endfunction`;
     const req = o.units.objects.find((x) => x.id === id)?.mods.filter((m) => m.field === UNIT_FIELD.requires).map((m) => String(m.value)).at(-1) ?? '';
     const up = req.split(',').find((r) => upgradeIds.has(r));
     if (up) aiLines.push(`    call SaveInteger(EmpAiTab, '${id}', 5, '${up}')`);
+    // Rules.txt AiSpecial: only as a special unit (AI_SPECIAL_UNIT, forces.j EmpAiSpecialTurn)
+    const name = [...o.units.rawcode].find(([, v]) => v === id)?.[0];
+    if (name && o.rules?.objects.get(name)?.aiSpecial) aiLines.push(`    call SaveBoolean(EmpAiTab, '${id}', ${C.AI_TAB_SPECIAL}, true)`);
   }
   const aiFunctions = renderFile(jassFile('battle/ai'), {
     C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND, TICK_SECONDS, ABILITY,
