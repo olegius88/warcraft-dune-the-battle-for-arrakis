@@ -55,6 +55,11 @@ export const POWER_CHECK_PERIOD = 2;
 /** Sandworms (chances, lifetimes and radius come from Rules.txt): check period, how far from its
  * victim a surface worm surfaces, worm unit name in Rules.txt. Worms belong to neutral hostile. */
 export const WORM_CHECK_PERIOD = 1;
+/** Sandstorms (Rules.txt Storm*): move / hit period (s), size of the tornado effect, random tries
+ * to find a sand point. */
+export const STORM_TICK = 0.25;
+export const STORM_SCALE = 3;
+export const STORM_SPAWN_TRIES = 30;
 export const WORM_SURFACE_OFFSET_TILES = 8;
 export const SURFACE_WORM = 'SurfaceWorm';
 

@@ -110,6 +110,8 @@ export interface RulesObject {
   unstealthRange: number;
   /** worms eat it (TastyToWorms; false for story characters) */
   tastyToWorms: boolean;
+  /** StormDamage: damage a sandstorm does to it when it is not picked up (0 = none given) */
+  stormDamage: number;
   /** weight with which a worm picks it (WormAttraction; GUMaker -20 = never) */
   wormAttraction: number;
   size: number;
@@ -175,6 +177,9 @@ export interface Rules {
    * tiles), SpiceCapacity, BuildTime (ticks before the spice appears), Min/MaxRange (ticks before it
    * grows again) */
   spiceMound: { health: number; minTicks: number; randomTicks: number; radiusTiles: number; capacity: number; delayTicks: number; regrowMin: number; regrowMax: number };
+  /** sandstorms ([General] StormKillChance "the chance it will pick a unit up", StormMinWait + up to
+   * StormMaxWait ticks between storms, StormMinLife..StormMaxLife ticks; [StormUnit] Size, Speed) */
+  storm: { killChance: number; minWait: number; maxWait: number; minLife: number; maxLife: number; sizeTiles: number; speed: number };
 }
 
 function parseSections(text: string): { sections: Map<string, RulesSection>; order: string[] } {
@@ -305,7 +310,7 @@ function loadRules(rulesPath: string): Rules {
       infantry: bool(v.Infantry), canFly: bool(v.CanFly) || bool(v.Aircraft), harvester: bool(v.Harvester),
       conYard: bool(v.ConYard), power: num(v.PowerGenerated) - num(v.PowerUsed), disableWithLowPower: bool(v.DisableWithLowPower),
       reinforcementValue: num(v.ReinforcementValue), aiThreat: num(v.AIThreat), stealthedWhenStill: bool(v.StealthedWhenStill), excludeFromLose: bool(v.ExcludeFromCampaignLose), unstealthRange: num(v.UnstealthRange),
-      tastyToWorms: v.TastyToWorms === undefined || bool(v.TastyToWorms), wormAttraction: num(v.WormAttraction, 1),
+      tastyToWorms: v.TastyToWorms === undefined || bool(v.TastyToWorms), wormAttraction: num(v.WormAttraction, 1), stormDamage: num(v.StormDamage),
       size: num(v.Size, 1),
       footprint: occupy.length ? [Math.max(...occupy.map((r) => r.length)), occupy.length] : null,
       turrets, raw: v,
@@ -340,7 +345,12 @@ function loadRules(rulesPath: string): Rules {
     health: num(mound.Health), minTicks: num(mound.Size), randomTicks: num(mound.Cost), radiusTiles: num(mound.BlastRadius),
     capacity: num(mound.SpiceCapacity), delayTicks: num(mound.BuildTime), regrowMin: num(mound.MinRange), regrowMax: num(mound.MaxRange),
   };
-  return { sections, objects, armourTypes, general, category, crates, worms, reinforcements, campaignMoney, stealth, spiceMound };
+  const stormUnit = sec('StormUnit') ? baseValues(sec('StormUnit') as RulesSection).single : {};
+  const storm = {
+    killChance: num(general.StormKillChance), minWait: num(general.StormMinWait), maxWait: num(general.StormMaxWait),
+    minLife: num(general.StormMinLife), maxLife: num(general.StormMaxLife), sizeTiles: num(stormUnit.Size), speed: num(stormUnit.Speed),
+  };
+  return { sections, objects, armourTypes, general, category, crates, worms, reinforcements, campaignMoney, stealth, spiceMound, storm };
 }
 
 export { loadRules, parseSections };

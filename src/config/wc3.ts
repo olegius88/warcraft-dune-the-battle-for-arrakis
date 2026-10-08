@@ -91,7 +91,7 @@ export const ART_ABILITY = {
   /** bomb crate */
   bomb: { id: 'AHfs', type: 'EFFECT_TYPE_EFFECT' },
   /** Death Hand fallout cloud (Disease Cloud of the abomination) */
-  fallout: { id: 'Aap1', type: 'EFFECT_TYPE_CASTER' },
+  fallout: { id: 'Aap1', type: 'EFFECT_TYPE_TARGET' },
   /** spice mound burst (Thunder Clap's dust ring) */
   spiceBloom: { id: 'AHtc', type: 'EFFECT_TYPE_CASTER' },
   /** stealth crate */
@@ -151,6 +151,8 @@ export const EFFECT = {
   elite: 'Abilities\\Spells\\Other\\GeneralAuraTarget\\GeneralAuraTarget.mdl',
   levelUp: 'Abilities\\Spells\\Other\\Levelup\\LevelupCaster.mdl',
   wormStrike: 'Objects\\Spawnmodels\\Undead\\ImpaleTargetDust\\ImpaleTargetDust.mdl',
+  /** sandstorm: Cyclone's tornado (on screen in src/smoke/build-tornado-probe.ts, 2026-10-08) */
+  sandstorm: 'Abilities\\Spells\\NightElf\\Cyclone\\CycloneTarget.mdl',
 } as const;
 
 /** Already compressed media: stored in the MPQ without zlib (it would only cost build time). */

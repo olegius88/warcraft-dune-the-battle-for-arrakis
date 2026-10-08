@@ -24,8 +24,8 @@ import { renderFile } from '../wc3/template.ts';
 import type { Scope } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
 import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
-import { EMPEROR_TILE, TICKS_PER_SECOND, WC3_UNITS_PER_TILE } from '../config/scale.ts';
-import { TERRAIN, UNIT_FIELD, ART_ABILITY } from '../config/wc3.ts';
+import { EMPEROR_TILE, TICKS_PER_SECOND, WC3_UNITS_PER_TILE, HP_DIVISOR, moveSpeed } from '../config/scale.ts';
+import { TERRAIN, UNIT_FIELD, ART_ABILITY, EFFECT } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules } from './rules.ts';
 import type { AiRules } from './ai-rules.ts';
@@ -181,6 +181,19 @@ function battleSetup(o: BattleOptions): BattleSetup {
         .map((x) => `    call SaveInteger(EmpWormTab, '${rc(x.name)}', 0, ${x.tastyToWorms ? x.wormAttraction : 0})`).join('\n'),
     }));
     lines.push('    call EmpWormData()', `    call TimerStart(CreateTimer(), ${real(C.WORM_CHECK_PERIOD)}, true, function EmpWormTick)`);
+    // ---- sandstorms (Rules.txt Storm*, [StormUnit]; src/jass/battle/storm.j, on the worms' sand) ----
+    const storm = o.rules?.storm;
+    if (storm && storm.minWait > 0) {
+      fns.push(jass('storm', {
+        storm, EFFECT, HP_DIVISOR,
+        step: moveSpeed(storm.speed) * C.STORM_TICK,
+        radius: storm.sizeTiles * WC3_UNITS_PER_TILE,
+        damageLines: [...(o.rules ? o.rules.objects.values() : [])]
+          .filter((x) => rc(x.name) && x.stormDamage > 0)
+          .map((x) => `    call SaveInteger(EmpStormTab, '${rc(x.name)}', 0, ${x.stormDamage})`).join('\n'),
+      }));
+      lines.push('    call EmpStormData()', `    call TimerStart(CreateTimer(), ${real(C.STORM_TICK)}, true, function EmpStormTick)`);
+    }
   }
 
   // ---- starting forces / enemy base (territory battles) ----

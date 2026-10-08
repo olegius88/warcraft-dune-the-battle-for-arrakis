@@ -73,6 +73,16 @@
     hashtable EmpUiTab = InitHashtable()
     // spice mounds (battle spice-fields.j)
     hashtable EmpMoundTab = null
+    // sandstorm (battle storm.j)
+    hashtable EmpStormTab = null
+    group EmpStormSeen = null
+    effect EmpStormFx = null
+    real EmpStormX = 0.0
+    real EmpStormY = 0.0
+    real EmpStormTX = 0.0
+    real EmpStormTY = 0.0
+    integer EmpStormEnd = 0
+    integer EmpStormNext = 0
     real EmpTmpX = 0.0
     real EmpTmpY = 0.0
     real EmpTmpR = 0.0

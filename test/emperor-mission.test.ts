@@ -422,6 +422,18 @@ test('spice mounds burst into spice blooms and grow again', opts, () => {
   assert.ok(m.script.includes('function EmpMoundTimer') && m.script.includes('call SetResourceAmount(f, 50000)'), 'bloom of SpiceCapacity');
 });
 
+// Sandstorms ([General] Storm*, [StormUnit], StormDamage of 174 objects) were missing.
+test('sandstorms come and go on the sand by Rules.txt', opts, () => {
+  const all = loadAll();
+  assert.deepStrictEqual(all.rules.storm, { killChance: 127, minWait: 7500, maxWait: 1500, minLife: 2000, maxLife: 2500, sizeTiles: 3, speed: 3 });
+  assert.strictEqual(all.rules.objects.get('HKWall')?.stormDamage, 5);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'storm', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes('function EmpStormTick'), 'storm runtime');
+  assert.match(m.script, /TimerStart\(CreateTimer\(\), [\d.]+, true, function EmpStormTick\)/);
+  assert.ok(m.script.includes(`call SaveInteger(EmpStormTab, '${all.units.rawcode.get('HKWall')}', 0, 5)`), 'StormDamage per type');
+});
+
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
 // lines its scripts use and Message() queues them (one at a time, by known duration).
 test('mission messages play the original speech', opts, () => {
