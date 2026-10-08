@@ -114,6 +114,8 @@ function EmpWormTick takes nothing returns nothing
             if EmpOnSand(x, y) then
                 set EmpWorm = CreateUnit(Player(PLAYER_NEUTRAL_AGGRESSIVE), '{{wormId}}', x, y, {{FACING}})
                 set EmpWormEnd = EmpTick + GetRandomInt({{w.minLife}}, {{w.maxLife}})
+                // "Worm sign detected" (Uispoken.txt WormSign; helpers.j EmpUiSay)
+                call EmpUiSay({{UI.wormSign}})
             endif
         endif
     endif

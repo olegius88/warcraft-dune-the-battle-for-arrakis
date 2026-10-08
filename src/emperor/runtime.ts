@@ -39,7 +39,7 @@ export interface Runtime {
 }
 
 /** Values the runtime JASS files (src/jass/runtime) refer to. */
-const SCOPE = { RT, FACING, TPS, EFFECT, ITEM, ABILITY, ART_ABILITY, WC3_UNITS_PER_TILE, airstrikeTicks: RT.AIRSTRIKE_SECONDS * TICKS_PER_SECOND };
+const SCOPE = { RT, UI: RT.UI, FACING, TPS, EFFECT, ITEM, ABILITY, ART_ABILITY, WC3_UNITS_PER_TILE, airstrikeTicks: RT.AIRSTRIKE_SECONDS * TICKS_PER_SECOND };
 
 /** globals block lines (src/jass/runtime/globals.j) */
 const headerGlobals = (): string => renderFile(jassFile('runtime/globals'), SCOPE);

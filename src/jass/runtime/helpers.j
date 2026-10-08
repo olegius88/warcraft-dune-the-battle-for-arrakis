@@ -552,6 +552,81 @@ function EmpShow takes string s returns nothing
     call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, {{real RT.MESSAGE_SECONDS}}, s)
 endfunction
 
+// In-game announcement e (config UI_EVENTS): the original line of the player's house, shown and
+// spoken, at most once per EmpUiGap[e] seconds (data: mission.ts EmpData)
+function EmpUiSay takes integer e returns nothing
+    if EmpUiText[e] == null or EmpTick < EmpUiNext[e] then
+        return
+    endif
+    set EmpUiNext[e] = EmpTick + R2I(EmpUiGap[e] * {{TPS}})
+    call EmpShow(EmpUiText[e])
+    call EmpSpeak(EmpUiSound[e], EmpUiLen[e])
+endfunction
+
+// the player's units attacked: the base, a harvester
+function EmpUiAttacked takes nothing returns nothing
+    local unit u = GetTriggerUnit()
+    if IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+        call EmpUiSay({{UI.baseAttack}})
+    elseif LoadBoolean(EmpUiTab, GetUnitTypeId(u), 0) then
+        call EmpUiSay({{UI.harvAttack}})
+    endif
+    set u = null
+endfunction
+
+// the player's units lost
+function EmpUiDeath takes nothing returns nothing
+    if IsUnitType(GetTriggerUnit(), UNIT_TYPE_STRUCTURE) then
+        call EmpUiSay({{UI.bldgLost}})
+    else
+        call EmpUiSay({{UI.unitLost}})
+    endif
+endfunction
+
+// a unit trained (a super weapon charge: ready to fire), building started / finished, research
+function EmpUiTrained takes nothing returns nothing
+    if HaveSavedInteger(EmpSwTab, GetUnitTypeId(GetTrainedUnit()), 0) then
+        call EmpUiSay({{UI.specWepReady}})
+    else
+        call EmpUiSay({{UI.unitReady}})
+    endif
+endfunction
+
+function EmpUiBuildStart takes nothing returns nothing
+    call EmpUiSay({{UI.bldgStart}})
+endfunction
+
+function EmpUiBuildDone takes nothing returns nothing
+    call EmpUiSay({{UI.conComplete}})
+endfunction
+
+function EmpUiResearch takes nothing returns nothing
+    call EmpUiSay({{UI.upgrade}})
+endfunction
+
+function EmpUiInit takes nothing returns nothing
+    local trigger tr
+    set tr = CreateTrigger()
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_ATTACKED, null)
+    call TriggerAddAction(tr, function EmpUiAttacked)
+    set tr = CreateTrigger()
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_DEATH, null)
+    call TriggerAddAction(tr, function EmpUiDeath)
+    set tr = CreateTrigger()
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_TRAIN_FINISH, null)
+    call TriggerAddAction(tr, function EmpUiTrained)
+    set tr = CreateTrigger()
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_CONSTRUCT_START, null)
+    call TriggerAddAction(tr, function EmpUiBuildStart)
+    set tr = CreateTrigger()
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_CONSTRUCT_FINISH, null)
+    call TriggerAddAction(tr, function EmpUiBuildDone)
+    set tr = CreateTrigger()
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_RESEARCH_START, null)
+    call TriggerAddAction(tr, function EmpUiResearch)
+    set tr = null
+endfunction
+
 // ---- side AI (simple order-based behaviour) ----
 // modes: 0 none, 1 aggressive (attack nearest enemy base), 2 move to point, 3 exit map,
 //        4 guard object, 5 attack object, 6 headless chicken, 7 stop, 8 normal (stay near own base)
@@ -708,7 +783,7 @@ function EmpReinfArrive takes integer side returns nothing
     local integer e = EmpEntranceFor(side)
     call EmpSpawnSet(side, EmpReinfValue[side], EmpEntrX[e], EmpEntrY[e], {{real RT.REINF_SPREAD}})
     if side == 0 then
-        call EmpShow({{str RT.REINF_ARRIVED_MESSAGE}})
+        call EmpUiSay({{UI.reinforceArr}})
         call PingMinimap(EmpEntrX[e], EmpEntrY[e], {{real RT.REINF_PING_SECONDS}})
     endif
 endfunction
@@ -725,7 +800,7 @@ function EmpReinfTick takes nothing returns nothing
         if EmpReinfValue[side] > 0 and EmpReinfNext[side] > 0 then
             if side == 0 and not EmpReinfWarned[0] and EmpTick >= EmpReinfNext[0] - EmpReinfMessage then
                 set EmpReinfWarned[0] = true
-                call EmpShow({{str RT.REINF_SOON_MESSAGE}})
+                call EmpUiSay({{UI.reinforceApp}})
             endif
             if EmpTick >= EmpReinfNext[side] then
                 call EmpReinfArrive(side)

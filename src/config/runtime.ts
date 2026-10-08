@@ -121,6 +121,20 @@ export const SHROUD_SLOTS = 64;
 export const SW_FLEE_STEP = 600;
 export const SW_FLEE_PERIOD = 0.5;
 
+/** In-game announcements (Uispoken.txt / DATA\Sounds\sounds.txt section IngameMessages; runtime
+ * helpers.j EmpUiSay): event, message key without the house prefix (the player's house version
+ * <H><key> first, else <key>), seconds before the same announcement again. Event id = index + 1. */
+export const UI_EVENTS: ReadonlyArray<readonly [string, string, number]> = [
+  ['baseAttack', 'BaseAttack', 30], ['harvAttack', 'HarvAttack', 30], ['unitLost', 'UnitLost', 15], ['bldgLost', 'BldgLost', 10],
+  ['lowPower', 'LowPower', 30], ['unitReady', 'UnitReady', 3], ['bldgStart', 'BldgStart', 3], ['conComplete', 'ConComplete', 3],
+  ['upgrade', 'Upgrade', 3], ['specWepReady', 'SpecWepReady', 5], ['incomingDHand', 'IncomingDHand', 5],
+  ['incomingHawk', 'IncomingHawk', 5], ['incomingChaos', 'IncomingChaos', 5], ['bldgCaptured', 'BldgCaptured', 5],
+  ['bldgStolen', 'BldgStolen', 5], ['wormSign', 'WormSign', 30], ['reinforceArr', 'ReinforceArr', 10],
+  ['leechAttack', 'LeechAttack', 10], ['contAttack', 'ContAttack', 10], ['reinforceApp', 'ReinforceApp', 10],
+];
+/** Event name -> id for the JASS templates ({{UI.lowPower}}). */
+export const UI = Object.fromEntries(UI_EVENTS.map(([name], i) => [name, i + 1])) as Readonly<Record<string, number>>;
+
 /** Special abilities (src/jass/mission/specials.j): scan period (s); how far around a unit to look,
  * how close (edge to edge) an engineer / saboteur must be to a building, a crusher to infantry. */
 export const SP_TICK = 0.5;
@@ -143,13 +157,11 @@ export const STEALTH_ALPHA = 90;
 
 /** Reinforcements (timings and set values come from Rules.txt [General]): units of one house in the
  * pick table at most, check period, random picks of a set before it is considered complete,
- * spread around the entrance, texts and minimap ping for the player's sets. */
+ * spread around the entrance, minimap ping for the player's sets (announced: helpers.j EmpUiSay). */
 export const REINF_SLOT_STRIDE = 32;
 export const REINF_TICK = 1;
 export const REINF_PICK_TRIES = 40;
 export const REINF_SPREAD = 256;
-export const REINF_SOON_MESSAGE = 'Ментат: Подкрепления на подходе.';
-export const REINF_ARRIVED_MESSAGE = 'Ментат: Подкрепления прибыли.';
 export const REINF_PING_SECONDS = 4;
 
 /** sounds.txt section that holds the spoken mission briefings (key = mission script name). */

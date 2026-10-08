@@ -64,6 +64,13 @@
     unit EmpSpCrusher = null
     // construction yards that gave their builders (battle economy.j)
     group EmpYardsServed = null
+    // in-game announcements (helpers.j EmpUiSay; data from mission.ts)
+    string array EmpUiText
+    string array EmpUiSound
+    real array EmpUiLen
+    real array EmpUiGap
+    integer array EmpUiNext
+    hashtable EmpUiTab = InitHashtable()
     real EmpTmpX = 0.0
     real EmpTmpY = 0.0
     real EmpTmpR = 0.0

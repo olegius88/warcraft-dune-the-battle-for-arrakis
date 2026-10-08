@@ -60,8 +60,14 @@ function EmpSpDamaged takes nothing returns nothing
         call SaveInteger(EmpSpTab, GetHandleId(u), 31, GetPlayerId(GetOwningPlayer(s)) + 1)
         call SaveInteger(EmpSpTab, GetHandleId(u), 32, GetUnitTypeId(s))
         call GroupAddUnit(EmpSpLeeched, u)
+        if GetOwningPlayer(u) == Player(0) then
+            call EmpUiSay({{UI.leechAttack}})
+        endif
     elseif k == 3 and LoadBoolean(EmpSpTab, tu, 11) then
         // the contaminated infantryman dies and turns into a contaminator of the shooter's side
+        if GetOwningPlayer(u) == Player(0) then
+            call EmpUiSay({{UI.contAttack}})
+        endif
         call CreateUnit(GetOwningPlayer(s), GetUnitTypeId(s), GetUnitX(u), GetUnitY(u), GetUnitFacing(u))
         call KillUnit(u)
     endif
@@ -148,6 +154,11 @@ function EmpSpTickEnum takes nothing returns nothing
     if k == 4 then
         set b = EmpSpBuildingAt(u, true)
         if b != null then
+            if GetOwningPlayer(b) == Player(0) then
+                call EmpUiSay({{UI.bldgStolen}})
+            elseif GetOwningPlayer(u) == Player(0) then
+                call EmpUiSay({{UI.bldgCaptured}})
+            endif
             call SetUnitOwner(b, GetOwningPlayer(u), true)
             call RemoveUnit(u)
         endif

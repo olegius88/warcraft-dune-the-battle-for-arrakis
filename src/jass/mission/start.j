@@ -10,6 +10,7 @@ function EmpStart takes nothing returns nothing
     call EmpSwInit()
     call EmpSubhouseLimits()
     call EmpSpInit()
+    call EmpUiInit()
     call EmpReinfData()
 {{pickScript}}{{#if hasBriefingSpeech}}
     call EmpBriefingSpeech(){{/if}}

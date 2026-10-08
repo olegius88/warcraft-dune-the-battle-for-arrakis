@@ -31,7 +31,7 @@ import type { WormRules, Rules } from './rules.ts';
 import type { AiRules } from './ai-rules.ts';
 import { parseAiRules } from './ai-rules.ts';
 import { superweapons } from './superweapons.ts';
-import { MAX_SIDE, DEFAULT_FACING } from '../config/runtime.ts';
+import { MAX_SIDE, DEFAULT_FACING, UI } from '../config/runtime.ts';
 import * as C from '../config/battle.ts';
 import type { MapMeta } from './mapxbf.ts';
 import type { EmperorTerrain } from './terrain.ts';
@@ -117,7 +117,7 @@ function battleSetup(o: BattleOptions): BattleSetup {
   const P = CODE_BY_HOUSE[o.playerHouse] || 'AT';
   const lines: string[] = [];
   const fns: string[] = [];
-  const jass = (name: string, scope: Scope): string => renderFile(jassFile(`battle/${name}`), { C, MAX_SIDE, FACING, ...scope });
+  const jass = (name: string, scope: Scope): string => renderFile(jassFile(`battle/${name}`), { C, MAX_SIDE, FACING, UI, ...scope });
 
   // ---- tech limits by runtime tech level ----
   const byLevel: Record<number, string[]> = {};
@@ -269,7 +269,7 @@ endfunction`;
     if (up) aiLines.push(`    call SaveInteger(EmpAiTab, '${id}', 5, '${up}')`);
   }
   const aiFunctions = renderFile(jassFile('battle/ai'), {
-    C, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND,
+    C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND,
     aiReport: o.aiReport ?? '',
     dataFunction: `function EmpAiData takes nothing returns nothing\n${aiLines.join('\n')}\nendfunction\n`,
   });

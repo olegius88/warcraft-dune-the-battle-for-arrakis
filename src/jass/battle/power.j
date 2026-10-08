@@ -50,7 +50,8 @@ function EmpPowerTick takes nothing returns nothing
         if i == 0 then
             call SetPlayerState(Player(0), PLAYER_STATE_RESOURCE_LUMBER, IMaxBJ(sum, 0))
             if low and not EmpLowPower[0] then
-                call EmpShow({{str C.LOW_POWER_MESSAGE}})
+                // the original line of the player's house (Uispoken.txt ATLowPower...; helpers.j EmpUiSay)
+                call EmpUiSay({{UI.lowPower}})
             endif
         endif
         set EmpLowPower[i] = low

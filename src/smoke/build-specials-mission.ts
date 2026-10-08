@@ -13,6 +13,7 @@ import { specialAbilities } from '../emperor/specials.ts';
 import { str, real } from '../wc3/jass.ts';
 import { BUILD_DIR } from '../config/paths.ts';
 import { TICKS_PER_SECOND } from '../config/scale.ts';
+import { UI_EVENTS } from '../config/runtime.ts';
 
 const all = loadAll();
 const id = (name: string): string => `'${all.units.rawcode.get(name)}'`;
@@ -97,6 +98,7 @@ function SpMissionRun takes nothing returns nothing
     local unit t
     local real hp
     local integer k
+    local string said
     call TriggerSleepAction(6.0)
     // no win when the other sides are gone: the victory screen paused the game at 28 s
     set EmpNormalConditions = false
@@ -178,6 +180,10 @@ function SpMissionRun takes nothing returns nothing
     call EmpSpRepair(a, 100.0, 1000.0)
     call SpmLog("repair after a direct EmpSpRepair(100): " + I2S(R2I(GetWidgetLife(t))))
     call SpmLog("sp ticks in=" + I2S(EmpSpTicks) + " out=" + I2S(EmpSpTicksDone))
+    // in-game announcements made during the probe (helpers.j EmpUiSay: EmpUiNext set when spoken)
+    set said = "announced:"
+${UI_EVENTS.map(([n], i) => `    if EmpUiNext[${i + 1}] > 0 then\n        set said = said + " ${n}"\n    endif`).join('\n')}
+    call SpmLog(said)
     call SpmLog("done")
     set a = null
     set t = null

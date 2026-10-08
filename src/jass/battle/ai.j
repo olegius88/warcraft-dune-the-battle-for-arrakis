@@ -503,6 +503,14 @@ function EmpAiSuperweapon takes nothing returns nothing
         set EmpAiSwFrom = EmpTick
     elseif EmpTick - EmpAiSwFrom >= EmpAiSwTicks[EmpEnemyHouse] and EmpAiKnown then
         call EmpSwStrike(t, Player(1), EmpAiKnownX, EmpAiKnownY)
+        // "Death Hand launch detected"... (helpers.j EmpUiSay)
+        if LoadInteger(EmpSwTab, t, 0) == 1 then
+            call EmpUiSay({{UI.incomingDHand}})
+        elseif LoadInteger(EmpSwTab, t, 0) == 2 then
+            call EmpUiSay({{UI.incomingHawk}})
+        else
+            call EmpUiSay({{UI.incomingChaos}})
+        endif
         call EmpAiLog("super weapon " + GetObjectName(t))
         set EmpAiSwFrom = EmpTick
     endif

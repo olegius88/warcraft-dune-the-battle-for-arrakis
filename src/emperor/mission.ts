@@ -154,6 +154,24 @@ function buildMission(p: MissionParams): BuiltMission {
     speechImports[sp.path] = sp.data;
     init.push(`    set EmpMsgSound[${n}] = ${str(sp.path)}`, `    set EmpMsgSoundLen[${n}] = ${real(sp.seconds)}`);
   }
+  // in-game announcements (config UI_EVENTS, helpers.j EmpUiSay): the player's house version of the
+  // line (ATLowPower), else the plain one (BaseAttack); text and speech of IngameMessages
+  const houseCode = CODE_BY_HOUSE[p.playerHouse];
+  RT.UI_EVENTS.forEach(([, key, gap], i) => {
+    const k = [`${houseCode}${key}`, key].find((x) => p.ctx.textByKey(x) || p.speech?.forKey(x));
+    if (!k) return;
+    init.push(`    set EmpUiText[${i + 1}] = ${str(p.ctx.textByKey(k) ?? '')}`, `    set EmpUiGap[${i + 1}] = ${real(gap)}`);
+    const sp = p.speech?.forKey(k);
+    if (sp) {
+      speechImports[sp.path] = sp.data;
+      init.push(`    set EmpUiSound[${i + 1}] = ${str(sp.path)}`, `    set EmpUiLen[${i + 1}] = ${real(sp.seconds)}`);
+    }
+  });
+  // harvesters: their attack has its own announcement
+  for (const o of p.rules ? p.rules.objects.values() : []) {
+    const id = p.units.rawcode.get(o.name);
+    if (id && o.harvester) init.push(`    call SaveBoolean(EmpUiTab, '${id}', 0, true)`);
+  }
   for (const n of tooltips) { const text = p.ctx.tooltipText(n); if (text) init.push(`    set EmpTipText[${n}] = ${str(text)}`); }
   // spoken briefing of each script (sounds.txt section Briefing), queued at start for the script
   // chosen by the campaign phase (regression/feature test: test/emperor-mission.test.ts)
@@ -335,7 +353,7 @@ function buildMission(p: MissionParams): BuiltMission {
 
   // values of the src/jass/mission files
   const scope = {
-    CACHE_FILE, CAT, K, RT, ITEM, EFFECT, ICON, ART_ABILITY, FACING, ARMOR_REDUCTION, TICK_SECONDS, HOUSE_ID, OTHER_ENEMY_COLOR,
+    CACHE_FILE, CAT, K, RT, UI: RT.UI, ITEM, EFFECT, ICON, ART_ABILITY, FACING, ARMOR_REDUCTION, TICK_SECONDS, HOUSE_ID, OTHER_ENEMY_COLOR,
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,

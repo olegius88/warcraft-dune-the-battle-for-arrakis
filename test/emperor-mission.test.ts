@@ -12,6 +12,7 @@ import { buildMission } from '../src/emperor/mission.ts';
 import { loadCampaign, defendVariant } from '../src/emperor/campaign-data.ts';
 import { superweapons } from '../src/emperor/superweapons.ts';
 import { specialAbilities } from '../src/emperor/specials.ts';
+import { UI_EVENTS } from '../src/config/runtime.ts';
 
 import { RAW_DIR, GAME_EXE } from '../src/config/paths.ts';
 const RAW = RAW_DIR;
@@ -384,6 +385,26 @@ test('every construction yard of the player gets its builders, also those made w
   assert.ok(m.script.includes('function EmpYardTick') && /TimerStart\(CreateTimer\(\), [\d.]+, true, function EmpYardTick\)/.test(m.script), 'periodic yard check');
   const done = m.script.slice(m.script.indexOf('function EmpOnBuildingDone'), m.script.indexOf('endfunction', m.script.indexOf('function EmpOnBuildingDone')));
   assert.ok(done.includes('call EmpGiveBuilders(b)'), 'built yards too, once');
+});
+
+// In-game announcements were missing or invented ("Ментат: Недостаточно энергии! Турели отключены…"):
+// Uispoken.txt / sounds.txt IngameMessages hold them, many per house (ATLowPower, HKLowPower...).
+// Found by an independent audit 2026-10-08.
+test('in-game announcements: the original lines of the player\'s house, with their speech', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'ui', playerHouse: 'Harkonnen', kind: 'attack', territoryBattle: true, hubMap: 'HK_Hub.w3x' });
+  const lowPower = UI_EVENTS.findIndex(([n]) => n === 'lowPower') + 1;
+  const base = UI_EVENTS.findIndex(([n]) => n === 'baseAttack') + 1;
+  assert.ok(m.script.includes(`set EmpUiText[${lowPower}] = "Вам нужно больше энергии.  Стройте больше ветроловушек."`), 'HKLowPower text');
+  // the installed DIALOG.BAG holds only some of the UI lines (UI-G004..G018, not HKLowPower UI-G014): the
+  // others are shown without speech
+  assert.ok(m.script.includes(`set EmpUiSound[${base}] = "war3mapImported\\\\speech\\\\UI-G006.wav"`), 'BaseAttack speech');
+  assert.ok(m.script.includes(`set EmpUiText[${base}] = "База атакована."`), 'generic BaseAttack');
+  assert.ok(m.imports && Object.keys(m.imports).some((k) => /speech/i.test(k)), 'speech imported');
+  assert.ok(!m.script.includes('Турели отключены'), 'no invented low-power text');
+  assert.ok(m.script.includes(`call EmpUiSay(${lowPower})`), 'low power announced');
+  assert.ok(m.script.includes('function EmpUiDeath') && m.script.includes('function EmpUiAttacked'), 'event hooks');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
