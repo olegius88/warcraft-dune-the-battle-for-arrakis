@@ -41,7 +41,9 @@
 // FirstCampaignGameTechLevel + 1, credits over the reserve >= 10, 1 in 20 updates: each building with
 // building vfunc +0x108 gets command 0x4c2a40 on rand % 10 < skill, group 5 also rand % 300 < skill;
 // the command is not identified, possibly the upgrade the builder here buys at once, EmpAiUpgrade);
-// not looked into: 0x430786, 0x440613, 0x450575, 0x45a600, 0x45b030 (extra units), 0x463980,
+// 0x430786 (past 10 minutes a builder list entry of group 2 with +0x4 == 1 is refused on
+// rand % 2000 < skill: at most 0.45 % of the checks; group 2 / +0x4 not identified); not looked into:
+// 0x440613, 0x450575, 0x45a600, 0x45b030 (extra units), 0x463980,
 // 0x465473, 0x468410 (infiltrators), 0x469c60; a story mission's AI record
 // (SetupMissionData 0x4903b0 -> 0x534d80) is not traced for its personality / skill, so there the skill
 // stays -1 (SideAIBehaviour*: EmpAiSkillBase 0 + 2); a windtrap goes first when short of power (not
