@@ -508,6 +508,19 @@ test('sandstorms come and go on the sand by Rules.txt', opts, () => {
   const inf = all.units.rawcode.get('ATInfantry');
   assert.ok(m.script.includes(`call SaveInteger(EmpStormTab, '${inf}', 0, 10)`) && m.script.includes(`call SaveInteger(EmpStormTab, '${inf}', 1, 2)`), 'ATInfantry 138 = class 2, damage 10');
   assert.ok(m.script.includes('LoadInteger(EmpStormTab, EmpType(u), 1) > 0'), 'only a class above 0 is picked up');
+  // TODO(storm) closed by Game.exe 1.09 (storm update 0x52ba18..0x52bc87, per game tick): ground objects
+  // in the 11 x 11 cells around the storm are picked up with chance class / (StormKillChance + 1)
+  // ((rand & 127) < class) every tick, else take damage (value mod 64) every tick; flying units within
+  // 160 / 32 = 5 cells (distance^2 < 25600) take the whole value every tick. It was once per unit and
+  // storm with chance 127 / 256 and the damage per second.
+  const body = (f: string): string => m.script.slice(m.script.indexOf(`function ${f} takes`), m.script.indexOf('endfunction', m.script.indexOf(`function ${f} takes`)));
+  const hit = body('EmpStormHit');
+  assert.ok(!hit.includes('EmpStormSeen'), 'no longer once per storm');
+  // 0.25 s = 6.25 ticks: class 2 -> 1 - (1 - 2/128)^6.25
+  assert.ok(m.script.includes(`set EmpStormPick[2] = ${(1 - (1 - 2 / 128) ** 6.25).toFixed(4)}`), 'pick-up chance per check from the per-tick chance');
+  assert.ok(hit.includes('* 6.25'), 'damage per tick, 6.25 ticks per check');
+  assert.ok(hit.includes('UNIT_TYPE_FLYING') && hit.includes('LoadInteger(EmpStormTab, EmpType(u), 2)'), 'flying units take the whole value');
+  assert.ok(!m.script.includes('TODO(storm)'), 'TODO closed');
 });
 
 // [General] HarvReplacementDelay ("ticks before harvester gets replaced") and CashDeliveryWhenNoSpice*
@@ -709,6 +722,22 @@ test('starport stock grows by Game.exe rules and limits what can be ordered', op
   assert.ok(body('EmpPortFinish').includes('set EmpPortCart[k] = EmpPortCart[k] + 1'), 'a ready order is on the way');
   assert.ok(body('EmpPortFrigate').includes('EmpPortCart[c] - 1'), 'a landing empties the cart, the stock stays');
   assert.ok(!m.script.includes('TODO(starport): the stock'), 'TODO closed');
+});
+
+// A starport order kept its unit's requirements: the factory upgrade of UpgradedPrimaryRequired types
+// (Minotaurus...) and the SecondaryBuilding (TODO(starport)). Game.exe 1.09 offers a starport type to
+// a side by its house (-1 any) and DisableIfNoSpiceOnMap only (tab check 0x53e4f0; keys -> fields
+// from the parser switch 0x526720: House +0x80, DisableIfNoSpiceOnMap +0x3d4, Upgraded*Required
+// +0x3c1/+0x3c2, which the check never reads). Guaranteed now: orders have no requirements.
+test('starport orders need no building or upgrade (Game.exe tab check)', opts, () => {
+  const all = loadAll();
+  const mino = all.rules.objects.get('ATMinotaurus');
+  assert.ok(mino?.upgradedPrimaryRequired, 'Minotaurus needs the factory upgrade at the factory');
+  const real = all.units.rawcode.get('ATMinotaurus') as string;
+  const order = [...all.units.portOrders].find(([, r]) => r === real)?.[0] as string;
+  const req = (id: string): string => all.units.objects.find((o) => o.id === id)?.mods.filter((m) => m.field === 'ureq').map((m) => String(m.value)).at(-1) ?? '';
+  assert.notStrictEqual(req(real), '', 'the factory unit keeps its requirements');
+  assert.strictEqual(req(order), '', 'the starport order has none');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

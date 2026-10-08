@@ -328,14 +328,13 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     }
     if (reqs.length) obj.mods.push(str(F.requires, reqs.join(',')));
   }
-  // the order types: the unit's look and requirements, its Rules.txt Cost, unarmed, PORT_ORDER_SECONDS
-  // TODO(starport): an order keeps its unit's requirements, also the factory upgrade of
-  // UpgradedPrimaryRequired types (Minotaurus, Kobra, Missile...): whether Emperor's starport asks for
-  // it is not in the data (fifth audit). Risk: such units need the upgrade at the starport too.
+  // the order types: the unit's look, its Rules.txt Cost, unarmed, PORT_ORDER_SECONDS, and no
+  // requirements: Game.exe offers a starport type by house and DisableIfNoSpiceOnMap only, never
+  // asking for buildings or the factory upgrade (tab check 0x53e4f0; test/emperor-mission.test.ts)
   const portOrders = new Map<string, string>();
   for (const u of portable) {
     const real = objects.find((x) => x.emperor === u) as UnitObject;
-    const keep = [F.icon, F.model, F.scale, F.selectionScale, F.race, F.requires];
+    const keep = [F.icon, F.model, F.scale, F.selectionScale, F.race];
     const kept = keep.map((f) => real.mods.filter((m) => m.field === f).at(-1)).filter((m): m is ObjectMod => Boolean(m));
     const id = orderOf.get(u.name) as string;
     portOrders.set(id, real.id);
