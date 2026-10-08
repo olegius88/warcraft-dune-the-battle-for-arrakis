@@ -146,12 +146,15 @@ function battleSetup(o: BattleOptions): BattleSetup {
 
   // ---- spice fields ----
   const clusters = spiceClusters(o.meta);
+  // Game.exe 1.09 (harvester 0x56c2c4..0x56c329, unload 0x53ebc0): a harvested cell loses its spice
+  // and adds [General] SpiceValue to the load, which becomes credits 1:1 (test/emperor-mission.test.ts)
+  const spiceValue = Number(o.rules?.general.SpiceValue ?? 0) || C.FALLBACK_SPICE_VALUE;
   // spice mounds of the map (Rules.txt [SpiceMound]; ticks -> seconds)
   const mound = o.rules?.spiceMound ?? { health: 0, minTicks: 0, randomTicks: 0, radiusTiles: 0, capacity: 0, delayTicks: 0, regrowMin: 0, regrowMax: 0 };
   fns.push(jass('spice-fields', {
-    fieldLines: clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, ${FACING})\n    call SetResourceAmount(m, ${Math.max(C.SPICE_FIELD_MIN, c.tiles * C.SPICE_PER_TILE)})`; }).join('\n'),
+    fieldLines: clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, ${FACING})\n    call SetResourceAmount(m, ${c.tiles * spiceValue})`; }).join('\n'),
     moundLines: (o.rules ? o.meta.spiceMounds ?? [] : []).map(([tx, ty]) => { const [x, y] = o.terrain.toWorld(tx, ty); return `    call EmpMoundAdd(${real(x)}, ${real(y)})`; }).join('\n'),
-    mound, spiceField: o.units.ids.spiceField, spiceMound: o.units.ids.spiceMound, ART_ABILITY,
+    mound, spiceValue, spiceField: o.units.ids.spiceField, spiceMound: o.units.ids.spiceMound, ART_ABILITY,
     WC3_UNITS_PER_TILE, tiles: { sand: TERRAIN.ground[TEX.SAND], dust: TERRAIN.ground[TEX.DUST], spice: TERRAIN.ground[TEX.SPICE] },
     burstMin: mound.minTicks / TICKS_PER_SECOND, burstMax: (mound.minTicks + mound.randomTicks) / TICKS_PER_SECOND,
     regrowMin: mound.regrowMin / TICKS_PER_SECOND, regrowMax: mound.regrowMax / TICKS_PER_SECOND,
@@ -166,10 +169,14 @@ function battleSetup(o: BattleOptions): BattleSetup {
     spiceField: o.units.ids.spiceField, harvester, mcv,
     // [General] HarvReplacementDelay, CashDeliveryWhenNoSpice* (ticks, credits)
     harvReplaceTicks: Number(o.rules?.general.HarvReplacementDelay ?? 0) || 0,
-    cash: {
-      min: Number(o.rules?.general.CashDeliveryWhenNoSpiceAmountMin ?? 0) || 0, max: Number(o.rules?.general.CashDeliveryWhenNoSpiceAmountMax ?? 0) || 0,
-      freqMin: Number(o.rules?.general.CashDeliveryWhenNoSpiceFrequencyMin ?? 0) || 0, freqMax: Number(o.rules?.general.CashDeliveryWhenNoSpiceFrequencyMax ?? 0) || 0,
-    },
+    harvCheckTicks: C.HARV_REPLACE_PERIOD * TICKS_PER_SECOND,
+    // Game.exe draws Min + rand % (Max - Min): the last value is Max - 1 (Max == Min: Min)
+    cash: ((): Record<string, number> => {
+      const g = o.rules?.general;
+      const min = Number(g?.CashDeliveryWhenNoSpiceAmountMin ?? 0) || 0, max = Number(g?.CashDeliveryWhenNoSpiceAmountMax ?? 0) || 0;
+      const freqMin = Number(g?.CashDeliveryWhenNoSpiceFrequencyMin ?? 0) || 0, freqMax = Number(g?.CashDeliveryWhenNoSpiceFrequencyMax ?? 0) || 0;
+      return { min, last: Math.max(min, max - 1), freqMin, freqLast: Math.max(freqMin, freqMax - 1) };
+    })(),
     // the builders of the house (units.ts: walls and turrets have their own); the sub-house builder
     // only for the player allied with a sub-house (mission subhouse.j)
     builderLines: PREFIXES.map((h, i) => `    if t == '${conYards[i]}' then\n${[o.units.ids.builders[h], o.units.ids.defenceBuilders[h]].map((id, k) => `        call CreateUnit(GetOwningPlayer(b), '${id}', GetUnitX(b) - ${real(C.BUILDER_OFFSET * (k + 1))}, GetUnitY(b) - ${real(C.BUILDER_OFFSET)}, ${FACING})`).join('\n')}
@@ -344,7 +351,7 @@ endfunction`;
     money: o.rules?.campaignMoney ?? { attack: C.FALLBACK_CREDITS, defend: C.FALLBACK_CREDITS },
   }));
 
-  fns.push(jass('init', { storyAi: storyHouse >= 0, territoryBattle: o.territoryBattle, attackBattle: o.territoryBattle && !o.defend, defendBattle: o.territoryBattle && Boolean(o.defend) }));
+  fns.push(jass('init', { harvReplaceTicks: Number(o.rules?.general.HarvReplacementDelay ?? 0) || 0, storyAi: storyHouse >= 0, territoryBattle: o.territoryBattle, attackBattle: o.territoryBattle && !o.defend, defendBattle: o.territoryBattle && Boolean(o.defend) }));
   lines.push('    call EmpBattleInit()');
   return { functions: fns.join('\n\n'), init: lines.join('\n'), clusters: clusters.length };
 }

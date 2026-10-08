@@ -16,12 +16,10 @@ export const ENEMY_VEHICLES: readonly string[] = ['Trike', 'Buzzsaw', 'DustScout
 
 /** Spice: tiles within this reach (tiles) form one field; credits per tile, minimum per field. */
 export const SPICE_CLUSTER_REACH = 2;
-// TODO(economy): SPICE_PER_TILE is not from the data: map tiles only say "spice" (all 255 in
-// test.xbf), [General] SpiceValue = 200 has no comment (maybe credits per tile: 7.5x less) and no
-// source explaining it was found (web search 2026-10-08); a mound holds SpiceCapacity = 50000
-// ([SpiceMound]), a harvester carries 700. Risk: fields may hold more credits than in Emperor.
-export const SPICE_PER_TILE = 1500;
-export const SPICE_FIELD_MIN = 2000;
+// Credits of a spice cell: [General] SpiceValue (Game.exe 1.09 adds it to the harvester's load per
+// cell harvested and gives the load 1:1 as credits; src/emperor/battle.ts). This stands in only for a
+// build without Rules.txt.
+export const FALLBACK_SPICE_VALUE = 200;
 
 /** Starting credits and army values come from Rules.txt (Campaign*Money, UnitValueAttacker /
  * UnitValueDefender); these stand in only for a build without Rules.txt. */
@@ -49,6 +47,11 @@ export const YARD_CHECK_PERIOD = 2;
 /** Harvester replacement and cash delivery (Rules.txt HarvReplacementDelay, CashDeliveryWhenNoSpice*)
  * are checked this often (s). */
 export const HARV_REPLACE_PERIOD = 2;
+/** A replacement harvester goes to the refinery with the fewest harvesters within this range (WC3
+ * units; Game.exe counts the harvesters whose home it is, a WC3 harvester has none); at most this
+ * many refineries of a side are compared. */
+export const HARV_HOME_RANGE = 1024;
+export const HARV_MAX_REFINERIES = 16;
 /** Defence: the attacker's army arrives this long after the start, spread around its entrance;
  * later only its reinforcement sets come. */
 export const DEFEND_ATTACK_DELAY = 45;

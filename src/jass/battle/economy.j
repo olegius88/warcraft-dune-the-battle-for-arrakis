@@ -127,19 +127,27 @@ function EmpOnConstructStart takes nothing returns nothing
     set b = null
 endfunction
 
-// [General] HarvReplacementDelay ("ticks before harvester gets replaced"): a side with a refinery and
-// no harvester gets one at the refinery after that many ticks. CashDeliveryWhenNoSpice*: once no
-// spice is left on the map, every side with a refinery gets AmountMin..Max credits every
-// FrequencyMin..Max ticks.
-// TODO(economy): the conditions are read from the key names: whether Emperor replaces every lost
-// harvester or only the last one, and pays the cash per refinery or per side, is not in Rules.txt.
+// [General] HarvReplacementDelay and CashDeliveryWhenNoSpice*, as Game.exe 1.09 does them
+// (test/emperor-mission.test.ts):
+// - harvesters (side update 0x53bb30..0x53bb6f, 0x53f490): while a side has fewer harvesters than
+//   refineries, its timer (from HarvReplacementDelay) goes down by the shortfall every tick; at its
+//   end one harvester comes at the refinery with the fewest harvesters near it and the timer starts
+//   again. Every missing harvester is replaced, up to one per refinery.
+// - cash (0x53ec20): once the map has no spice, every side gets AmountMin + rand % (Max - Min) credits
+//   every FrequencyMin + rand % (Max - Min) ticks, refinery or not, with the GenResources line.
 function EmpHarvReplaceTick takes nothing returns nothing
     local integer i = 0
     local group g = CreateGroup()
+    local group near = CreateGroup()
     local unit u
     local unit refinery
+    local unit array refs
+    local integer refineries
     local integer harvesters
     local integer t
+    local integer k
+    local integer n
+    local integer fewest
     local integer spice = 0
     call GroupEnumUnitsOfPlayer(g, Player(PLAYER_NEUTRAL_PASSIVE), null)
     loop
@@ -152,7 +160,7 @@ function EmpHarvReplaceTick takes nothing returns nothing
     endloop
     loop
         exitwhen i > {{MAX_SIDE}}
-        set refinery = null
+        set refineries = 0
         set harvesters = 0
         call GroupEnumUnitsOfPlayer(g, Player(i), null)
         loop
@@ -160,31 +168,60 @@ function EmpHarvReplaceTick takes nothing returns nothing
             exitwhen u == null
             call GroupRemoveUnit(g, u)
             set t = EmpType(u)
-            if EmpAlive(u) and ({{isRefinery}}) and not LoadBoolean(EmpPowerTab, GetHandleId(u), 2) then
-                set refinery = u
+            if EmpAlive(u) and ({{isRefinery}}) then
+                if refineries < {{C.HARV_MAX_REFINERIES}} then
+                    set refs[refineries] = u
+                endif
+                set refineries = refineries + 1
             elseif EmpAlive(u) and t == '{{harvester}}' then
                 set harvesters = harvesters + 1
             endif
         endloop
-        if refinery == null or harvesters > 0 then
-            set EmpHarvGone[i] = 0
-        elseif EmpHarvGone[i] == 0 then
-            set EmpHarvGone[i] = EmpTick
-        elseif EmpTick - EmpHarvGone[i] >= {{harvReplaceTicks}} then
-            call CreateUnit(Player(i), '{{harvester}}', GetUnitX(refinery) + {{real C.NEW_HARVESTER_OFFSET}}, GetUnitY(refinery) - {{real C.NEW_HARVESTER_OFFSET}}, {{FACING}})
-            set EmpHarvGone[i] = 0
+        if refineries > harvesters then
+            set EmpHarvLeft[i] = EmpHarvLeft[i] - (refineries - harvesters) * {{harvCheckTicks}}
+            if EmpHarvLeft[i] <= 0 then
+                // the refinery with the fewest harvesters near it
+                set refinery = null
+                set fewest = 0
+                set k = 0
+                loop
+                    exitwhen k >= refineries or k >= {{C.HARV_MAX_REFINERIES}}
+                    call GroupEnumUnitsInRange(near, GetUnitX(refs[k]), GetUnitY(refs[k]), {{real C.HARV_HOME_RANGE}}, null)
+                    set n = 0
+                    loop
+                        set u = FirstOfGroup(near)
+                        exitwhen u == null
+                        call GroupRemoveUnit(near, u)
+                        if EmpAlive(u) and GetOwningPlayer(u) == Player(i) and EmpType(u) == '{{harvester}}' then
+                            set n = n + 1
+                        endif
+                    endloop
+                    if refinery == null or n < fewest then
+                        set refinery = refs[k]
+                        set fewest = n
+                    endif
+                    set k = k + 1
+                endloop
+                call CreateUnit(Player(i), '{{harvester}}', GetUnitX(refinery) + {{real C.NEW_HARVESTER_OFFSET}}, GetUnitY(refinery) - {{real C.NEW_HARVESTER_OFFSET}}, {{FACING}})
+                set EmpHarvLeft[i] = {{harvReplaceTicks}}
+            endif
         endif
-        if refinery != null and spice == 0 then
+        if spice == 0 and GetPlayerSlotState(Player(i)) == PLAYER_SLOT_STATE_PLAYING then
             if EmpCashNext[i] == 0 then
-                set EmpCashNext[i] = EmpTick + GetRandomInt({{cash.freqMin}}, {{cash.freqMax}})
+                set EmpCashNext[i] = EmpTick + GetRandomInt({{cash.freqMin}}, {{cash.freqLast}})
             elseif EmpTick >= EmpCashNext[i] then
-                call SetPlayerState(Player(i), PLAYER_STATE_RESOURCE_GOLD, GetPlayerState(Player(i), PLAYER_STATE_RESOURCE_GOLD) + GetRandomInt({{cash.min}}, {{cash.max}}))
-                set EmpCashNext[i] = EmpTick + GetRandomInt({{cash.freqMin}}, {{cash.freqMax}})
+                call SetPlayerState(Player(i), PLAYER_STATE_RESOURCE_GOLD, GetPlayerState(Player(i), PLAYER_STATE_RESOURCE_GOLD) + GetRandomInt({{cash.min}}, {{cash.last}}))
+                if i == 0 then
+                    call EmpUiSay({{UI.cashDelivery}})
+                endif
+                set EmpCashNext[i] = EmpTick + GetRandomInt({{cash.freqMin}}, {{cash.freqLast}})
             endif
         endif
         set i = i + 1
     endloop
     call DestroyGroup(g)
+    call DestroyGroup(near)
     set g = null
+    set near = null
     set refinery = null
 endfunction

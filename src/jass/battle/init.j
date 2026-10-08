@@ -21,6 +21,13 @@ function EmpBattleInit takes nothing returns nothing
     call TriggerAddAction(tr, function EmpOnConstructStart)
     call TimerStart(CreateTimer(), {{real C.HARVEST_CHECK_PERIOD}}, true, function EmpHarvestTick)
     set EmpYardsServed = CreateGroup()
+    // the replacement timer starts at HarvReplacementDelay (Game.exe side init 0x53baf9)
+    set i = 0
+    loop
+        exitwhen i > {{MAX_SIDE}}
+        set EmpHarvLeft[i] = {{harvReplaceTicks}}
+        set i = i + 1
+    endloop
     call TimerStart(CreateTimer(), {{real C.HARV_REPLACE_PERIOD}}, true, function EmpHarvReplaceTick)
     call TimerStart(CreateTimer(), {{real C.YARD_CHECK_PERIOD}}, true, function EmpYardTick)
     call EmpPowerData()

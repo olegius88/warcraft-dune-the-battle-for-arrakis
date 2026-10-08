@@ -485,12 +485,31 @@ test('spice mounds burst into spice blooms and grow again', opts, () => {
   assert.strictEqual(meta.spiceMounds?.length, 4);
   const m = buildMission({ scripts: [], meta, ...all, name: 'mounds', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.strictEqual((m.script.match(/call EmpMoundAdd\(/g) ?? []).length, 4, 'one per mound of the map');
-  assert.ok(m.script.includes('function EmpMoundTimer') && m.script.includes('call SetResourceAmount(f, 50000)'), 'bloom of SpiceCapacity');
+  // the bloom held SpiceCapacity = 50000 credits. Game.exe 1.09 (mound 0x542717..0x542acc) puts spice
+  // on the sand cells within BlastRadius, and a harvested cell gives SpiceValue whatever its amount
+  // (0x56c2c4): the bloom holds SpiceValue per cell it turned to spice
+  assert.ok(m.script.includes('function EmpMoundTimer') && m.script.includes('set n = EmpMoundPatch(x, y)') && m.script.includes('call SetResourceAmount(f, n * 200)'), 'bloom of SpiceValue per new spice cell');
+  assert.ok(!m.script.includes('call SetResourceAmount(f, 50000)'), 'not SpiceCapacity');
   // the bloom was only a mine: the BlastRadius patch ('Radius of spice bloom patch (in tiles)') is
   // now painted with the spice ground on the sand cells within 6 tiles (no spice on rock)
   assert.ok(m.script.includes('function EmpMoundPatch') && m.script.includes("call SetTerrainType(cx, cy, 'Bdrt', -1, 1, 0)"), 'spice patch');
   assert.ok(m.script.includes("GetTerrainType(cx, cy) == 'Bdsr'"), 'only on sand');
   assert.ok(m.script.includes('exitwhen dy > 6'), 'BlastRadius');
+});
+
+// A spice field held 1500 credits per spice cell, a guess (TODO(economy)), at least 2000. Game.exe 1.09
+// (harvester 0x56c2c4..0x56c329): harvesting a cell sets its spice byte to 0 (0x4e63e0) and adds
+// [General] SpiceValue to the load; unloading adds the load to the side's credits 1:1 (0x53ebc0).
+// Guaranteed now: a field holds SpiceValue per spice cell of the map, no made-up minimum.
+test('a spice field holds SpiceValue credits per spice cell (Game.exe harvesting)', opts, () => {
+  const all = loadAll();
+  assert.strictEqual(all.rules.general.SpiceValue, '200');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'spice', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const amounts = [...m.script.matchAll(/call SetResourceAmount\(m, (\d+)\)/g)].map((x) => Number(x[1]));
+  assert.ok(amounts.length > 0, 'fields placed');
+  const cells = (meta.spice ?? []).filter(Boolean).length;
+  assert.strictEqual(amounts.reduce((a, b) => a + b, 0), cells * 200, 'SpiceValue per cell, all cells counted once');
 });
 
 // Sandstorms ([General] Storm*, [StormUnit], StormDamage of 174 objects) were missing.
@@ -530,8 +549,21 @@ test('a refinery without harvesters gets one after HarvReplacementDelay; cash co
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'harv', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes('function EmpHarvReplaceTick'), 'replacement check');
-  assert.ok(m.script.includes('EmpTick - EmpHarvGone[i] >= 1000'), 'HarvReplacementDelay ticks');
-  assert.ok(m.script.includes('GetRandomInt(10000, 20000)') && m.script.includes('GetRandomInt(4000, 8000)'), 'cash delivery amounts and ticks');
+  // TODO(economy) closed by Game.exe 1.09: the side update (0x53bb30..0x53bb6f) counts refineries and
+  // harvesters (+0x58ac / +0x58b0, 0x53fa30..0x53fa63); while there are fewer harvesters, a timer
+  // starting at HarvReplacementDelay goes down by the shortfall every tick, and at its end one
+  // harvester comes at the refinery with the fewest (0x53f490), the timer starting again. Every missing
+  // harvester is replaced, not only the last one. Cash (0x53ec20) goes to every side once the map has
+  // no spice, refinery or not: AmountMin + rand % (Max - Min) every FrequencyMin + rand % (Max - Min)
+  // ticks, with the GenResources line.
+  const body = (f: string): string => m.script.slice(m.script.indexOf(`function ${f} takes`), m.script.indexOf('endfunction', m.script.indexOf(`function ${f} takes`)));
+  const tick = body('EmpHarvReplaceTick');
+  assert.ok(tick.includes('set EmpHarvLeft[i] = EmpHarvLeft[i] - (refineries - harvesters) * '), 'the timer goes down by the shortfall');
+  assert.ok(m.script.includes('set EmpHarvLeft[i] = 1000'), 'starting at HarvReplacementDelay');
+  assert.ok(tick.includes('GetRandomInt(10000, 19999)') && tick.includes('GetRandomInt(4000, 7999)'), 'cash delivery amounts and ticks');
+  assert.ok(!/refinery != null and spice == 0/.test(tick), 'cash without a refinery too');
+  assert.ok(tick.includes('EmpUiSay(') && m.script.includes('Оплата была получена'), 'GenResources announced');
+  assert.ok(!m.script.includes('TODO(economy)'), 'TODO closed');
 });
 
 // Starport prices did not change ([General] StarportCostUpdateDelay, StarportCostVariationPercent).

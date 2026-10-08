@@ -1,16 +1,20 @@
 // ---- spice mounds (Rules.txt [SpiceMound], the map's SpiceMound tag): a mound bursts after Size + up
-// to Cost ticks, or when it is destroyed, into a spice field of SpiceCapacity, and grows again on the
+// to Cost ticks, or when it is destroyed, into a spice field of SpiceValue per cell it turned to spice
+// (Game.exe 1.09: the bloom puts spice on the sand cells within BlastRadius, mound 0x542717..0x542acc,
+// and a harvested cell gives SpiceValue whatever its amount, 0x56c2c4), and grows again on the
 // same spot after MinRange..MaxRange ticks. One timer per spot; EmpMoundTab[timer]: 0 the mound,
 // 1/2 x / y, 3 what is next (0 burst, 1 grow); EmpMoundTab[mound]: 0 its timer.
 // The bloom is one field (a WC3 mine) at the mound, as a map's contiguous spice patch is one field
 // (battle.ts spiceClusters); its BlastRadius patch is painted with the spice ground (EmpMoundPatch).
 // the bloom's patch ([SpiceMound] BlastRadius "Radius of spice bloom patch (in tiles)"): the sand
-// and dust cells within it take the spice ground, one cell at a time (Emperor has spice only on sand)
-function EmpMoundPatch takes real x, real y returns nothing
+// and dust cells within it take the spice ground, one cell at a time (Emperor has spice only on sand);
+// returns how many cells it turned to spice
+function EmpMoundPatch takes real x, real y returns integer
     local integer dx
     local integer dy = -{{mound.radiusTiles}}
     local real cx
     local real cy
+    local integer n = 0
     loop
         exitwhen dy > {{mound.radiusTiles}}
         set dx = -{{mound.radiusTiles}}
@@ -21,12 +25,14 @@ function EmpMoundPatch takes real x, real y returns nothing
                 set cy = y + dy * {{real WC3_UNITS_PER_TILE}}
                 if GetTerrainType(cx, cy) == '{{tiles.sand}}' or GetTerrainType(cx, cy) == '{{tiles.dust}}' then
                     call SetTerrainType(cx, cy, '{{tiles.spice}}', -1, 1, 0)
+                    set n = n + 1
                 endif
             endif
             set dx = dx + 1
         endloop
         set dy = dy + 1
     endloop
+    return n
 endfunction
 
 function EmpMoundTimer takes nothing returns nothing
@@ -36,6 +42,7 @@ function EmpMoundTimer takes nothing returns nothing
     local real x = LoadReal(EmpMoundTab, h, 1)
     local real y = LoadReal(EmpMoundTab, h, 2)
     local unit f
+    local integer n
     if LoadInteger(EmpMoundTab, h, 3) == 0 then
         if u != null then
             call RemoveSavedHandle(EmpMoundTab, GetHandleId(u), 0)
@@ -45,9 +52,11 @@ function EmpMoundTimer takes nothing returns nothing
         endif
         call RemoveSavedHandle(EmpMoundTab, h, 0)
         call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.spiceBloom.id}}', {{ART_ABILITY.spiceBloom.type}}, 0), x, y))
-        call EmpMoundPatch(x, y)
-        set f = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '{{spiceField}}', x, y, {{FACING}})
-        call SetResourceAmount(f, {{mound.capacity}})
+        set n = EmpMoundPatch(x, y)
+        if n > 0 then
+            set f = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '{{spiceField}}', x, y, {{FACING}})
+            call SetResourceAmount(f, n * {{spiceValue}})
+        endif
         call SaveInteger(EmpMoundTab, h, 3, 1)
         call TimerStart(tm, GetRandomReal({{real regrowMin}}, {{real regrowMax}}), false, function EmpMoundTimer)
     else

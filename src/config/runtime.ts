@@ -140,6 +140,9 @@ export const UI_EVENTS: ReadonlyArray<readonly [string, string, number]> = [
   ['leechAttack', 'LeechAttack', 10], ['contAttack', 'ContAttack', 10], ['reinforceApp', 'ReinforceApp', 10],
   // a starport order: E_Output_Pickup ATGenDelivery "There is a delivery, inbound." (mission starport.j)
   ['delivery', 'GenDelivery', 5],
+  // cash when the map has no spice left: E_Output_Pickup ATGenresources "Payment has been received."
+  // (Game.exe 0x53ec20 plays MissionMessages GenResources; battle economy.j)
+  ['cashDelivery', 'Genresources', 5],
 ];
 /** Event name -> id for the JASS templates ({{UI.lowPower}}). */
 export const UI = Object.fromEntries(UI_EVENTS.map(([name], i) => [name, i + 1])) as Readonly<Record<string, number>>;

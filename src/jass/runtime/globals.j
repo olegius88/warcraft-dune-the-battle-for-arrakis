@@ -66,7 +66,8 @@
     // construction yards that gave their builders (battle economy.j)
     group EmpYardsServed = null
     // harvester replacement / cash delivery (battle economy.j): tick the last harvester went, next cash
-    integer array EmpHarvGone
+    // ticks left to the next replacement harvester (battle economy.j EmpHarvReplaceTick)
+    integer array EmpHarvLeft
     integer array EmpCashNext
     // starport prices (mission starport.j)
     hashtable EmpPortTab = null
