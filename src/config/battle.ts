@@ -74,6 +74,11 @@ export const STORM_SPAWN_TRIES = 30;
 /** StormDamage = class * STORM_CLASS_STEP + damage (Rules.txt '74 // (1*64)+10'); class 0 is
  * never picked up. */
 export const STORM_CLASS_STEP = 64;
+/** Where a storm hits (Game.exe 1.09 storm update 0x52ba18..0x52bc87): ground objects in the cells
+ * up to STORM_GROUND_CELLS from the storm's cell (11 x 11), flying units within STORM_AIR_CELLS
+ * (distance^2 < 25600 world units, 32 per cell). */
+export const STORM_GROUND_CELLS = 5;
+export const STORM_AIR_CELLS = 5;
 export const WORM_SURFACE_OFFSET_TILES = 8;
 export const SURFACE_WORM = 'SurfaceWorm';
 

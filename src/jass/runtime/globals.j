@@ -89,7 +89,8 @@
     hashtable EmpMoundTab = null
     // sandstorm (battle storm.j)
     hashtable EmpStormTab = null
-    group EmpStormSeen = null
+    // sandstorm pick-up chance per check by StormDamage class 1..3 (battle storm.j)
+    real array EmpStormPick
     effect EmpStormFx = null
     real EmpStormX = 0.0
     real EmpStormY = 0.0

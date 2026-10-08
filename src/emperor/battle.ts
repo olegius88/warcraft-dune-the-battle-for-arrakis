@@ -206,17 +206,25 @@ function battleSetup(o: BattleOptions): BattleSetup {
     // ---- sandstorms (Rules.txt Storm*, [StormUnit]; src/jass/battle/storm.j, on the worms' sand) ----
     const storm = o.rules?.storm;
     if (storm && storm.minWait > 0) {
+      // Game.exe applies a storm every tick (storm.j); the runtime checks every STORM_TICK s
+      const ticks = C.STORM_TICK * TICKS_PER_SECOND;
+      const classes = [1, 2, 3];
       fns.push(jass('storm', {
-        storm, EFFECT, HP_DIVISOR,
+        storm, EFFECT, HP_DIVISOR, ticks,
         step: moveSpeed(storm.speed) * C.STORM_TICK,
-        radius: storm.sizeTiles * WC3_UNITS_PER_TILE,
+        ground: (C.STORM_GROUND_CELLS + 0.5) * WC3_UNITS_PER_TILE,
+        air: C.STORM_AIR_CELLS * WC3_UNITS_PER_TILE,
+        // (rand & StormKillChance) < class each tick -> the chance over one check
+        pickLines: classes.map((c) => `    set EmpStormPick[${c}] = ${(1 - (1 - c / (storm.killChance + 1)) ** ticks).toFixed(4)}`).join('\n'),
         damageLines: [...(o.rules ? o.rules.objects.values() : [])]
           .filter((x) => rc(x.name) && x.stormDamage > 0)
           // StormDamage packs (class * STORM_CLASS_STEP) + damage; class 0 'only damages, is never
-          // picked up' (Rules.txt [StormUnit] comments): key 0 damage, key 1 class
+          // picked up' (Rules.txt [StormUnit] comments): key 0 damage, key 1 class, key 2 the whole
+          // value (what a flying unit takes)
           .flatMap((x) => [
             `    call SaveInteger(EmpStormTab, '${rc(x.name)}', 0, ${x.stormDamage % C.STORM_CLASS_STEP})`,
             ...(x.stormDamage >= C.STORM_CLASS_STEP ? [`    call SaveInteger(EmpStormTab, '${rc(x.name)}', 1, ${Math.floor(x.stormDamage / C.STORM_CLASS_STEP)})`] : []),
+            `    call SaveInteger(EmpStormTab, '${rc(x.name)}', 2, ${x.stormDamage})`,
           ]).join('\n'),
       }));
       lines.push('    call EmpStormData()', `    call TimerStart(CreateTimer(), ${real(C.STORM_TICK)}, true, function EmpStormTick)`);
