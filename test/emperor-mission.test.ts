@@ -579,6 +579,18 @@ test('a starport sells orders that a frigate delivers after FrigateCountdown, up
   // are not counted.
   const count = m.script.slice(m.script.indexOf('function EmpCountEnum'), m.script.indexOf('endfunction', m.script.indexOf('function EmpCountEnum')));
   assert.ok(count.includes("GetUnitAbilityLevel(u, 'Aloc') == 0"), 'frigates do not count');
+  // fifth audit: the queue lived under the starport's handle id: after it fell, a new starport with
+  // that id joined the old queue; owner and place were those of the first order, also after an
+  // engineer took the starport. The queue goes with the delivery timer, a fallen starport lets go of
+  // it, and each landing takes the starport's owner and place while it stands.
+  const body = (f: string): string => m.script.slice(m.script.indexOf(`function ${f} takes`), m.script.indexOf('endfunction', m.script.indexOf(`function ${f} takes`)));
+  assert.ok(body('EmpPortDeath').includes('call RemoveSavedHandle(EmpPortTab, h, 2)'), 'a fallen starport lets go of its frigate');
+  assert.ok(body('EmpPortQueue').includes('call SaveInteger(EmpPortTab, th, 10 + n, t)'), 'the queue on the timer');
+  assert.ok(body('EmpPortFrigate').includes('set p = GetOwningPlayer(b)'), 'the owner at landing');
+  // the hidden frigate was a threat the AI's home units were sent at (they cannot attack it)
+  assert.ok(body('EmpAiTactics').includes("GetUnitAbilityLevel(u, 'Aloc') == 0"), 'no frigate threat');
+  // "unit ready" for an order removed by EmpPortFinish first (trigger order not guaranteed)
+  assert.ok(body('EmpUiTrained').includes('GetUnitTypeId(GetTrainedUnit()) == 0'), 'removed order is no unit');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

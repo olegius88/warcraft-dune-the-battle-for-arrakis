@@ -25,7 +25,7 @@ import type { Scope } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
 import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
 import { EMPEROR_TILE, TICKS_PER_SECOND, WC3_UNITS_PER_TILE, HP_DIVISOR, moveSpeed } from '../config/scale.ts';
-import { TERRAIN, UNIT_FIELD, ART_ABILITY, EFFECT } from '../config/wc3.ts';
+import { TERRAIN, UNIT_FIELD, ART_ABILITY, EFFECT, ABILITY } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules } from './rules.ts';
 import type { AiRules } from './ai-rules.ts';
@@ -315,7 +315,7 @@ endfunction`;
     if (up) aiLines.push(`    call SaveInteger(EmpAiTab, '${id}', 5, '${up}')`);
   }
   const aiFunctions = renderFile(jassFile('battle/ai'), {
-    C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND,
+    C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND, ABILITY,
     aiReport: o.aiReport ?? '',
     dataFunction: `function EmpAiData takes nothing returns nothing\n${aiLines.join('\n')}\nendfunction\n`,
   });

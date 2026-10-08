@@ -543,7 +543,8 @@ function EmpAiTactics takes nothing returns nothing
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if EmpAlive(u) and IsUnitVisible(u, Player(1)) then
+        // Locust units (the starport frigate) are no threat: home units cannot attack them (fifth audit)
+        if EmpAlive(u) and IsUnitVisible(u, Player(1)) and GetUnitAbilityLevel(u, '{{ABILITY.locust}}') == 0 then
             if IsUnitType(u, UNIT_TYPE_STRUCTURE) and not EmpAiKnown then
                 set EmpAiKnown = true
                 set EmpAiKnownX = GetUnitX(u)

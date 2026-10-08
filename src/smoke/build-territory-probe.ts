@@ -136,14 +136,14 @@ function PortProbeRun takes nothing returns nothing
         set k = k + 1
     endloop
     call TriggerSleepAction(30.0)
-    set s = "port trikes before=" + I2S(before) + " at 30 s=" + I2S(PortProbeTrikes()) + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1)) + " frigate " + PortProbeFrigate(b)
+    set s = "port trikes before=" + I2S(before) + " at 30 s=" + I2S(PortProbeTrikes()) + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(LoadTimerHandle(EmpPortTab, GetHandleId(b), 2)), 6)) + " frigate " + PortProbeFrigate(b)
     call SetCameraPositionForPlayer(Player(0), GetUnitX(b), GetUnitY(b))
     call TriggerSleepAction(68.0)
     set s = s + " | at 98 s frigate " + PortProbeFrigate(b)
     call TriggerSleepAction(12.0)
     call PreloadGenClear()
     call PreloadGenStart()
-    call Preload(s + " | at 110 s=" + I2S(PortProbeTrikes()) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1)) + " pct=" + I2S(EmpPortPct[LoadInteger(EmpPortTab, '${trikeOrder}', 0)]) + " cost=" + I2S(LoadInteger(EmpPortTab, '${trikeOrder}', 1)))
+    call Preload(s + " | at 110 s=" + I2S(PortProbeTrikes()) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(LoadTimerHandle(EmpPortTab, GetHandleId(b), 2)), 6)) + " pct=" + I2S(EmpPortPct[LoadInteger(EmpPortTab, '${trikeOrder}', 0)]) + " cost=" + I2S(LoadInteger(EmpPortTab, '${trikeOrder}', 1)))
     call PreloadGenEnd("DuneSmoke\\\\port.pld")
     set b = null
 endfunction`,
@@ -241,7 +241,7 @@ endfunction`,
     call TriggerSleepAction(6.0)
     call PreloadGenClear()
     call PreloadGenStart()
-    call Preload("portqueue gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1)))
+    call Preload("portqueue gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(LoadTimerHandle(EmpPortTab, GetHandleId(b), 2)), 6)))
     call PreloadGenEnd("DuneSmoke\\\\portqueue.pld")
     set b = null
 endfunction`,

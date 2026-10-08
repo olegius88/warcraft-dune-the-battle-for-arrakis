@@ -7,8 +7,9 @@
 // StarportMaxDeliverySingle units, the next frigate brings the rest.
 // EmpPortTab[order type]: 0 index, 1 Rules.txt Cost, 3 the unit delivered; EmpPortTab[starport type]:
 // 2 true; EmpPortTab[starport handle]: [type] the difference fixed at the start of that type's
-// purchase, 1 units waiting for the frigate, 2 its timer, PORT_SLOT + i the waiting types;
-// EmpPortTab[delivery timer]: 1/2 x / y of the starport, 3 owner id, 4 starport handle id, 5 the frigate.
+// purchase, 2 its frigate's delivery timer; EmpPortTab[delivery timer]: 1/2 x / y of the starport,
+// 3 owner id, 4 starport handle id, 5 the frigate, 6 units waiting, 7 the starport, PORT_SLOT + i the
+// waiting types.
 // TRAIN_START fires when an order starts training, not when it is queued: two orders queued at 70 %
 // and 130 % paid 9400 of 10000 (src/smoke/build-territory-probe.ts --portqueue, 1.31.1, 2026-10-08),
 // so each order keeps its own price in the record.
@@ -132,21 +133,30 @@ function EmpPortFrigateLeave takes integer th, real x, real y returns nothing
     set gone = null
 endfunction
 
-// a frigate lands: up to StarportMaxDeliverySingle waiting units at the starport (where it stood, also
-// if it fell meanwhile: they are paid for); the rest waits for the next frigate
+// a frigate lands: up to StarportMaxDeliverySingle waiting units at the starport, for its owner now
+// (an engineer may have taken it); a fallen starport's units land where it stood (they are paid
+// for); the rest waits for the next frigate
 function EmpPortFrigate takes nothing returns nothing
     local timer tm = GetExpiredTimer()
     local integer th = GetHandleId(tm)
-    local integer h = LoadInteger(EmpPortTab, th, 4)
-    local integer n = LoadInteger(EmpPortTab, h, 1)
+    local integer n = LoadInteger(EmpPortTab, th, 6)
+    local unit b = LoadUnitHandle(EmpPortTab, th, 7)
     local player p = Player(LoadInteger(EmpPortTab, th, 3))
     local real x = LoadReal(EmpPortTab, th, 1)
     local real y = LoadReal(EmpPortTab, th, 2)
     local integer k = 0
+    if EmpAlive(b) then
+        set p = GetOwningPlayer(b)
+        set x = GetUnitX(b)
+        set y = GetUnitY(b)
+        call SaveInteger(EmpPortTab, th, 3, GetPlayerId(p))
+        call SaveReal(EmpPortTab, th, 1, x)
+        call SaveReal(EmpPortTab, th, 2, y)
+    endif
     loop
         exitwhen k >= {{portMaxDelivery}}
         exitwhen k >= n
-        call CreateUnit(p, LoadInteger(EmpPortTab, h, {{RT.PORT_SLOT}} + k), x + GetRandomReal(-{{RT.PORT_DELIVERY_SPREAD}}, {{RT.PORT_DELIVERY_SPREAD}}), y - {{real RT.PORT_DELIVERY_OFFSET}}, {{FACING}})
+        call CreateUnit(p, LoadInteger(EmpPortTab, th, {{RT.PORT_SLOT}} + k), x + GetRandomReal(-{{RT.PORT_DELIVERY_SPREAD}}, {{RT.PORT_DELIVERY_SPREAD}}), y - {{real RT.PORT_DELIVERY_OFFSET}}, {{FACING}})
         set k = k + 1
     endloop
     if p == Player(0) and k > 0 then
@@ -158,10 +168,10 @@ function EmpPortFrigate takes nothing returns nothing
     set k = 0
     loop
         exitwhen k >= n
-        call SaveInteger(EmpPortTab, h, {{RT.PORT_SLOT}} + k, LoadInteger(EmpPortTab, h, {{RT.PORT_SLOT}} + k + {{portMaxDelivery}}))
+        call SaveInteger(EmpPortTab, th, {{RT.PORT_SLOT}} + k, LoadInteger(EmpPortTab, th, {{RT.PORT_SLOT}} + k + {{portMaxDelivery}}))
         set k = k + 1
     endloop
-    call SaveInteger(EmpPortTab, h, 1, n)
+    call SaveInteger(EmpPortTab, th, 6, n)
     if n > 0 then
         call EmpPortFrigateCall(th, x, y, p)
         call TimerStart(tm, {{real portFrigateSeconds}}, false, function EmpPortFrigate)
@@ -169,34 +179,54 @@ function EmpPortFrigate takes nothing returns nothing
             call EmpUiSay({{UI.delivery}})
         endif
     else
-        call RemoveSavedHandle(EmpPortTab, h, 2)
+        // the starport (if it still has this frigate) calls a new one for its next order
+        if LoadTimerHandle(EmpPortTab, LoadInteger(EmpPortTab, th, 4), 2) == tm then
+            call RemoveSavedHandle(EmpPortTab, LoadInteger(EmpPortTab, th, 4), 2)
+        endif
         call FlushChildHashtable(EmpPortTab, th)
         call DestroyTimer(tm)
     endif
     set tm = null
+    set b = null
     set p = null
 endfunction
 
-// a paid order of starport b: its unit waits for the frigate, which is called if none is on its way
+// a paid order of starport b: its unit waits for the starport's frigate, which is called if none is
+// on its way. The queue goes with the frigate's timer, not with the starport's handle id (fifth
+// audit: a new starport with a fallen one's id joined its queue; test/emperor-mission.test.ts).
 function EmpPortQueue takes unit b, integer t returns nothing
     local integer h = GetHandleId(b)
-    local integer n = LoadInteger(EmpPortTab, h, 1)
-    local timer tm
-    call SaveInteger(EmpPortTab, h, {{RT.PORT_SLOT}} + n, t)
-    call SaveInteger(EmpPortTab, h, 1, n + 1)
-    if not HaveSavedHandle(EmpPortTab, h, 2) then
+    local timer tm = LoadTimerHandle(EmpPortTab, h, 2)
+    local integer th
+    local integer n
+    if tm == null then
         set tm = CreateTimer()
+        set th = GetHandleId(tm)
         call SaveTimerHandle(EmpPortTab, h, 2, tm)
-        call SaveReal(EmpPortTab, GetHandleId(tm), 1, GetUnitX(b))
-        call SaveReal(EmpPortTab, GetHandleId(tm), 2, GetUnitY(b))
-        call SaveInteger(EmpPortTab, GetHandleId(tm), 3, GetPlayerId(GetOwningPlayer(b)))
-        call SaveInteger(EmpPortTab, GetHandleId(tm), 4, h)
-        call EmpPortFrigateCall(GetHandleId(tm), GetUnitX(b), GetUnitY(b), GetOwningPlayer(b))
+        call SaveReal(EmpPortTab, th, 1, GetUnitX(b))
+        call SaveReal(EmpPortTab, th, 2, GetUnitY(b))
+        call SaveInteger(EmpPortTab, th, 3, GetPlayerId(GetOwningPlayer(b)))
+        call SaveInteger(EmpPortTab, th, 4, h)
+        call SaveUnitHandle(EmpPortTab, th, 7, b)
+        call EmpPortFrigateCall(th, GetUnitX(b), GetUnitY(b), GetOwningPlayer(b))
         call TimerStart(tm, {{real portFrigateSeconds}}, false, function EmpPortFrigate)
         if GetOwningPlayer(b) == Player(0) then
             call EmpUiSay({{UI.delivery}})
         endif
-        set tm = null
+    endif
+    set th = GetHandleId(tm)
+    set n = LoadInteger(EmpPortTab, th, 6)
+    call SaveInteger(EmpPortTab, th, {{RT.PORT_SLOT}} + n, t)
+    call SaveInteger(EmpPortTab, th, 6, n + 1)
+    set tm = null
+endfunction
+
+// a starport falls: it lets go of its frigate (its units still land) and of its price records
+function EmpPortDeath takes nothing returns nothing
+    local integer h = GetHandleId(GetTriggerUnit())
+    if LoadBoolean(EmpPortTab, GetUnitTypeId(GetTriggerUnit()), 2) then
+        call RemoveSavedHandle(EmpPortTab, h, 2)
+        call FlushChildHashtable(EmpPortTab, h)
     endif
 endfunction
 
@@ -231,6 +261,7 @@ endfunction
 function EmpPortInit takes nothing returns nothing
     local trigger tr = CreateTrigger()
     local trigger fin = CreateTrigger()
+    local trigger die = CreateTrigger()
     local integer i = 0
     set EmpPortTab = InitHashtable()
 {{portLines}}
@@ -239,11 +270,14 @@ function EmpPortInit takes nothing returns nothing
         exitwhen i > {{RT.MAX_SIDE}}
         call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_TRAIN_START, null)
         call TriggerRegisterPlayerUnitEvent(fin, Player(i), EVENT_PLAYER_UNIT_TRAIN_FINISH, null)
+        call TriggerRegisterPlayerUnitEvent(die, Player(i), EVENT_PLAYER_UNIT_DEATH, null)
         set i = i + 1
     endloop
     call TriggerAddAction(tr, function EmpPortTrain)
     call TriggerAddAction(fin, function EmpPortFinish)
+    call TriggerAddAction(die, function EmpPortDeath)
     set fin = null
+    set die = null
     call TimerStart(CreateTimer(), {{real updateSeconds}}, true, function EmpPortPrices)
     set tr = null
 endfunction
