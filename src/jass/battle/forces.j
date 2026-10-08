@@ -211,13 +211,17 @@ endfunction
 // The template is only its construction yard: destroyed map buildings come back by the base builder's
 // ratios (ai.j), not at their map places, as in Game.exe 1.09: its AI picks a building by the groups'
 // ratios both when building ("Choosing building group based on ratios", 0x42d260) and when replacing
-// ("ChooseNextBuildingBasedOnMaintenance", 0x42fca0: the group short of its share by over 0.6 on a
+// ("ChooseNextBuildingBasedOnMaintenance", 0x42fca0: the group short of its share by over 0.15 on a
 // coin flip, after a sub-house building); neither path looks up a lost building or its site.
 // The units the map places for side 1 count towards its unit limit, MaxAiUnits + 100 here (Game.exe,
-// EmpEnemyProduce). TODO(ai): those near the yard go with its waves (#A1 before the posts: 68 of 74
-// sent at 140 s), those beyond DefenceTacticWanderDistance keep their posts. Game.exe counts every unit
-// of the side for its defence share (0x455520), but how its tactics pick map-placed units for teams is
-// not traced. Risk: early waves stronger or weaker than in the original.
+// EmpEnemyProduce). Game.exe takes them like the units it makes: every 11th AI update (0x45a340, the
+// counter starts at side * 5) 0x45a3d0 walks the side's live objects from id +0xc on (0 at start,
+// 0x45a2e0) into AddNewOwnedUnit (0x45a460, task 1), and task 1 (0x45a600) hands a unit to the reserve
+// tactic (type 2, NumReserveTeams teams of MaxUnitsPerReserveTeam, the last 200: 0x44d980) or the free
+// unit tactic (type 4). TODO(ai): here those near the yard go with its waves (#A1 before the posts: 68
+// of 74 sent at 140 s), those beyond DefenceTacticWanderDistance keep their posts; whether the reserve
+// tactic (its phases 0x4529f0, team states 0x460930) moves such far units is not traced. Risk: early
+// waves stronger or weaker than in the original.
 function EmpStoryAiStart takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
