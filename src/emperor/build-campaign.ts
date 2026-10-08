@@ -160,7 +160,12 @@ for (const h of houses) {
     // a story map with a base of side 1: its AI follows ai_<house>_<map>.ini over ai.ini
     // TODO(ai): ai_<house>_h1..h3 / d1 / d2 / v1 / z99.ini are not used: those maps have no base of
     // side 1, their AI sides are the scripts' squads (SideAIControl) run by the order-based side AI
-    // (helpers.j EmpAITick), which has no ai.ini tactics. Risk: their defence share / scouting differ.
+    // (helpers.j EmpAITick), which has no ai.ini tactics. In Game.exe 1.09 the defence tactic
+    // (0x44e7d8) defends the points of a defence plan made for a cluster of base buildings ("Creating
+    // new defence plan for cluster"; without one "No cluster found", "Defence plan has no points,
+    // disabling"), so a side without buildings has no defence points; what its defence teams and
+    // attack scripts then do with the script's units is not traced. Risk: their defence share /
+    // scouting differ.
     const storyCode = kind === 'story' ? storyAiHouse(metaOf(mapNeedle)) : null;
     const storyAi = storyCode ? aiOverride(RAW_DIR, storyCode, mapNeedle) : null;
     const m = buildMission({

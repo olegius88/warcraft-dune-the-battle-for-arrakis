@@ -19,8 +19,11 @@
 // are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not turn); a lost
 // building is replaced by the category furthest below its share, where Game.exe's maintenance path
 // (0x42fca0) takes the group short of its share by over 0.6 on a coin flip, a sub-house building first,
-// and its decisions pass the AI skill rolls (0x46c5d0: rand % (10 k) < skill). Risk: the AI's base grows
-// at another pace and in another order than Emperor's.
+// and its decisions pass the AI skill rolls (0x46c5d0: rand % (10 k) < skill): its builder state 4
+// (0x42f3d0) builds by ratio when rand % 70 < skill, else maintains. The skill starts at -1 (0x4310aa)
+// and only a personality sets it (skirmish setup, or SideAIBehaviourAggressive / Defensive: the side
+// record's difficulty + 2, 0x432541), so a campaign AI without those always maintains. Risk: the AI's
+// base grows at another pace and in another order than Emperor's.
 
 import { real, str } from '../wc3/jass.ts';
 import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS } from '../config/campaign.ts';
