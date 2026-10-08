@@ -5,6 +5,18 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-08 Озвучка интерфейса по `Uispoken.txt` / `sounds.txt` `IngameMessages`
+  ([src/jass/runtime/helpers.j](src/jass/runtime/helpers.j) `EmpUiSay`): реплики дома игрока или общие —
+  атака базы и харвестеров, потери, готовый юнит, стройка, улучшение, супероружие, захват здания, червь,
+  подкрепления, лич, заражение — вместо придуманных текстов. Речь есть не для всех реплик
+  (в установленном `DIALOG.BAG` её нет), такие — только текстом.
+- 2026-10-08 Курганы специи ([src/jass/battle/spice-fields.j](src/jass/battle/spice-fields.j)): лопаются
+  в поле специи по `[SpiceMound]` и вырастают снова. Песчаные бури
+  ([src/jass/battle/storm.j](src/jass/battle/storm.j)) по `Storm*`, `[StormUnit]`, `StormDamage`. Замена
+  харвестера (`HarvReplacementDelay`) и деньги, когда специя кончилась (`CashDeliveryWhenNoSpice*`). Цены
+  Starport меняются (`StarportCost*`, [src/jass/mission/starport.j](src/jass/mission/starport.j)).
+  Всё проверено в игре; частота урона бурь и условия экономики выведены из ключей (`TODO(storm)`,
+  `TODO(economy)`).
 - 2026-10-08 Апгрейды зданий по Rules.txt ([src/emperor/units.ts](src/emperor/units.ts)): здание с
   `UpgradeCost` исследует своё улучшение (`war3map.w3q`), 35 типов с `UpgradedPrimaryRequired` (Kindjal,
   Kobra, турели домов…) его требуют; запрет до `UpgradeTechLevel`. ИИ покупает улучшения и не производит
