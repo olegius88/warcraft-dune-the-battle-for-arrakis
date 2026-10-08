@@ -44,6 +44,7 @@
 | `bag.ts` | Звуковые архивы `.BAG` (GABA): речь, звуки, музыка → MP3 / WAV (IMA ADPCM, PCM), длительность. |
 | `speech.ts` | Озвучка сообщений миссий: `DATA\Sounds\sounds.txt` (ключ сообщения → реплика `DIALOG.BAG`). |
 | `build-contest.ts` | CLI: одна карта для конкурса «За гранью Warcraft III»: ролики выбора дома и брифинга, затем стартовая миссия дома; всё внутри карты → `build/contest/EmperorDune_<дом>.w3x`. |
+| `loading-screen.ts` | Экран загрузки одиночной карты: модель с плоскостью в экранных единицах окна загрузки (0..0.8 × 0..0.6, без камеры) и картинка `FullScreen.blp`. |
 | `build-campaign.ts` | CLI: вся кампания → `build/campaign/EmperorDune.w3n` (+ отдельные карты в `build/campaign/maps/`). |
 | `build-mission.ts`, `preview-map.ts`, `check-all.ts` | Отладка: одна миссия, превью рельефа, `pjass` по всем 228 скриптам. |
 

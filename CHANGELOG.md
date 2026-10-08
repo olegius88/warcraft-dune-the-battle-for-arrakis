@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-09 Экран загрузки конкурсной карты — кадр ролика выбора дома (дворец Атрейдесов с войсками)
+  ([loading-screen.ts](src/emperor/loading-screen.ts), `CONTEST.loading`, поле w3i `loadingScreenModel`).
+  Модель — одна плоскость 0..0.8 × 0..0.6 в экранных единицах без камеры, как у
+  [loadingScreen.mdl](https://github.com/Code-Fixxers/teve_final_fixxed/blob/main/convertedTextures/hdLoadingScreen/loadingScreen.mdl).
+  Вариант с камерой модели давал чёрный экран: окно загрузки камеру модели не использует. Тест
+  «loading screen», пробник [build-loading-probe.ts](src/smoke/build-loading-probe.ts). Превью теперь
+  берёт кадр с техникой Атрейдесов (22 с): на 15 с был наплыв двух планов. Проверено в 1.31.1.
 - 2026-10-09 Конкурсная карта «За гранью Warcraft III» ([build-contest.ts](src/emperor/build-contest.ts),
   [config/contest.ts](src/config/contest.ts)). Первая игра дома в одной самостоятельной .w3x: ролик выбора дома и
   брифинг Ментата (кадры при качестве 70, звук, субтитры), затем стартовая миссия. Модели, иконки, музыка

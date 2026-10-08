@@ -39,6 +39,8 @@ export interface MapSpec {
   loadingSubtitle?: string;
   loadingText?: string;
   campaignBackground?: number;
+  /** w3i loading screen model (an imported picture model, src/emperor/loading-screen.ts) */
+  loadingScreenModel?: string;
   strings?: Map<number, string> | Record<number, string>;
   /** extra archive files (path -> data) */
   imports?: Record<string, Buffer>;
@@ -76,6 +78,7 @@ function buildMap(m: MapSpec): BuiltMap {
     loadingTitle: m.loadingTitle ? trig(m.loadingTitle) : name,
     loadingSubtitle: trig(m.loadingSubtitle || ''),
     campaignBackground: m.campaignBackground,
+    ...(m.loadingScreenModel ? { loadingScreenModel: m.loadingScreenModel } : {}),
     loadingText: trig(m.loadingText || ''),
     players: players.map((p) => ({
       id: p.id, type: PLAYER_TYPE[p.control], race: PLAYER_RACE[p.race || 'human'], name: p.name, x: p.x, y: p.y, fixed: true,

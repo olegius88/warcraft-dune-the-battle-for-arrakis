@@ -98,6 +98,8 @@ export interface MissionParams {
   extraImports?: Record<string, Buffer>;
   /** the map list description (default: the briefing) */
   mapDescription?: string;
+  /** archive path of a loading screen model in extraImports */
+  loadingScreen?: string;
 }
 
 export interface BuiltMission {
@@ -518,7 +520,7 @@ function buildMission(p: MissionParams): BuiltMission {
     players, globals: rt.globals + glueGlobals + '\n' + scripts.map((s) => s.tr.globals).join('\n') + (intro ? `\n${intro.globals}` : ''), functions,
     init: `    call TimerStart( CreateTimer(), 0.0, false, function ${intro ? 'EmpIntroMovies' : 'EmpStart'} )`,
     imports,
-    loadingTitle: p.name, loadingText: p.briefing || '',
+    loadingTitle: p.name, loadingText: p.briefing || '', ...(p.loadingScreen ? { loadingScreenModel: p.loadingScreen } : {}),
   });
   return { buffer: m.buffer, script: m.script, stubbed: rt.stubbed, used, imports };
 }

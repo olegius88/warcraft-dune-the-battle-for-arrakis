@@ -28,6 +28,7 @@ import { MOVIE_PATH } from '../config/movies.ts';
 import { readIndex, readArchive } from './rfh.ts';
 import { readTga, writeTga } from '../wc3/tga.ts';
 import { resize } from '../wc3/blp.ts';
+import { loadingScreen } from './loading-screen.ts';
 import { RAW_DIR, BUILD_DIR, PJASS_EXE, COMMON_J, BLIZZARD_J, gameData } from '../config/paths.ts';
 
 const args = process.argv.slice(2);
@@ -79,6 +80,13 @@ for (const [name, mi] of info) {
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out.replace(/\.w3x$/i, '_preview.tga'), extraImports['war3mapPreview.tga']);
 }
+// the loading screen: a frame of the house movie on the loading screen model (CONTEST.loading)
+{
+  const L = CONTEST.loading;
+  const raw = execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-ss', String(L.at), '-i', gameData('MOVIES', `${L.movie}.BIK`), '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { maxBuffer: 1 << 24 });
+  const mi = info.get(L.movie);
+  Object.assign(extraImports, loadingScreen({ width: mi?.width ?? 640, height: mi?.height ?? 480, rgba: new Uint8Array(raw) }));
+}
 // the battle music of the house, inside the map
 const tracks = music ? music.battle(h) : [];
 for (const p of tracks) {
@@ -94,7 +102,7 @@ const m = buildMission({
   meta, ...all, name: title, playerHouse: HOUSE_NAME[h], kind: 'start', standalone: true,
   defaultPhase: CP.START_MISSION_PHASE, defaultTech: CP.START_MISSION_TECH,
   briefing: all.ctx.textByKey(script) || '', debugName: `Contest_${h}`,
-  music: tracks, intro: { movies, player }, extraImports, mapDescription: CONTEST.description(CONTEST.houseFor[h]), ...(autoWin ? { autoWinSeconds: autoWin } : {}),
+  music: tracks, intro: { movies, player }, extraImports, mapDescription: CONTEST.description(CONTEST.houseFor[h]), loadingScreen: CONTEST.loading.model, ...(autoWin ? { autoWinSeconds: autoWin } : {}),
 });
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, m.buffer);

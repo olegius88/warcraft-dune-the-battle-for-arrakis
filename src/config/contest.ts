@@ -16,5 +16,12 @@ export const CONTEST = {
   file: (h: HouseCode): string => `EmperorDune_${h}.w3x`,
   /** the map list preview (war3mapPreview.tga): a frame of `movie` at `at` s, cropped square to `size`,
    * the house logo (Textures/<house>logo.tga) `logo` px in the bottom right corner */
-  preview: { movie: 'I00_F03E', at: 15, size: 256, logo: 96, margin: 8 },
+  preview: { movie: 'I00_F03E', at: 22, size: 256, logo: 96, margin: 8 },
+  /** the loading screen model (src/emperor/loading-screen.ts): a frame of `movie` at `at` s on a plane
+   * of `screen` glue units (the whole 4:3 loading screen); the picture a `textureSize` JPEG BLP of
+   * `quality` */
+  loading: {
+    movie: 'I00_F03E', at: 5, model: 'Emperor\\Loading\\LoadingScreen.mdx', picture: 'Emperor\\Loading\\FullScreen.blp',
+    screen: [0.8, 0.6], textureSize: 1024, quality: 90,
+  },
 } as const;
