@@ -275,7 +275,11 @@ endfunction
 // posts, also after a fight; whether an idle reserve team walks to its point once assembled (team states
 // 0x4602be, "units assembled - awaiting orders") is not traced; the points are script targets of a
 // building cluster (0x42acc0: 1 "T AP", 3 "D AP", 4 "S AP" via 0x44c260) placed with the rock's ramps
-// (0x42caf0 "CreateRampInDirectionArray"), not traced either; here home units gather at the yard.
+// (0x42caf0 "CreateRampInDirectionArray": a ramp tile per direction of 8, 0x437750, at cluster
+// +0x54); defensive point k (0x42b770) is the k-th ramp found, without ramps 4 tiles from the cluster
+// centre towards its direction +0x40 (0x439c50, 0x42bb20) stepped 12 tiles a direction (0x42cba0),
+// then moved by 0x46ca50(6) and made reachable (0x46b2f0); the ramp search, +0x40 and those two moves
+// are not traced; here home units gather at the yard.
 // Risk: early waves stronger or weaker
 // than in the original.
 function EmpStoryAiStart takes nothing returns nothing
