@@ -27,7 +27,10 @@
 // TODO(ai): still simplified against Game.exe: a territory battle's enemy starts from a fixed base
 // template whose lost buildings are rebuilt first (BASE_TEMPLATE; Emperor's campaign start base is not
 // traced); sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not
-// turn); maintenance does not try a sub-house building first (0x42fcb3: unless rand % 30 < the skill);
+// turn); maintenance does not try a sub-house building first (0x42fcb3: unless rand % 30 < the skill,
+// a builder list entry of group 2 whose type is of a sub-house, 0x43c070: house +0x80 3..7 / 9,
+// "Chosen sub house building"): the AI here has no sub-house buildings (AI_BUILDING_CATEGORY), and
+// which sub-house buildings an enemy house may build in Emperor's campaign is not traced;
 // builder state 3, Game.exe's defence plan (0x430c90 / 0x42e5d0: with AiBuildsDefences and a tech
 // level over FirstCampaignGameTechLevel + 1, turrets and walls at a building cluster's defence points,
 // walls given up after 10 minutes, "AI has been building walls for %d minutes so aborting"), stands in
