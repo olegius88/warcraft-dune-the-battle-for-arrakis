@@ -278,8 +278,12 @@ endfunction
 // (0x42caf0 "CreateRampInDirectionArray": a ramp tile per direction of 8, 0x437750, at cluster
 // +0x54); defensive point k (0x42b770) is the k-th ramp found, without ramps 4 tiles from the cluster
 // centre towards its direction +0x40 (0x439c50, 0x42bb20) stepped 12 tiles a direction (0x42cba0),
-// then moved by 0x46ca50(6) and made reachable (0x46b2f0); the ramp search, +0x40 and those two moves
-// are not traced; here home units gather at the yard.
+// then moved by 0x46ca50(6) and made reachable (0x46b2f0). The ramp search (0x437750) floods the
+// AI grid from the base tile over tiles whose class (& 3) is not 2, collects up to 256 tiles with bit
+// 0x20 and returns the first lying in the asked direction (0x46c8d0); 0x4369a0 sets 0x20 on a tile next
+// to a map tile (8-byte records at +0xa278) with flag +1 & 0x80 ("There are no ramps on this map").
+// Not traced: how the class bits are made, which Rules.txt terrain type sets +1 & 0x80 (Ramp?), +0x40
+// and the two moves; here home units gather at the yard.
 // Risk: early waves stronger or weaker
 // than in the original.
 function EmpStoryAiStart takes nothing returns nothing
