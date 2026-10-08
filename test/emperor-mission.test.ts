@@ -360,6 +360,9 @@ test('special abilities: data from Rules.txt and their runtime', opts, () => {
   assert.ok(sp.notDeviatable.length === 43 && sp.engineerable.length >= 39 && sp.crushers.length === 17 && sp.crushable.length === 36);
   // repair vehicle (Repair = true): [General] RepairTileRange, RepairRate per 10 ticks
   assert.deepStrictEqual(sp.repair, { units: ['ATRepairUnit'], rangeTiles: 10, perTenTicks: 12 });
+  // third audit: story characters (TastyToWorms = FALSE) are neither leeched nor contaminated; the repair
+  // vehicle mends only what CanBeRepaired allows; saboteurs do not blow up on walls
+  assert.ok(sp.notRepairable.includes('ATInfantry') && sp.story.length > 0 && sp.walls.includes('HKWall'));
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'specials', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   const id = (n: string) => all.units.rawcode.get(n);
@@ -371,6 +374,12 @@ test('special abilities: data from Rules.txt and their runtime', opts, () => {
   assert.ok(m.script.includes('EVENT_PLAYER_UNIT_DAMAGED') && m.script.includes('function EmpSpDamaged'), 'damage hook');
   assert.ok(m.script.includes('function EmpSpTick'), 'engineer / saboteur / crush scan');
   assert.ok(m.script.includes(`call SaveInteger(EmpSpTab, '${id('ATRepairUnit')}', 0, 6)`), 'repair vehicle');
+  // third audit: a crusher with an order but standing (attacking from its place) ran infantry over;
+  // now only one that moved since the last check. A host removed from the game (not killed) let out a
+  // new leech at the map's corner.
+  assert.ok(m.script.includes('call SaveReal(EmpSpTab, GetHandleId(u), 33, GetUnitX(u))'), 'crusher position kept');
+  assert.ok(!m.script.includes('elseif GetUnitCurrentOrder(u) != 0 then'), 'an order alone is not moving');
+  assert.ok(m.script.includes('if GetUnitTypeId(u) != 0 then'), 'no leech out of a removed host');
 });
 
 // Regression (second audit): builders came only with a construction yard the player built

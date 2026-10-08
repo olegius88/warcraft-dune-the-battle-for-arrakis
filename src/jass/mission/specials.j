@@ -1,8 +1,10 @@
 // ---- special abilities (src/emperor/specials.ts, Rules.txt) ----
 // EmpSpTab[type]: 0 kind of the shooter (1 Deviator, 2 Leech, 3 Contaminator, 4 Engineer,
 // 5 Saboteur), 1 damage per second to a taken unit, 3/4 saboteur damage / radius; flags 7 cannot be
-// deviated, 8 can be engineered, 9 crushes, 10 can be crushed, 11 infantry.
-// EmpSpTab[handle]: 30 deviated from (player id + 1), 31 leeched by (player id + 1), 32 leech type.
+// deviated, 8 can be engineered, 9 crushes, 10 can be crushed, 11 infantry, 12 wall (not sabotaged),
+// 13 cannot be repaired, 14 story character (not leeched, not contaminated).
+// EmpSpTab[handle]: 30 deviated from (player id + 1), 31 leeched by (player id + 1), 32 leech type,
+// 33/34 crusher position at the last crush check.
 function EmpSpData takes nothing returns nothing
     set EmpSpTab = InitHashtable()
     set EmpSpLeeched = CreateGroup()
@@ -55,7 +57,7 @@ function EmpSpDamaged takes nothing returns nothing
         call SaveUnitHandle(EmpSpTab, GetHandleId(tm), 0, u)
         call SaveInteger(EmpSpTab, GetHandleId(tm), 1, LoadInteger(EmpSpTab, GetHandleId(u), 30))
         call TimerStart(tm, {{real deviateSeconds}}, false, function EmpSpUndeviate)
-    elseif k == 2 and not LoadBoolean(EmpSpTab, tu, 11) and not HaveSavedInteger(EmpSpTab, GetHandleId(u), 31) then
+    elseif k == 2 and not LoadBoolean(EmpSpTab, tu, 11) and not LoadBoolean(EmpSpTab, tu, 14) and u != EmpWorm and not IsUnitType(u, UNIT_TYPE_FLYING) and GetOwningPlayer(u) != Player(PLAYER_NEUTRAL_AGGRESSIVE) and not HaveSavedInteger(EmpSpTab, GetHandleId(u), 31) then
         // the leech holds on and drains the vehicle; when it dies a new leech comes out (EmpSpTick)
         call SaveInteger(EmpSpTab, GetHandleId(u), 31, GetPlayerId(GetOwningPlayer(s)) + 1)
         call SaveInteger(EmpSpTab, GetHandleId(u), 32, GetUnitTypeId(s))
@@ -63,7 +65,7 @@ function EmpSpDamaged takes nothing returns nothing
         if GetOwningPlayer(u) == Player(0) then
             call EmpUiSay({{UI.leechAttack}})
         endif
-    elseif k == 3 and LoadBoolean(EmpSpTab, tu, 11) then
+    elseif k == 3 and LoadBoolean(EmpSpTab, tu, 11) and not LoadBoolean(EmpSpTab, tu, 14) then
         // the contaminated infantryman dies and turns into a contaminator of the shooter's side
         if GetOwningPlayer(u) == Player(0) then
             call EmpUiSay({{UI.contAttack}})
@@ -81,7 +83,11 @@ function EmpSpLeechEnum takes nothing returns nothing
     local integer h = GetHandleId(u)
     local real dmg = LoadReal(EmpSpTab, LoadInteger(EmpSpTab, h, 32), 1) * {{real RT.SP_TICK}}
     if not EmpAlive(u) then
-        call CreateUnit(Player(LoadInteger(EmpSpTab, h, 31) - 1), LoadInteger(EmpSpTab, h, 32), GetUnitX(u), GetUnitY(u), {{FACING}})
+        // a new leech comes out of a host that died, not of one removed from the game (an MCV that
+        // deployed: its place is gone)
+        if GetUnitTypeId(u) != 0 then
+            call CreateUnit(Player(LoadInteger(EmpSpTab, h, 31) - 1), LoadInteger(EmpSpTab, h, 32), GetUnitX(u), GetUnitY(u), {{FACING}})
+        endif
         call GroupRemoveUnit(EmpSpLeeched, u)
         call RemoveSavedInteger(EmpSpTab, h, 31)
     elseif GetWidgetLife(u) <= dmg then
@@ -102,7 +108,7 @@ function EmpSpBuildingAt takes unit u, boolean needEngineerable returns unit
         set b = FirstOfGroup(g)
         exitwhen b == null or found != null
         call GroupRemoveUnit(g, b)
-        if EmpAlive(b) and IsUnitType(b, UNIT_TYPE_STRUCTURE) and IsUnitEnemy(b, GetOwningPlayer(u)) and IsUnitInRange(u, b, {{real RT.SP_TOUCH}}) and (not needEngineerable or LoadBoolean(EmpSpTab, GetUnitTypeId(b), 8)) then
+        if EmpAlive(b) and IsUnitType(b, UNIT_TYPE_STRUCTURE) and IsUnitEnemy(b, GetOwningPlayer(u)) and IsUnitInRange(u, b, {{real RT.SP_TOUCH}}) and not LoadBoolean(EmpPowerTab, GetHandleId(b), 2) and ((needEngineerable and LoadBoolean(EmpSpTab, GetUnitTypeId(b), 8)) or (not needEngineerable and not LoadBoolean(EmpSpTab, GetUnitTypeId(b), 12))) then
             set found = b
         endif
     endloop
@@ -123,7 +129,7 @@ function EmpSpRepair takes unit r, real heal, real range returns nothing
         set v = FirstOfGroup(g)
         exitwhen v == null
         call GroupRemoveUnit(g, v)
-        if v != r and EmpAlive(v) and GetOwningPlayer(v) == GetOwningPlayer(r) and not IsUnitType(v, UNIT_TYPE_STRUCTURE) and not LoadBoolean(EmpSpTab, GetUnitTypeId(v), 11) then
+        if v != r and EmpAlive(v) and GetOwningPlayer(v) == GetOwningPlayer(r) and not IsUnitType(v, UNIT_TYPE_STRUCTURE) and not LoadBoolean(EmpSpTab, GetUnitTypeId(v), 11) and not LoadBoolean(EmpSpTab, GetUnitTypeId(v), 13) then
             set f = GetWidgetLife(v) / GetUnitState(v, UNIT_STATE_MAX_LIFE)
             if f < worst then
                 set worst = f
@@ -207,7 +213,14 @@ function EmpSpCrushEnum takes nothing returns nothing
     local unit u = GetEnumUnit()
     if not EmpAlive(u) then
         call GroupRemoveUnit(EmpSpCrushers, u)
-    elseif GetUnitCurrentOrder(u) != 0 then
+    elseif not HaveSavedReal(EmpSpTab, GetHandleId(u), 33) or RAbsBJ(GetUnitX(u) - LoadReal(EmpSpTab, GetHandleId(u), 33)) + RAbsBJ(GetUnitY(u) - LoadReal(EmpSpTab, GetHandleId(u), 34)) < 1.0 then
+        // standing (or seen for the first time): it runs nobody over, even with an order (attacking
+        // from where it is); the position is compared with the one at the last check
+        call SaveReal(EmpSpTab, GetHandleId(u), 33, GetUnitX(u))
+        call SaveReal(EmpSpTab, GetHandleId(u), 34, GetUnitY(u))
+    else
+        call SaveReal(EmpSpTab, GetHandleId(u), 33, GetUnitX(u))
+        call SaveReal(EmpSpTab, GetHandleId(u), 34, GetUnitY(u))
         set EmpSpCrusher = u
         call GroupClear(EmpSpCrushNear)
         call GroupEnumUnitsInRange(EmpSpCrushNear, GetUnitX(u), GetUnitY(u), {{real RT.SP_REACH}}, null)

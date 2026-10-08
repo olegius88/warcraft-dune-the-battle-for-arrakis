@@ -318,6 +318,10 @@ function buildMission(p: MissionParams): BuiltMission {
       if (id) spLines.push(`    call SaveReal(EmpSpTab, '${id}', 1, ${real((sp.repair.perTenTicks * TICKS_PER_SECOND) / 10 / HP_DIVISOR)})`, `    call SaveReal(EmpSpTab, '${id}', 2, ${real(sp.repair.rangeTiles * WC3_UNITS_PER_TILE)})`);
     }
     sp.notDeviatable.forEach((n) => flag(n, 7));
+    // 12 wall (no saboteur blast), 13 not repairable, 14 story character (not leeched / contaminated)
+    sp.walls.forEach((n) => flag(n, 12));
+    sp.notRepairable.forEach((n) => flag(n, 13));
+    sp.story.forEach((n) => flag(n, 14));
     sp.engineerable.forEach((n) => flag(n, 8));
     sp.crushers.forEach((n) => flag(n, 9));
     sp.crushable.forEach((n) => flag(n, 10));

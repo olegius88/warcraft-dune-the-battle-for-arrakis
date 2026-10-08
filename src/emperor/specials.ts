@@ -34,6 +34,12 @@ export interface SpecialAbilities {
   /** Repair = TRUE vehicles: [General] RepairTileRange, RepairRate (health per 10 ticks; Rules.txt
    * states it for buildings, the repair vehicle is assumed to repair at the same rate) */
   repair: { units: string[]; rangeTiles: number; perTenTicks: number };
+  /** CanBeRepaired = FALSE */
+  notRepairable: string[];
+  /** story characters (TastyToWorms = FALSE): not leeched, not contaminated */
+  story: string[];
+  /** walls: a saboteur does not blow up at them */
+  walls: string[];
 }
 
 function specialAbilities(rules: Rules): SpecialAbilities {
@@ -56,6 +62,9 @@ function specialAbilities(rules: Rules): SpecialAbilities {
     notDeviatable: objects.filter((o) => isFalse(o.raw.CanBeDeviated)).map((o) => o.name),
     engineerable: objects.filter((o) => isTrue(o.raw.CanBeEngineered)).map((o) => o.name),
     repair: { units: objects.filter((o) => isTrue(o.raw.Repair)).map((o) => o.name), rangeTiles: num(rules.general.RepairTileRange), perTenTicks: num(rules.general.RepairRate) },
+    notRepairable: objects.filter((o) => isFalse(o.raw.CanBeRepaired)).map((o) => o.name),
+    story: objects.filter((o) => o.category === 'Unit' && !o.tastyToWorms).map((o) => o.name),
+    walls: objects.filter((o) => o.category === 'Building' && o.name.endsWith('Wall')).map((o) => o.name),
   };
 }
 
