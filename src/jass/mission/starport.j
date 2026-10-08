@@ -8,13 +8,12 @@
 // EmpPortTab[order type]: 0 index, 1 Rules.txt Cost, 3 the unit delivered; EmpPortTab[starport type]:
 // 2 true; EmpPortTab[starport handle]: [type] the difference fixed at the start of that type's
 // purchase, 1 units waiting for the frigate, 2 its timer, PORT_SLOT + i the waiting types;
-// EmpPortTab[frigate timer]: 1/2 x / y of the starport, 3 owner id, 4 starport handle id.
+// EmpPortTab[delivery timer]: 1/2 x / y of the starport, 3 owner id, 4 starport handle id, 5 the frigate.
 // TODO(starport): two units of one type queued at different prices share one record (the later
 // start wins) if TRAIN_START fires at queueing rather than at the start of training; which one 1.31
 // does is not checked. Risk: a few credits off for such a queue.
 // TODO(starport): the stock (StarportStockIncreaseProb / Delay) is not modelled: how much of each type a
 // starport starts with and holds at most is not in Rules.txt. Risk: every type is always available.
-// TODO(starport): the frigate is not shown (units appear at the starport when it lands).
 function EmpPortPrices takes nothing returns nothing
     local integer i = 0
     loop
@@ -51,6 +50,88 @@ function EmpPortTrain takes nothing returns nothing
     set p = null
 endfunction
 
+// the nearest map edge to (x, y), in EmpTmpX / EmpTmpY: where a frigate comes from and goes to
+function EmpPortEdge takes real x, real y returns nothing
+    local real best = x - EmpMapMinX
+    set EmpTmpX = EmpMapMinX
+    set EmpTmpY = y
+    if EmpMapMaxX - x < best then
+        set best = EmpMapMaxX - x
+        set EmpTmpX = EmpMapMaxX
+    endif
+    if y - EmpMapMinY < best then
+        set best = y - EmpMapMinY
+        set EmpTmpX = x
+        set EmpTmpY = EmpMapMinY
+    endif
+    if EmpMapMaxY - y < best then
+        set EmpTmpX = x
+        set EmpTmpY = EmpMapMaxY
+    endif
+endfunction
+
+// the frigate's timers: 0 the frigate, 1/2 where it flies to
+function EmpPortFrigateFly takes nothing returns nothing
+    local timer tm = GetExpiredTimer()
+    local unit f = LoadUnitHandle(EmpPortTab, GetHandleId(tm), 0)
+    call ShowUnit(f, true)
+    call IssuePointOrder(f, "move", LoadReal(EmpPortTab, GetHandleId(tm), 1), LoadReal(EmpPortTab, GetHandleId(tm), 2))
+    call FlushChildHashtable(EmpPortTab, GetHandleId(tm))
+    call DestroyTimer(tm)
+    set tm = null
+    set f = null
+endfunction
+
+function EmpPortFrigateGone takes nothing returns nothing
+    local timer tm = GetExpiredTimer()
+    call RemoveUnit(LoadUnitHandle(EmpPortTab, GetHandleId(tm), 0))
+    call FlushChildHashtable(EmpPortTab, GetHandleId(tm))
+    call DestroyTimer(tm)
+    set tm = null
+endfunction
+
+// seconds the frigate f needs from (x0, y0) to (x1, y1)
+function EmpPortFlight takes unit f, real x0, real y0, real x1, real y1 returns real
+    return SquareRoot((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) / RMaxBJ(1.0, GetUnitDefaultMoveSpeed(f))
+endfunction
+
+// the frigate of delivery timer th ([Frigate]: flies, cannot die): it waits at the nearest map edge
+// and sets off so that it is over the starport (x, y) when FrigateCountdown is over
+function EmpPortFrigateCall takes integer th, real x, real y, player p returns nothing
+    local unit f
+    local timer go = CreateTimer()
+    call EmpPortEdge(x, y)
+    set f = CreateUnit(p, '{{portFrigateUnit}}', EmpTmpX, EmpTmpY, bj_RADTODEG * Atan2(y - EmpTmpY, x - EmpTmpX))
+    call UnitAddAbility(f, '{{ABILITY.locust}}')
+    call SetUnitInvulnerable(f, true)
+    call ShowUnit(f, false)
+    call SaveUnitHandle(EmpPortTab, th, 5, f)
+    call SaveUnitHandle(EmpPortTab, GetHandleId(go), 0, f)
+    call SaveReal(EmpPortTab, GetHandleId(go), 1, x)
+    call SaveReal(EmpPortTab, GetHandleId(go), 2, y)
+    // it arrives PORT_FRIGATE_HOVER seconds early and hangs over the starport until the units are out
+    call TimerStart(go, RMaxBJ(0.0, {{real portFrigateSeconds}} - {{real RT.PORT_FRIGATE_HOVER}} - EmpPortFlight(f, EmpTmpX, EmpTmpY, x, y)), false, function EmpPortFrigateFly)
+    set f = null
+    set go = null
+endfunction
+
+// the frigate of delivery timer th has landed its load: it flies off to the nearest edge and is gone
+function EmpPortFrigateLeave takes integer th, real x, real y returns nothing
+    local unit f = LoadUnitHandle(EmpPortTab, th, 5)
+    local timer gone
+    if f == null then
+        return
+    endif
+    set gone = CreateTimer()
+    call EmpPortEdge(x, y)
+    call IssuePointOrder(f, "move", EmpTmpX, EmpTmpY)
+    call SaveUnitHandle(EmpPortTab, GetHandleId(gone), 0, f)
+    call TimerStart(gone, EmpPortFlight(f, x, y, EmpTmpX, EmpTmpY) + 1.0, false, function EmpPortFrigateGone)
+    call RemoveSavedHandle(EmpPortTab, th, 5)
+    set f = null
+    set gone = null
+endfunction
+
 // a frigate lands: up to StarportMaxDeliverySingle waiting units at the starport (where it stood, also
 // if it fell meanwhile: they are paid for); the rest waits for the next frigate
 function EmpPortFrigate takes nothing returns nothing
@@ -71,6 +152,7 @@ function EmpPortFrigate takes nothing returns nothing
     if p == Player(0) and k > 0 then
         call EmpUiSay({{UI.unitReady}})
     endif
+    call EmpPortFrigateLeave(th, x, y)
     // the rest moves up
     set n = n - k
     set k = 0
@@ -81,6 +163,7 @@ function EmpPortFrigate takes nothing returns nothing
     endloop
     call SaveInteger(EmpPortTab, h, 1, n)
     if n > 0 then
+        call EmpPortFrigateCall(th, x, y, p)
         call TimerStart(tm, {{real portFrigateSeconds}}, false, function EmpPortFrigate)
         if p == Player(0) then
             call EmpUiSay({{UI.delivery}})
@@ -108,6 +191,7 @@ function EmpPortQueue takes unit b, integer t returns nothing
         call SaveReal(EmpPortTab, GetHandleId(tm), 2, GetUnitY(b))
         call SaveInteger(EmpPortTab, GetHandleId(tm), 3, GetPlayerId(GetOwningPlayer(b)))
         call SaveInteger(EmpPortTab, GetHandleId(tm), 4, h)
+        call EmpPortFrigateCall(GetHandleId(tm), GetUnitX(b), GetUnitY(b), GetOwningPlayer(b))
         call TimerStart(tm, {{real portFrigateSeconds}}, false, function EmpPortFrigate)
         if GetOwningPlayer(b) == Player(0) then
             call EmpUiSay({{UI.delivery}})

@@ -505,6 +505,10 @@ test('a starport sells orders that a frigate delivers after FrigateCountdown, up
   assert.ok(m.script.includes('function EmpPortFrigate'), 'frigate');
   assert.match(m.script, /TimerStart\(tm, 100\.0, false, function EmpPortFrigate\)/, '2500 ticks = 100 s');
   assert.ok(m.script.includes('exitwhen k >= 6'), 'StarportMaxDeliverySingle');
+  // the frigate itself ([Frigate]: flies, CanDie = FALSE) comes in from the nearest map edge to land at
+  // FrigateCountdown and flies off; Locust keeps it out of selection
+  assert.ok(m.script.includes(`'${all.units.rawcode.get('Frigate')}'`) && m.script.includes('function EmpPortFrigateFly'), 'frigate shown');
+  assert.ok(m.script.includes("call UnitAddAbility(f, 'Aloc')"), 'not selectable');
 });
 
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the

@@ -78,6 +78,8 @@ export const ABILITY = {
   invulnerable: 'Avul',
   /** permanent invisibility (not in common.ai; UnitAddAbility('Apiv') succeeded in game, probe 2026-10-07) */
   invisibility: 'Apiv',
+  /** Locust: not selectable, not targeted (AbilityData.slk of 1.31.1: Aloc "Locust"); the starport frigate */
+  locust: 'Aloc',
 } as const;
 
 /** Stock abilities whose art (GetAbilityEffectById, common.j) is used for effects, so the model

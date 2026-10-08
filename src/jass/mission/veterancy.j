@@ -67,6 +67,9 @@ function EmpVetApply takes unit u, integer lv returns nothing
     // walked the same 243 units up to a target 700 away before firing, like the unchanged one
     // (src/smoke/build-range-probe.ts, 2026-10-08). Swapping in a veteran unit type would break the
     // scripts' references to the unit. Needs a per-unit range bonus ability (none verified yet).
+    // The known fix (hiveworkshop.com/threads/352220: the setter works on index 1 and adds, with the
+    // acquire range raised too) is for 1.36+; the probe above already set index 1 (+900) and the
+    // acquisition range in 1.31.1 without effect (rechecked 2026-10-08).
     set v = LoadInteger(EmpVet, t, b + 6)
     if v > 0 then
         call SetUnitMoveSpeed(u, v)

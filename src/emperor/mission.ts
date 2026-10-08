@@ -296,6 +296,8 @@ function buildMission(p: MissionParams): BuiltMission {
     // [General] FrigateCountdown ('time for frigate to arrive', ticks), StarportMaxDeliverySingle
     portFrigateSeconds: (Number(p.rules?.general.FrigateCountdown ?? 0) || TICKS_PER_SECOND) / TICKS_PER_SECOND,
     portMaxDelivery: Number(p.rules?.general.StarportMaxDeliverySingle ?? 0) || 1,
+    // the frigate ([Frigate]) shown flying in and out
+    portFrigateUnit: p.units.rawcode.get('Frigate') ?? UNIT.fallback,
     ORDER_CANCEL: RT.ORDER_CANCEL, PORT_PRICE_TEXT: RT.PORT_PRICE_TEXT,
   };
 

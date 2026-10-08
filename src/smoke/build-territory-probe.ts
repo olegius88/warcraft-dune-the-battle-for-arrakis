@@ -96,6 +96,25 @@ endfunction`,
     return n
 endfunction
 
+// the player's frigates: shown or hidden, distance to the starport b
+function PortProbeFrigate takes unit b returns string
+    local group g = CreateGroup()
+    local string r = ""
+    local unit u
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if GetUnitTypeId(u) == '${all.units.rawcode.get('Frigate')}' then
+            set r = r + "[hidden=" + I2S(IntegerTertiaryOp(IsUnitHidden(u), 1, 0)) + " d=" + I2S(R2I(SquareRoot((GetUnitX(u) - GetUnitX(b)) * (GetUnitX(u) - GetUnitX(b)) + (GetUnitY(u) - GetUnitY(b)) * (GetUnitY(u) - GetUnitY(b))))) + " speed=" + I2S(R2I(GetUnitDefaultMoveSpeed(u))) + "]"
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return r
+endfunction
+
 function PortProbeRun takes nothing returns nothing
     local unit b
     local integer before
@@ -103,7 +122,7 @@ function PortProbeRun takes nothing returns nothing
     local string s
     set EmpNormalConditions = false
     call TriggerSleepAction(3.0)
-    set b = CreateUnit(Player(0), '${all.units.rawcode.get('ATStarport')}', EmpEntrX[EmpEntranceFor(0)], EmpEntrY[EmpEntranceFor(0)], 270.0)
+    set b = CreateUnit(Player(0), '${all.units.rawcode.get('ATStarport')}', EmpEntrX[EmpEntranceFor(0)] * 0.5, EmpEntrY[EmpEntranceFor(0)] * 0.5, 270.0)
     call SetPlayerTechMaxAllowed(Player(0), '${trikeOrder}', -1)
     call SetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD, 10000)
     // a price away from 100 %, so that the difference shows
@@ -116,8 +135,11 @@ function PortProbeRun takes nothing returns nothing
         set k = k + 1
     endloop
     call TriggerSleepAction(30.0)
-    set s = "port trikes before=" + I2S(before) + " at 30 s=" + I2S(PortProbeTrikes()) + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1))
-    call TriggerSleepAction(80.0)
+    set s = "port trikes before=" + I2S(before) + " at 30 s=" + I2S(PortProbeTrikes()) + " gold=" + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1)) + " frigate " + PortProbeFrigate(b)
+    call SetCameraPositionForPlayer(Player(0), GetUnitX(b), GetUnitY(b))
+    call TriggerSleepAction(68.0)
+    set s = s + " | at 98 s frigate " + PortProbeFrigate(b)
+    call TriggerSleepAction(12.0)
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(s + " | at 110 s=" + I2S(PortProbeTrikes()) + " waiting=" + I2S(LoadInteger(EmpPortTab, GetHandleId(b), 1)) + " pct=" + I2S(EmpPortPct[LoadInteger(EmpPortTab, '${trikeOrder}', 0)]) + " cost=" + I2S(LoadInteger(EmpPortTab, '${trikeOrder}', 1)))

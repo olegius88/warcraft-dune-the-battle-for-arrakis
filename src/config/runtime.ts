@@ -149,6 +149,8 @@ export const PORT_PRICE_TEXT = 'Космопорт: цена ';
 export const PORT_SLOT = 10;
 export const PORT_DELIVERY_OFFSET = 192;
 export const PORT_DELIVERY_SPREAD = 128;
+/** The frigate arrives this many seconds before its load is out (FrigateCountdown), so that it is seen. */
+export const PORT_FRIGATE_HOVER = 4;
 export const SP_REACH = 400;
 export const SP_TOUCH = 48;
 export const SP_CRUSH = 64;
