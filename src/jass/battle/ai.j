@@ -656,6 +656,13 @@ function EmpAiWave takes nothing returns nothing
     local group g
     local unit u
     local integer b = EmpBaseOfSide(1)
+    // TODO(ai): Game.exe 1.09 reads ChanceOfRetreating only when the AI is losing (0x43f260, after 15000
+    // ticks): then, with 100 / ChanceOfRetreating odds against, it retreats (0x44fc20), else it turns
+    // AGGRESSIVE and sends everything at the enemy ("last gasp", 0x43f570). Its losing test weighs
+    // credits (< 1200 / 2000 / 4000), units (< 20 / 40), AiManufacturing buildings (0x44cce0),
+    // refineries and pads (0x44cc40) and three values not traced (0x42fc30, the type at 0x682c6c +0x24,
+    // the side flag at game +0xc4). Here it decides per wave whether its units stay at the target. Risk:
+    // late-game AI retreats / all-out attacks differ from Emperor's.
     local boolean stay = GetRandomInt(1, 100) > {{ai.retreatChance}}
     local integer n = 0
     local integer home = 0
