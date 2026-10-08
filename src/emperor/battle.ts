@@ -13,10 +13,14 @@
 // rules) and the tactics (scouts, base defence, harvester escorts, construction yard defence, staged
 // waves every GapBetweenNewScripts scaled by LargeAttackModifier; the pace by tech level from
 // ai_difficulty.ini) are in src/jass/battle/ai.j.
-// TODO(ai): simplified against Emperor: the start base is a fixed template rebuilt first; sites are
-// tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not turn); buildings
-// appear after BuildTime without a construction phase. The original AI code is not in the data, so
-// how closely its timing matches cannot be checked beyond the ai.ini values.
+// A building appears whole after its BuildTime, as in Emperor (built in the side bar, then placed:
+// tools/vm/build.sh waits for "Готово" before it places one).
+// TODO(ai): simplified against Game.exe 1.09: the start base is a fixed template rebuilt first; sites
+// are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not turn); a lost
+// building is replaced by the category furthest below its share, where Game.exe's maintenance path
+// (0x42fca0) takes the group short of its share by over 0.6 on a coin flip, a sub-house building first,
+// and its decisions pass the AI skill rolls (0x46c5d0: rand % (10 k) < skill). Risk: the AI's base grows
+// at another pace and in another order than Emperor's.
 
 import { real, str } from '../wc3/jass.ts';
 import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS } from '../config/campaign.ts';

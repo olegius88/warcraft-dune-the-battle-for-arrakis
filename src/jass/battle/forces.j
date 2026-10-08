@@ -191,9 +191,11 @@ endfunction
 {{#if storyAi}}// ---- story missions: the base of side 1 placed on the map (battle.ts storyAiHouse) is run by the AI
 // of territory battles with ai.ini and ai_<house>_<map>.ini; its credits are what the script gives
 // (AddSideCash).
-// TODO(ai): the template is only its construction yard: destroyed map buildings come back by the
-// base builder's ratios (ai.j), not at their map places; whether Emperor rebuilds them in place is
-// not in the data. Risk: a story base may grow differently from the original.
+// The template is only its construction yard: destroyed map buildings come back by the base builder's
+// ratios (ai.j), not at their map places, as in Game.exe 1.09: its AI picks a building by the groups'
+// ratios both when building ("Choosing building group based on ratios", 0x42d260) and when replacing
+// ("ChooseNextBuildingBasedOnMaintenance", 0x42fca0: the group short of its share by over 0.6 on a
+// coin flip, after a sub-house building); neither path looks up a lost building or its site.
 // The units the map places for side 1 count towards its unit limit, MaxAiUnits + 100 here (Game.exe,
 // EmpEnemyProduce). TODO(ai): those near the yard go with its waves (#A1 before the posts: 68 of 74
 // sent at 140 s), those beyond DefenceTacticWanderDistance keep their posts. Game.exe counts every unit
