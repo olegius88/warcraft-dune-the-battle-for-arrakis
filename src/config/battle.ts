@@ -158,3 +158,6 @@ export const AI_BEHAVIOUR_SET = {
 export const AI_BEHAVIOUR = { normal: 0, aggressive: 1, defensive: 2 } as const;
 /** The side the base-running AI (src/jass/battle/ai.j, Player(1)) plays. */
 export const AI_RUN_SIDE = 1;
+/** Units the AI may have beyond MaxAiUnits in a story mission (Game.exe 1.09 0x464473: +100 when
+ * the mission came from CCampaignManager::SetupMissionData, not from a territory battle). */
+export const STORY_AI_EXTRA_UNITS = 100;

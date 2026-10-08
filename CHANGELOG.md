@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Changed
+- 2026-10-08 Лимит юнитов ИИ в сюжетных миссиях — MaxAiUnits + 100, как в `Game.exe` 1.09
+  ([forces.j](src/jass/battle/forces.j) `EmpEnemyProduce`, `STORY_AI_EXTRA_UNITS`):
+  ИИ перестаёт строить юнитов, когда все юниты стороны (`0x44c670`, включая расставленных картой)
+  достигают MaxAiUnits, а в миссии от `CCampaignManager::SetupMissionData` (сюжетные переходы) —
+  MaxAiUnits + 100 (`0x4903b0` ставит флаг игры, `0x464473` прибавляет 100). Битвы за территорию
+  (`CreateGame`) этой прибавки не получают. Раньше база #A1 с 74 юнитами карты ничего не строила,
+  пока большая часть из них не погибнет. Часть `TODO(ai)` в forces.j закрыта.
 - 2026-10-08 Вращение камеры `CameraStartRotate(speed, direction)` по `Game.exe` 1.09
   ([CameraStartRotate.j](src/jass/runtime/api/CameraStartRotate.j), `RT.CAMERA_SPIN_DEGREES`):
   - **Скорость.** Каждое обновление камеры добавляет к углу `speed·π/180` (`0x532564`). Скрипты

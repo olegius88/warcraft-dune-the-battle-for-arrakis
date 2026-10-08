@@ -1107,4 +1107,12 @@ test('the AI runs the map\'s own base of side 1 in story missions, with ai_<hous
   // guards the map places away from the yard and story characters keep their posts (role 4): the
   // tactics pulled them home and sent them in waves
   assert.ok(start.includes('call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 4)'), 'posts');
+  // Game.exe 1.09: the AI stops making units when all units of its side (0x44c670: the side's whole
+  // list, map-placed ones too) reach MaxAiUnits, plus 100 in a mission set up by
+  // CCampaignManager::SetupMissionData (the jump-to story missions; 0x4903b0 sets the game's flag
+  // +0x50, 0x464473 adds 100). Territory battles (CreateGame) do not get it. Ours capped story maps at
+  // MaxAiUnits: #A1 places 74 units for side 1, so its base made nothing until most of them fell.
+  assert.ok(m.script.includes('if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] + 100 then'), 'story mission cap');
+  const battle = buildMission({ scripts: [], meta: readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf')), ...all, name: 't9', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(battle.script.includes('if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] then'), 'territory battle cap');
 });

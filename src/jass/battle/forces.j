@@ -67,7 +67,9 @@ endfunction
 
 // The enemy pays for what it makes (Rules.txt Cost; its harvesters earn its credits like the
 // player's). Every UnitDelay (ai_difficulty.ini, by tech level): a unit of the ai.ini mix (Foot /
-// Tank) from a barracks or factory, up to MaxAiUnits.
+// Tank) from a barracks or factory, up to MaxAiUnits. Game.exe 1.09 (0x464473) counts every unit of
+// the side (0x44c670), map-placed ones too, and allows 100 more in a story mission (the game flag that
+// CCampaignManager::SetupMissionData sets, 0x4903b0).
 function EmpEnemyProduce takes nothing returns nothing
     local group g
     local unit u
@@ -76,7 +78,7 @@ function EmpEnemyProduce takes nothing returns nothing
     local integer t
     local integer n
     local integer c
-    if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] then
+    if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()]{{#if storyAi}} + {{C.STORY_AI_EXTRA_UNITS}}{{/if}} then
         return
     endif
     set g = CreateGroup()
@@ -192,10 +194,11 @@ endfunction
 // TODO(ai): the template is only its construction yard: destroyed map buildings come back by the
 // base builder's ratios (ai.j), not at their map places; whether Emperor rebuilds them in place is
 // not in the data. Risk: a story base may grow differently from the original.
-// TODO(ai): the units the map places for side 1 fill MaxAiUnits (no production until they fall);
-// those near the yard go with its waves (#A1 before the posts: 68 of 74 sent at 140 s), those beyond
-// DefenceTacticWanderDistance keep their posts. How Emperor's tactics treat map-placed units is not in
-// the data. Risk: early waves stronger or weaker than in the original.
+// The units the map places for side 1 count towards its unit limit, MaxAiUnits + 100 here (Game.exe,
+// EmpEnemyProduce). TODO(ai): those near the yard go with its waves (#A1 before the posts: 68 of 74
+// sent at 140 s), those beyond DefenceTacticWanderDistance keep their posts. Game.exe counts every unit
+// of the side for its defence share (0x455520), but how its tactics pick map-placed units for teams is
+// not traced. Risk: early waves stronger or weaker than in the original.
 function EmpStoryAiStart takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
