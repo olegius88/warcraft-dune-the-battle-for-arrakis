@@ -150,6 +150,12 @@ function battleSetup(o: BattleOptions): BattleSetup {
   const mcv = rc('MCV');
   fns.push(jass('economy', {
     spiceField: o.units.ids.spiceField, harvester, mcv,
+    // [General] HarvReplacementDelay, CashDeliveryWhenNoSpice* (ticks, credits)
+    harvReplaceTicks: Number(o.rules?.general.HarvReplacementDelay ?? 0) || 0,
+    cash: {
+      min: Number(o.rules?.general.CashDeliveryWhenNoSpiceAmountMin ?? 0) || 0, max: Number(o.rules?.general.CashDeliveryWhenNoSpiceAmountMax ?? 0) || 0,
+      freqMin: Number(o.rules?.general.CashDeliveryWhenNoSpiceFrequencyMin ?? 0) || 0, freqMax: Number(o.rules?.general.CashDeliveryWhenNoSpiceFrequencyMax ?? 0) || 0,
+    },
     // the builders of the house (units.ts: walls and turrets have their own); the sub-house builder
     // only for the player allied with a sub-house (mission subhouse.j)
     builderLines: PREFIXES.map((h, i) => `    if t == '${conYards[i]}' then\n${[o.units.ids.builders[h], o.units.ids.defenceBuilders[h]].map((id, k) => `        call CreateUnit(GetOwningPlayer(b), '${id}', GetUnitX(b) - ${real(C.BUILDER_OFFSET * (k + 1))}, GetUnitY(b) - ${real(C.BUILDER_OFFSET)}, ${FACING})`).join('\n')}

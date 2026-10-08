@@ -21,6 +21,7 @@ function EmpBattleInit takes nothing returns nothing
     call TriggerAddAction(tr, function EmpOnConstructStart)
     call TimerStart(CreateTimer(), {{real C.HARVEST_CHECK_PERIOD}}, true, function EmpHarvestTick)
     set EmpYardsServed = CreateGroup()
+    call TimerStart(CreateTimer(), {{real C.HARV_REPLACE_PERIOD}}, true, function EmpHarvReplaceTick)
     call TimerStart(CreateTimer(), {{real C.YARD_CHECK_PERIOD}}, true, function EmpYardTick)
     call EmpPowerData()
     call EmpCostData()

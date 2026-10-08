@@ -67,6 +67,41 @@ const m = buildMission({
     call PreloadGenEnd("DuneSmoke\\\\storm.pld")
 endfunction`,
   } : {}),
+  // --harv: the player's harvesters go, a refinery of his stays: one is back after HarvReplacementDelay
+  ...(flag('--harv') ? {
+    extraStart: 'HarvProbeRun',
+    extraFunctions: `function HarvProbeCount takes nothing returns integer
+    local group g = CreateGroup()
+    local unit u
+    local integer n = 0
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if GetUnitTypeId(u) == '${all.units.rawcode.get('Harvester')}' then
+            set n = n + 1
+            call RemoveUnit(u)
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return n
+endfunction
+
+function HarvProbeRun takes nothing returns nothing
+    local integer before
+    set EmpNormalConditions = false
+    call TriggerSleepAction(3.0)
+    call CreateUnit(Player(0), '${all.units.rawcode.get('ATRefinery')}', EmpEntrX[EmpEntranceFor(0)], EmpEntrY[EmpEntranceFor(0)], 270.0)
+    set before = HarvProbeCount()
+    call TriggerSleepAction(46.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload("harvesters removed=" + I2S(before) + " after 46 s=" + I2S(HarvProbeCount()))
+    call PreloadGenEnd("DuneSmoke\\\\harv.pld")
+endfunction`,
+  } : {}),
   // --mounds: spice mounds and fields at 5 s and after the first bursts (Size + Cost ticks = 60 s)
   ...(flag('--mounds') ? {
     extraStart: 'MoundProbeRun',

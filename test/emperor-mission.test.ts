@@ -434,6 +434,17 @@ test('sandstorms come and go on the sand by Rules.txt', opts, () => {
   assert.ok(m.script.includes(`call SaveInteger(EmpStormTab, '${all.units.rawcode.get('HKWall')}', 0, 5)`), 'StormDamage per type');
 });
 
+// [General] HarvReplacementDelay ("ticks before harvester gets replaced") and CashDeliveryWhenNoSpice*
+// were not read.
+test('a refinery without harvesters gets one after HarvReplacementDelay; cash comes when the spice is gone', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'harv', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes('function EmpHarvReplaceTick'), 'replacement check');
+  assert.ok(m.script.includes('EmpTick - EmpHarvGone[i] >= 1000'), 'HarvReplacementDelay ticks');
+  assert.ok(m.script.includes('GetRandomInt(10000, 20000)') && m.script.includes('GetRandomInt(4000, 8000)'), 'cash delivery amounts and ticks');
+});
+
 // Speech: DATA\Sounds\sounds.txt maps message keys to DIALOG.BAG lines; a mission map imports the
 // lines its scripts use and Message() queues them (one at a time, by known duration).
 test('mission messages play the original speech', opts, () => {

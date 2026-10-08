@@ -64,6 +64,9 @@
     unit EmpSpCrusher = null
     // construction yards that gave their builders (battle economy.j)
     group EmpYardsServed = null
+    // harvester replacement / cash delivery (battle economy.j): tick the last harvester went, next cash
+    integer array EmpHarvGone
+    integer array EmpCashNext
     // in-game announcements (helpers.j EmpUiSay; data from mission.ts)
     string array EmpUiText
     string array EmpUiSound
