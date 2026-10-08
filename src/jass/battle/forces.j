@@ -85,7 +85,7 @@ function EmpEnemyProduce takes nothing returns nothing
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        set t = GetUnitTypeId(u)
+        set t = EmpType(u)
         if EmpAlive(u) and ((veh and ({{isFactory}})) or (not veh and ({{isBarracks}}))) then
             set at = u
         endif
@@ -172,7 +172,7 @@ function EmpStoryAiStart takes nothing returns nothing
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if EmpTplUnit[k] == null and EmpAlive(u) and GetUnitTypeId(u) == EmpTplType[k] then
+        if EmpTplUnit[k] == null and EmpAlive(u) and EmpType(u) == EmpTplType[k] then
             set EmpTplUnit[k] = u
         endif
     endloop
@@ -201,7 +201,7 @@ function EmpStoryAiStart takes nothing returns nothing
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and (LoadBoolean(EmpSpTab, GetUnitTypeId(u), 14) or not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], EmpTiles({{ai.defenceWanderTiles}}))) then
+        if EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and (LoadBoolean(EmpSpTab, EmpType(u), 14) or not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], EmpTiles({{ai.defenceWanderTiles}}))) then
             call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 4)
         endif
     endloop

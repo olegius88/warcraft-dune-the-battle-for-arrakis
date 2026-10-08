@@ -113,6 +113,44 @@ test('veterancy levels are parsed from Rules.txt and wired into missions', opts,
   assert.ok(m.script.includes(`call EmpVetLevel('${id}', 2, 10, 0, 0, 0, 0, 0, 1.25, false, false)`), 'ATKindjal level 2 self-repair rate');
 });
 
+// Veterancy ExtraRange was not applied (TODO(veterancy)): in 1.31.1 the weapon range setter changes
+// nothing (src/smoke/build-range-probe.ts), and a new unit would break the scripts' references to it.
+// A Chaos-based ability turns a unit into another type while it stays the same unit: handle,
+// variables, hashtable data, groups, selection, life, max life and armour kept; base damage, speed,
+// regeneration and added abilities reset to the new type's (src/smoke/build-morph-probe.ts,
+// 2026-10-08, 1.31.1). Guaranteed now: every (type, ExtraRange %) has a veteran copy of the type with
+// the longer range and a morph ability into it; a level with ExtraRange morphs the unit, the
+// veterancy stats are put back after it, and the runtime looks every type up through EmpType (the
+// veteran type counts as its Emperor type for scripts, AI, effects and tables).
+test('veterancy ExtraRange turns the unit into a longer-range copy of its type', opts, () => {
+  const all = loadAll();
+  assert.strictEqual(all.rules.objects.get('ATTrike')?.veterancy[2]?.extraRange, 50);
+  const trike = all.units.rawcode.get('ATTrike') as string;
+  const vet = all.units.vetRange.find((v) => v.type === trike && v.percent === 50);
+  assert.ok(vet, 'ATTrike has a +50 % range veteran type');
+  const range = (id: string): number => Number(all.units.objects.find((o) => o.id === id)?.mods.filter((m) => m.field === 'ua1r').at(-1)?.value);
+  const acquire = (id: string): number => Number(all.units.objects.find((o) => o.id === id)?.mods.filter((m) => m.field === 'uacq').at(-1)?.value);
+  assert.strictEqual(range(vet.veteran), Math.round(range(trike) * 1.5));
+  assert.ok(acquire(vet.veteran) >= range(vet.veteran), 'the veteran acquires targets at its range');
+  assert.strictEqual(all.units.objects.find((o) => o.id === vet.veteran)?.base, all.units.objects.find((o) => o.id === trike)?.base);
+  // the morph ability: Chaos without its research requirement, UnitID1 = the veteran type
+  const w3a = all.units.w3a.toString('latin1');
+  assert.ok(w3a.includes(`Sca1${vet.morph}`), 'morph ability made from Chaos');
+  assert.ok(w3a.includes(`Cha1\u0003\0\0\0\u0001\0\0\0\0\0\0\0${vet.veteran}\0`), 'Cha1 level 1 = veteran type');
+  assert.ok(w3a.includes('areq\u0003\0\0\0\0\0\0\0\0\0\0\0\0'), 'no Chaos research needed');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'vet range', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call EmpVetRangeType('${trike}', 50, '${vet.veteran}', '${vet.morph}')`), 'veteran type registered');
+  const body = (name: string): string => m.script.split(`function ${name} takes`)[1]?.split('endfunction')[0] ?? '';
+  assert.match(body('EmpVetApply'), /UnitAddAbility\(u, LoadInteger\(EmpVet, t, /, 'a level with ExtraRange morphs the unit');
+  assert.match(body('EmpVetRestore'), /BlzSetUnitBaseDamage/, 'damage put back after the morph');
+  assert.match(body('EmpVetRestore'), /SetUnitMoveSpeed/, 'speed put back after the morph');
+  // every other type lookup goes through EmpType (a comparison with 0 asks whether the unit still
+  // exists: the WC3 type itself)
+  const raw = m.script.split(/\nfunction /).filter((f) => f.replace(/GetUnitTypeId\([^()]*(\([^()]*\))?\) [!=]= 0/g, '').includes('GetUnitTypeId(')).map((f) => f.split(' ')[0]);
+  assert.deepStrictEqual(raw.filter((f) => !['EmpType', 'EmpAlive', 'EmpVetApply', 'EmpVetMorphed'].includes(f as string)), [], 'raw GetUnitTypeId only where the WC3 type itself is meant');
+});
+
 // StealthedWhenStill (scouts by type, ATSniper at veterancy level 3) and AIThreat were not modelled.
 test('stealthed-when-still units and the AIThreat target priority come from Rules.txt', opts, () => {
   const all = loadAll();
@@ -469,7 +507,7 @@ test('sandstorms come and go on the sand by Rules.txt', opts, () => {
   // never picked up' (third audit: vehicles were picked up). Damage = value mod 64, class = value / 64.
   const inf = all.units.rawcode.get('ATInfantry');
   assert.ok(m.script.includes(`call SaveInteger(EmpStormTab, '${inf}', 0, 10)`) && m.script.includes(`call SaveInteger(EmpStormTab, '${inf}', 1, 2)`), 'ATInfantry 138 = class 2, damage 10');
-  assert.ok(m.script.includes('LoadInteger(EmpStormTab, GetUnitTypeId(u), 1) > 0'), 'only a class above 0 is picked up');
+  assert.ok(m.script.includes('LoadInteger(EmpStormTab, EmpType(u), 1) > 0'), 'only a class above 0 is picked up');
 });
 
 // [General] HarvReplacementDelay ("ticks before harvester gets replaced") and CashDeliveryWhenNoSpice*
@@ -499,7 +537,7 @@ test('starport prices change every StarportCostUpdateDelay ticks within Starport
   // fourth audit: the record of a destroyed starport stayed on its handle id; a factory reusing it
   // settled a starport price for its own trike. Only starports settle, and the record goes with it.
   const fin = m.script.slice(m.script.indexOf('function EmpPortFinish'), m.script.indexOf('endfunction', m.script.indexOf('function EmpPortFinish')));
-  assert.ok(fin.includes('LoadBoolean(EmpPortTab, GetUnitTypeId(b), 2)') && fin.includes('call RemoveSavedInteger(EmpPortTab, GetHandleId(b), t)'), 'starport only, record removed');
+  assert.ok(fin.includes('LoadBoolean(EmpPortTab, EmpType(b), 2)') && fin.includes('call RemoveSavedInteger(EmpPortTab, GetHandleId(b), t)'), 'starport only, record removed');
 });
 
 // Emperor's effects were missing (TODO(models)): Rules.txt names an explosion for every object that

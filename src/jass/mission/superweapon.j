@@ -8,8 +8,8 @@ endfunction
 
 function EmpSwOrder takes nothing returns nothing
     local unit u = GetTriggerUnit()
-    if GetIssuedOrderId() == OrderId("attackground") and HaveSavedInteger(EmpSwTab, GetUnitTypeId(u), 0) then
-        call EmpSwStrike(GetUnitTypeId(u), GetOwningPlayer(u), GetOrderPointX(), GetOrderPointY())
+    if GetIssuedOrderId() == OrderId("attackground") and HaveSavedInteger(EmpSwTab, EmpType(u), 0) then
+        call EmpSwStrike(EmpType(u), GetOwningPlayer(u), GetOrderPointX(), GetOrderPointY())
         call RemoveUnit(u)
     endif
     set u = null

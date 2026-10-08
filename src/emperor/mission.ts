@@ -252,6 +252,8 @@ function buildMission(p: MissionParams): BuiltMission {
     const regen = (n: number): string => real((n * TICKS_PER_SECOND) / REPAIR_PERIOD_TICKS / HP_DIVISOR);
     o.veterancy.forEach((l, i) => vetLines.push(`    call EmpVetLevel('${id}', ${i + 1}, ${l.score}, ${Math.round(l.health / HP_DIVISOR)}, ${l.extraDamage}, ${l.extraArmour}, ${l.extraRange}, ${l.speed ? Math.round(moveSpeed(l.speed)) : 0}, ${regen(l.selfRepair)}, ${l.elite}, ${l.stealthedWhenStill})`));
   }
+  // ExtraRange: the veteran copy of the type and the morph ability into it (units.ts vetRange)
+  for (const v of p.units.vetRange ?? []) vetLines.push(`    call EmpVetRangeType('${v.type}', ${v.percent}, '${v.veteran}', '${v.morph}')`);
   // every Rules.txt type has an AIThreat: the AI's threat targeting is always on
   if (p.rules && [...p.rules.objects.values()].some((o) => o.aiThreat > 0)) vetLines.push('    set EmpThreatAny = true');
   const half = (n: number): number => (n * WC3_UNITS_PER_TILE) / 2;

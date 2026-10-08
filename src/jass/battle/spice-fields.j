@@ -75,7 +75,7 @@ endfunction
 // a mound destroyed by fire bursts at once
 function EmpMoundDeath takes nothing returns nothing
     local unit u = GetTriggerUnit()
-    if GetUnitTypeId(u) == '{{spiceMound}}' and HaveSavedHandle(EmpMoundTab, GetHandleId(u), 0) then
+    if EmpType(u) == '{{spiceMound}}' and HaveSavedHandle(EmpMoundTab, GetHandleId(u), 0) then
         call TimerStart(LoadTimerHandle(EmpMoundTab, GetHandleId(u), 0), 0.0, false, function EmpMoundTimer)
     endif
     set u = null

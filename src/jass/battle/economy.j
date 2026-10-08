@@ -10,7 +10,7 @@ function EmpNearestMine takes real x, real y returns unit
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if GetUnitTypeId(u) == '{{spiceField}}' and GetResourceAmount(u) > 0 then
+        if EmpType(u) == '{{spiceField}}' and GetResourceAmount(u) > 0 then
             set d = (GetUnitX(u) - x) * (GetUnitX(u) - x) + (GetUnitY(u) - y) * (GetUnitY(u) - y)
             if d < bd then
                 set bd = d
@@ -26,7 +26,7 @@ endfunction
 function EmpHarvestIdleEnum takes nothing returns boolean
     local unit u = GetFilterUnit()
     local unit m
-    if GetUnitTypeId(u) == '{{harvester}}' and EmpAlive(u) and GetUnitCurrentOrder(u) == 0 then
+    if EmpType(u) == '{{harvester}}' and EmpAlive(u) and GetUnitCurrentOrder(u) == 0 then
         set m = EmpNearestMine(GetUnitX(u), GetUnitY(u))
         if m != null then
             call IssueTargetOrder(u, "harvest", m)
@@ -48,7 +48,7 @@ endfunction
 
 // the builders of a construction yard, once per yard (EmpYardsServed)
 function EmpGiveBuilders takes unit b returns nothing
-    local integer t = GetUnitTypeId(b)
+    local integer t = EmpType(b)
     if IsUnitInGroup(b, EmpYardsServed) then
         return
     endif
@@ -91,7 +91,7 @@ endfunction
 
 function EmpOnBuildingDone takes nothing returns nothing
     local unit b = GetConstructedStructure()
-    local integer t = GetUnitTypeId(b)
+    local integer t = EmpType(b)
     call RemoveSavedBoolean(EmpPowerTab, GetHandleId(b), 2)
     if {{isConYard}} then
         call EmpGiveBuilders(b)
@@ -116,7 +116,7 @@ function EmpOnConstructStart takes nothing returns nothing
             set u = FirstOfGroup(g)
             exitwhen u == null
             call GroupRemoveUnit(g, u)
-            if GetUnitTypeId(u) == '{{mcv}}' and GetOwningPlayer(u) == GetOwningPlayer(b) then
+            if EmpType(u) == '{{mcv}}' and GetOwningPlayer(u) == GetOwningPlayer(b) then
                 call RemoveUnit(u)
                 exitwhen true
             endif
@@ -146,7 +146,7 @@ function EmpHarvReplaceTick takes nothing returns nothing
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if GetUnitTypeId(u) == '{{spiceField}}' then
+        if EmpType(u) == '{{spiceField}}' then
             set spice = spice + GetResourceAmount(u)
         endif
     endloop
@@ -159,7 +159,7 @@ function EmpHarvReplaceTick takes nothing returns nothing
             set u = FirstOfGroup(g)
             exitwhen u == null
             call GroupRemoveUnit(g, u)
-            set t = GetUnitTypeId(u)
+            set t = EmpType(u)
             if EmpAlive(u) and ({{isRefinery}}) and not LoadBoolean(EmpPowerTab, GetHandleId(u), 2) then
                 set refinery = u
             elseif EmpAlive(u) and t == '{{harvester}}' then

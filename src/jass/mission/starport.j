@@ -30,7 +30,7 @@ function EmpPortTrain takes nothing returns nothing
     local integer cost
     local integer delta
     local player p = GetOwningPlayer(b)
-    if LoadBoolean(EmpPortTab, GetUnitTypeId(b), 2) and HaveSavedInteger(EmpPortTab, t, 0) then
+    if LoadBoolean(EmpPortTab, EmpType(b), 2) and HaveSavedInteger(EmpPortTab, t, 0) then
         set cost = LoadInteger(EmpPortTab, t, 1)
         set delta = cost * EmpPortPct[LoadInteger(EmpPortTab, t, 0)] / 100 - cost
         if delta > GetPlayerState(p, PLAYER_STATE_RESOURCE_GOLD) then
@@ -224,7 +224,7 @@ endfunction
 // a starport falls: it lets go of its frigate (its units still land) and of its price records
 function EmpPortDeath takes nothing returns nothing
     local integer h = GetHandleId(GetTriggerUnit())
-    if LoadBoolean(EmpPortTab, GetUnitTypeId(GetTriggerUnit()), 2) then
+    if LoadBoolean(EmpPortTab, EmpType(GetTriggerUnit()), 2) then
         call RemoveSavedHandle(EmpPortTab, h, 2)
         call FlushChildHashtable(EmpPortTab, h)
     endif
@@ -235,12 +235,12 @@ endfunction
 function EmpPortFinish takes nothing returns nothing
     local unit b = GetTriggerUnit()
     local unit u = GetTrainedUnit()
-    local integer t = GetUnitTypeId(u)
+    local integer t = EmpType(u)
     local integer delta = 0
     local player p = GetOwningPlayer(b)
     // only a starport settles, and the record goes: a factory reusing the handle id of a destroyed
     // starport took its old price for its own trike (fourth audit, test/emperor-mission.test.ts)
-    if LoadBoolean(EmpPortTab, GetUnitTypeId(b), 2) and HaveSavedInteger(EmpPortTab, t, 3) then
+    if LoadBoolean(EmpPortTab, EmpType(b), 2) and HaveSavedInteger(EmpPortTab, t, 3) then
         if HaveSavedInteger(EmpPortTab, GetHandleId(b), t) then
             set delta = LoadInteger(EmpPortTab, GetHandleId(b), t)
             call RemoveSavedInteger(EmpPortTab, GetHandleId(b), t)

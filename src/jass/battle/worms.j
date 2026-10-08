@@ -21,7 +21,7 @@ endfunction
 
 function EmpSandTarget takes unit u returns boolean
     // SideRepelsWorms: that side's units are left alone
-    return u != null and EmpAlive(u) and u != EmpWorm and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and not IsUnitType(u, UNIT_TYPE_FLYING) and GetPlayerId(GetOwningPlayer(u)) <= {{MAX_SIDE}} and not EmpWormRepel[GetPlayerId(GetOwningPlayer(u))] and EmpWormWeight(GetUnitTypeId(u)) > 0 and EmpOnSand(GetUnitX(u), GetUnitY(u))
+    return u != null and EmpAlive(u) and u != EmpWorm and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and not IsUnitType(u, UNIT_TYPE_FLYING) and GetPlayerId(GetOwningPlayer(u)) <= {{MAX_SIDE}} and not EmpWormRepel[GetPlayerId(GetOwningPlayer(u))] and EmpWormWeight(EmpType(u)) > 0 and EmpOnSand(GetUnitX(u), GetUnitY(u))
 endfunction
 
 // a random unit standing on sand, weighted by WormAttraction (weighted reservoir sampling over all
@@ -44,7 +44,7 @@ function EmpSandVictim takes nothing returns unit
             exitwhen u == null
             call GroupRemoveUnit(g, u)
             if EmpSandTarget(u) then
-                set w = EmpWormWeight(GetUnitTypeId(u))
+                set w = EmpWormWeight(EmpType(u))
                 set n = n + w
                 if GetRandomInt(1, n) <= w then
                     set pick = u

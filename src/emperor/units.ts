@@ -88,6 +88,17 @@ export interface UnitData {
   effectRadius: Map<string, number>;
   /** starport order type -> the unit a frigate delivers for it (mission starport.j) */
   portOrders: Map<string, string>;
+  /** veteran types with a longer range (Rules.txt ExtraRange) and the morph abilities into them */
+  vetRange: VetRangeType[];
+}
+
+/** A unit type's copy with ExtraRange percent more range, and the Chaos ability that turns a unit of
+ * the type into it (mission veterancy.j). */
+export interface VetRangeType {
+  type: string;
+  percent: number;
+  veteran: string;
+  morph: string;
 }
 
 export interface CombatTable {
@@ -332,6 +343,32 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       str(F.name, displayName(u.name) + U.PORT_ORDER_SUFFIX), int(F.goldCost, u.cost), int(F.lumberCost, 0), int(F.foodCost, 0),
       int(F.buildTime, U.PORT_ORDER_SECONDS), int(F.attacksEnabled, 0), str(F.abilities, ''), str(F.upgrades, ''), str(F.researches, '')] });
   }
+  // Veteran types (Rules.txt ExtraRange %): 1.31.1 cannot lengthen one unit's range (the weapon range
+  // setter changes nothing, src/smoke/build-range-probe.ts), so a level with ExtraRange turns the
+  // unit into a copy of its type with the longer range through a Chaos ability; the unit stays the
+  // same one (mission veterancy.j EmpVetApply / EmpVetRestore, runtime EmpType).
+  const vetRange: VetRangeType[] = [];
+  // (the copies go into objects: walk the Emperor units taken before)
+  for (const obj of objects.filter((x) => x.emperor?.category === 'Unit')) {
+    const o = obj.emperor as RulesObject;
+    const last = (f: string): ObjectMod | undefined => obj.mods.filter((m) => m.field === f).at(-1);
+    const range = last(F.range);
+    if (!range) continue;
+    for (const percent of new Set(o.veterancy.map((l) => l.extraRange).filter((p) => p > 0))) {
+      const veteran = nextId(CUSTOM_ID.unitPrefix);
+      const morph = nextId(CUSTOM_ID.vetMorphPrefix);
+      const longer = Math.round((Number(range.value) * (100 + percent)) / 100);
+      objects.push({ base: obj.base, id: veteran, emperor: null, mods: [
+        ...obj.mods.filter((m) => m.field !== F.range && m.field !== F.acquireRange),
+        int(F.range, longer), unreal(F.acquireRange, Math.max(longer, Number(last(F.acquireRange)?.value ?? 0))),
+      ] });
+      abilities.push({ base: ABILITY.chaos, id: morph, mods: [
+        { field: ABILITY_FIELD.requires, type: 'string', value: '' },
+        { field: ABILITY_FIELD.newUnitType, type: 'string', value: veteran, level: 1 },
+      ] });
+      vetRange.push({ type: obj.id, percent, veteran, morph });
+    }
+  }
   // Command card cells of the train / research buttons: without them a type keeps its stock base's
   // cell and types of the same base hide each other. Buildings with the most buttons first; each
   // button takes the first cell free in every building that shows it (test/emperor-mission.test.ts).
@@ -359,7 +396,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, vetRange,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),

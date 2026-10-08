@@ -47,8 +47,8 @@ function EmpSpDamaged takes nothing returns nothing
         set u = null
         return
     endif
-    set k = LoadInteger(EmpSpTab, GetUnitTypeId(s), 0)
-    set tu = GetUnitTypeId(u)
+    set k = LoadInteger(EmpSpTab, EmpType(s), 0)
+    set tu = EmpType(u)
     if k == 1 and not LoadBoolean(EmpSpTab, tu, 7) and not HaveSavedInteger(EmpSpTab, GetHandleId(u), 30) and GetOwningPlayer(u) != Player(PLAYER_NEUTRAL_AGGRESSIVE) then
         call SaveInteger(EmpSpTab, GetHandleId(u), 30, GetPlayerId(GetOwningPlayer(u)) + 1)
         set EmpSwBerserk[GetPlayerId(GetOwningPlayer(u))] = EmpSwBerserk[GetPlayerId(GetOwningPlayer(u))] + 1
@@ -60,7 +60,7 @@ function EmpSpDamaged takes nothing returns nothing
     elseif k == 2 and not LoadBoolean(EmpSpTab, tu, 11) and not LoadBoolean(EmpSpTab, tu, 14) and u != EmpWorm and not IsUnitType(u, UNIT_TYPE_FLYING) and GetOwningPlayer(u) != Player(PLAYER_NEUTRAL_AGGRESSIVE) and not HaveSavedInteger(EmpSpTab, GetHandleId(u), 31) then
         // the leech holds on and drains the vehicle; when it dies a new leech comes out (EmpSpTick)
         call SaveInteger(EmpSpTab, GetHandleId(u), 31, GetPlayerId(GetOwningPlayer(s)) + 1)
-        call SaveInteger(EmpSpTab, GetHandleId(u), 32, GetUnitTypeId(s))
+        call SaveInteger(EmpSpTab, GetHandleId(u), 32, EmpType(s))
         call GroupAddUnit(EmpSpLeeched, u)
         if GetOwningPlayer(u) == Player(0) then
             call EmpUiSay({{UI.leechAttack}})
@@ -70,7 +70,7 @@ function EmpSpDamaged takes nothing returns nothing
         if GetOwningPlayer(u) == Player(0) then
             call EmpUiSay({{UI.contAttack}})
         endif
-        call CreateUnit(GetOwningPlayer(s), GetUnitTypeId(s), GetUnitX(u), GetUnitY(u), GetUnitFacing(u))
+        call CreateUnit(GetOwningPlayer(s), EmpType(s), GetUnitX(u), GetUnitY(u), GetUnitFacing(u))
         call KillUnit(u)
     endif
     set s = null
@@ -108,7 +108,7 @@ function EmpSpBuildingAt takes unit u, boolean needEngineerable returns unit
         set b = FirstOfGroup(g)
         exitwhen b == null or found != null
         call GroupRemoveUnit(g, b)
-        if EmpAlive(b) and IsUnitType(b, UNIT_TYPE_STRUCTURE) and IsUnitEnemy(b, GetOwningPlayer(u)) and IsUnitInRange(u, b, {{real RT.SP_TOUCH}}) and not LoadBoolean(EmpPowerTab, GetHandleId(b), 2) and ((needEngineerable and LoadBoolean(EmpSpTab, GetUnitTypeId(b), 8)) or (not needEngineerable and not LoadBoolean(EmpSpTab, GetUnitTypeId(b), 12))) then
+        if EmpAlive(b) and IsUnitType(b, UNIT_TYPE_STRUCTURE) and IsUnitEnemy(b, GetOwningPlayer(u)) and IsUnitInRange(u, b, {{real RT.SP_TOUCH}}) and not LoadBoolean(EmpPowerTab, GetHandleId(b), 2) and ((needEngineerable and LoadBoolean(EmpSpTab, EmpType(b), 8)) or (not needEngineerable and not LoadBoolean(EmpSpTab, EmpType(b), 12))) then
             set found = b
         endif
     endloop
@@ -129,7 +129,7 @@ function EmpSpRepair takes unit r, real heal, real range returns nothing
         set v = FirstOfGroup(g)
         exitwhen v == null
         call GroupRemoveUnit(g, v)
-        if v != r and EmpAlive(v) and GetOwningPlayer(v) == GetOwningPlayer(r) and not IsUnitType(v, UNIT_TYPE_STRUCTURE) and not LoadBoolean(EmpSpTab, GetUnitTypeId(v), 11) and not LoadBoolean(EmpSpTab, GetUnitTypeId(v), 13) then
+        if v != r and EmpAlive(v) and GetOwningPlayer(v) == GetOwningPlayer(r) and not IsUnitType(v, UNIT_TYPE_STRUCTURE) and not LoadBoolean(EmpSpTab, EmpType(v), 11) and not LoadBoolean(EmpSpTab, EmpType(v), 13) then
             set f = GetWidgetLife(v) / GetUnitState(v, UNIT_STATE_MAX_LIFE)
             if f < worst then
                 set worst = f
@@ -149,7 +149,7 @@ endfunction
 // mend, crushers are listed for EmpSpCrushTick
 function EmpSpTickEnum takes nothing returns nothing
     local unit u = GetEnumUnit()
-    local integer t = GetUnitTypeId(u)
+    local integer t = EmpType(u)
     local integer k = LoadInteger(EmpSpTab, t, 0)
     local unit b
     set EmpSpScanned = EmpSpScanned + 1
@@ -203,7 +203,7 @@ endfunction
 // infantry the crusher EmpSpCrusher touches (EmpSpCrushNear)
 function EmpSpCrushVictim takes nothing returns nothing
     local unit v = GetEnumUnit()
-    if EmpAlive(v) and LoadBoolean(EmpSpTab, GetUnitTypeId(v), 10) and IsUnitEnemy(v, GetOwningPlayer(EmpSpCrusher)) and IsUnitInRange(EmpSpCrusher, v, {{real RT.SP_CRUSH}}) then
+    if EmpAlive(v) and LoadBoolean(EmpSpTab, EmpType(v), 10) and IsUnitEnemy(v, GetOwningPlayer(EmpSpCrusher)) and IsUnitInRange(EmpSpCrusher, v, {{real RT.SP_CRUSH}}) then
         call KillUnit(v)
     endif
     set v = null

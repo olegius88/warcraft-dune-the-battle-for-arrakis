@@ -72,6 +72,13 @@ export const BRIEFING_SECONDS = 25;
 
 /** Veterancy hashtable: level L of a unit type is stored at children L * VET_SLOT_STRIDE + 1..8. */
 export const VET_SLOT_STRIDE = 16;
+/** Veterancy hashtable: the morph ability of a unit type into its veteran type with ExtraRange p %
+ * is at child VET_MORPH_KEY + p (above every level slot). */
+export const VET_MORPH_KEY = 1000;
+/** A morph takes effect a frame later (src/smoke/build-morph-probe.ts): the unit is checked every
+ * VET_MORPH_CHECK seconds, at most VET_MORPH_TRIES times, before its veterancy stats are put back. */
+export const VET_MORPH_CHECK = 0.05;
+export const VET_MORPH_TRIES = 20;
 
 /** Debug report for unattended tests: sides 0..DEBUG_REPORT_SIDES, written to
  * CustomMapData\<DEBUG_REPORT_DIR>\<map>.pld every DEBUG_REPORT_PERIOD seconds. */

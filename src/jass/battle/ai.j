@@ -56,7 +56,7 @@ function EmpAiCount takes integer c returns integer
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        set t = GetUnitTypeId(u)
+        set t = EmpType(u)
         if EmpAlive(u) and HaveSavedInteger(EmpAiTab, t, 0) then
             if (c >= 0 and LoadInteger(EmpAiTab, t, 0) == c) or (c == -1 and LoadBoolean(EmpAiTab, t, 1)) or (c == -2 and LoadBoolean(EmpAiTab, t, 3)) then
                 set n = n + 1
@@ -104,7 +104,7 @@ function EmpAiTurretNear takes real x, real y, real tiles returns boolean
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if GetOwningPlayer(u) == Player(1) and LoadBoolean(EmpAiTab, GetUnitTypeId(u), 1) then
+        if GetOwningPlayer(u) == Player(1) and LoadBoolean(EmpAiTab, EmpType(u), 1) then
             set near = true
         endif
     endloop
@@ -136,7 +136,7 @@ function EmpAiScore takes integer t, real x, real y, real r returns real
             set maxX = RMaxBJ(maxX, GetUnitX(u))
             set minY = RMinBJ(minY, GetUnitY(u))
             set maxY = RMaxBJ(maxY, GetUnitY(u))
-            if GetUnitTypeId(u) == t and (RAbsBJ(GetUnitX(u) - x) < {{real C.AI_ALIGN_TILES}} * tile or RAbsBJ(GetUnitY(u) - y) < {{real C.AI_ALIGN_TILES}} * tile) then
+            if EmpType(u) == t and (RAbsBJ(GetUnitX(u) - x) < {{real C.AI_ALIGN_TILES}} * tile or RAbsBJ(GetUnitY(u) - y) < {{real C.AI_ALIGN_TILES}} * tile) then
                 set aligned = true
             endif
         endif
@@ -298,7 +298,7 @@ function EmpAiWalls takes nothing returns boolean
         set u = FirstOfGroup(g)
         exitwhen u == null or done
         call GroupRemoveUnit(g, u)
-        if EmpAlive(u) and LoadBoolean(EmpAiTab, GetUnitTypeId(u), 1) and not LoadBoolean(EmpAiTab, GetHandleId(u), 20) then
+        if EmpAlive(u) and LoadBoolean(EmpAiTab, EmpType(u), 1) and not LoadBoolean(EmpAiTab, GetHandleId(u), 20) then
             call SaveBoolean(EmpAiTab, GetHandleId(u), 20, true)
             set a = Atan2(GetUnitY(u) - EmpBaseY[b], GetUnitX(u) - EmpBaseX[b])
             set k = 0
@@ -477,7 +477,7 @@ function EmpAiRole takes unit u returns integer
 endfunction
 
 function EmpAiHomeUnit takes unit u returns boolean
-    return EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and GetUnitTypeId(u) != '{{harvester}}' and EmpAiRole(u) == 0
+    return EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and EmpType(u) != '{{harvester}}' and EmpAiRole(u) == 0
 endfunction
 
 // a random point of the map
@@ -563,7 +563,7 @@ function EmpAiTactics takes nothing returns nothing
         exitwhen u == null
         call GroupRemoveUnit(g, u)
         if EmpAlive(u) then
-            if GetUnitTypeId(u) == '{{harvester}}' then
+            if EmpType(u) == '{{harvester}}' then
                 set harv = u
             elseif EmpAiRole(u) == 1 then
                 set scouts = scouts + 1

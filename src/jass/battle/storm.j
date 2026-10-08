@@ -25,13 +25,13 @@ function EmpStormHit takes nothing returns nothing
         if not IsUnitInGroup(u, EmpStormSeen) then
             call GroupAddUnit(EmpStormSeen, u)
             // only a StormDamage class above 0 is picked up (battle.ts damageLines)
-            if LoadInteger(EmpStormTab, GetUnitTypeId(u), 1) > 0 and GetRandomInt(0, 255) < {{storm.killChance}} then
+            if LoadInteger(EmpStormTab, EmpType(u), 1) > 0 and GetRandomInt(0, 255) < {{storm.killChance}} then
                 call KillUnit(u)
                 set u = null
                 return
             endif
         endif
-        set d = I2R(LoadInteger(EmpStormTab, GetUnitTypeId(u), 0)) / {{HP_DIVISOR}} * {{real C.STORM_TICK}}
+        set d = I2R(LoadInteger(EmpStormTab, EmpType(u), 0)) / {{HP_DIVISOR}} * {{real C.STORM_TICK}}
         if d > 0.0 then
             if GetWidgetLife(u) <= d then
                 call KillUnit(u)

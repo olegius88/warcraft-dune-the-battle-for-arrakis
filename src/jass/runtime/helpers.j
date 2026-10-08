@@ -25,6 +25,16 @@ function EmpAlive takes unit u returns boolean
     return u != null and GetUnitTypeId(u) != 0 and not IsUnitType(u, UNIT_TYPE_DEAD)
 endfunction
 
+// The Emperor type of a unit: a veteran with ExtraRange is a longer-range copy of its type (mission
+// veterancy.j EmpVetRangeType) and counts as that type for the scripts, the AI and every table.
+function EmpType takes unit u returns integer
+    local integer t = GetUnitTypeId(u)
+    if EmpVetBase != null and HaveSavedInteger(EmpVetBase, t, 0) then
+        return LoadInteger(EmpVetBase, t, 0)
+    endif
+    return t
+endfunction
+
 function EmpTiles takes integer t returns real
     return I2R(t) * {{real WC3_UNITS_PER_TILE}}
 endfunction
@@ -33,7 +43,7 @@ function EmpCountEnum takes nothing returns boolean
     local unit u = GetFilterUnit()
     // Locust units (the starport frigate, mission starport.j) are no units of the side: a player with
     // only a delivery on its way has lost (test/emperor-mission.test.ts)
-    if EmpAlive(u) and GetUnitAbilityLevel(u, '{{ABILITY.locust}}') == 0 and (EmpTmpType == 0 or (EmpTmpType == 1 and not IsUnitType(u, UNIT_TYPE_STRUCTURE)) or (EmpTmpType == 2 and IsUnitType(u, UNIT_TYPE_STRUCTURE)) or GetUnitTypeId(u) == EmpTmpType) and not (EmpTmpLose and LoadBoolean(EmpVet, GetUnitTypeId(u), 4)) then
+    if EmpAlive(u) and GetUnitAbilityLevel(u, '{{ABILITY.locust}}') == 0 and (EmpTmpType == 0 or (EmpTmpType == 1 and not IsUnitType(u, UNIT_TYPE_STRUCTURE)) or (EmpTmpType == 2 and IsUnitType(u, UNIT_TYPE_STRUCTURE)) or EmpType(u) == EmpTmpType) and not (EmpTmpLose and LoadBoolean(EmpVet, EmpType(u), 4)) then
         set EmpTmpCount = EmpTmpCount + 1
     endif
     set u = null
@@ -459,7 +469,7 @@ function EmpThreatTarget takes unit u returns unit
         exitwhen v == null
         call GroupRemoveUnit(g, v)
         if EmpAlive(v) and GetOwningPlayer(v) != GetOwningPlayer(u) and not IsUnitAlly(v, GetOwningPlayer(u)) then
-            set t = LoadInteger(EmpThreat, GetUnitTypeId(v), 0)
+            set t = LoadInteger(EmpThreat, EmpType(v), 0)
             if t > bt then
                 set bt = t
                 set best = v
@@ -570,7 +580,7 @@ function EmpUiAttacked takes nothing returns nothing
     local unit u = GetTriggerUnit()
     if IsUnitType(u, UNIT_TYPE_STRUCTURE) then
         call EmpUiSay({{UI.baseAttack}})
-    elseif LoadBoolean(EmpUiTab, GetUnitTypeId(u), 0) then
+    elseif LoadBoolean(EmpUiTab, EmpType(u), 0) then
         call EmpUiSay({{UI.harvAttack}})
     endif
     set u = null
@@ -591,10 +601,10 @@ endfunction
 function EmpUiTrained takes nothing returns nothing
     // a starport order is no unit yet: its frigate is announced (mission starport.j); if EmpPortFinish
     // ran first it is removed already (type 0): trigger order is not guaranteed (fifth audit)
-    if GetUnitTypeId(GetTrainedUnit()) == 0 or HaveSavedInteger(EmpPortTab, GetUnitTypeId(GetTrainedUnit()), 3) then
+    if GetUnitTypeId(GetTrainedUnit()) == 0 or HaveSavedInteger(EmpPortTab, EmpType(GetTrainedUnit()), 3) then
         return
     endif
-    if HaveSavedInteger(EmpSwTab, GetUnitTypeId(GetTrainedUnit()), 0) then
+    if HaveSavedInteger(EmpSwTab, EmpType(GetTrainedUnit()), 0) then
         call EmpUiSay({{UI.specWepReady}})
     else
         call EmpUiSay({{UI.unitReady}})

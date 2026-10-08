@@ -123,6 +123,8 @@
     integer EmpCrateCount = 0
     group EmpStealthGroup = null
     integer EmpStealthEnd = 0
+    // veteran type (ExtraRange) -> its Emperor type at child 0 (EmpType, mission veterancy.j)
+    hashtable EmpVetBase = null
     timer EmpCamSpinTimer = null
     real EmpCamSpin = 0.0
     integer EmpCamMoveEnd = 0

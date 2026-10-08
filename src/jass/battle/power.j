@@ -30,7 +30,7 @@ function EmpPowerTick takes nothing returns nothing
             exitwhen u == null
             call GroupRemoveUnit(g, u)
             if EmpAlive(u) and not LoadBoolean(EmpPowerTab, GetHandleId(u), 2) then
-                set p = LoadInteger(EmpPowerTab, GetUnitTypeId(u), 0)
+                set p = LoadInteger(EmpPowerTab, EmpType(u), 0)
                 set sum = sum + p
                 if p > 0 then
                     set gen = true
@@ -43,7 +43,7 @@ function EmpPowerTick takes nothing returns nothing
             set u = FirstOfGroup(g)
             exitwhen u == null
             call GroupRemoveUnit(g, u)
-            if LoadBoolean(EmpPowerTab, GetUnitTypeId(u), 1) then
+            if LoadBoolean(EmpPowerTab, EmpType(u), 1) then
                 call PauseUnit(u, low)
             endif
         endloop

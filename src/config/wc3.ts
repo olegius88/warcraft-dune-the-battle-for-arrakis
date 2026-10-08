@@ -53,6 +53,11 @@ export const ABILITY_FIELD = {
   /** Ahar: damage to trees (column 2) and gold per trip (column 3) */
   harvestLumber: 'Har2',
   harvestGold: 'Har3',
+  /** requirements (Chaos: the Chaos research) */
+  requires: 'areq',
+  /** Chaos: the type the unit turns into (common.j ABILITY_ILF_NEW_UNIT_TYPE = 'Cha1'; the UnitID1
+   * column of AbilityData, so level 1 without a data column) */
+  newUnitType: 'Cha1',
 } as const;
 
 /** Upgrade object data fields (war3map.w3q), from WurstStdlib2 objediting/UpgradeObjEditing.wurst:
@@ -76,6 +81,10 @@ export const ABILITY = {
   build: 'AHbu',
   returnResources: 'Argd',
   invulnerable: 'Avul',
+  /** Chaos (grunt): adding it turns the unit into another type while it stays the same unit
+   * (handle, data, groups kept; damage, speed, regeneration and added abilities reset): veterancy
+   * ExtraRange (src/smoke/build-morph-probe.ts, 2026-10-08, 1.31.1) */
+  chaos: 'Sca1',
   /** permanent invisibility (not in common.ai; UnitAddAbility('Apiv') succeeded in game, probe 2026-10-07) */
   invisibility: 'Apiv',
   /** Locust: not selectable, not targeted (AbilityData.slk of 1.31.1: Aloc "Locust"); the starport frigate */
@@ -132,6 +141,8 @@ export const CUSTOM_ID = {
   unitPrefix: 'x',
   /** first letter of the building upgrades (war3map.w3q; stock upgrades are Rh../Ro../Re../Ru..) */
   upgradePrefix: 'R',
+  /** first letter of the veterancy morph abilities (Chaos into a longer-range veteran type) */
+  vetMorphPrefix: 'V',
   /** stock upgrade the building upgrades are made from (Iron Forged Swords): its effects reach no
    * unit, every Emperor unit has an empty upgrade list (units.ts, F.upgrades) */
   upgradeBase: 'Rhme',

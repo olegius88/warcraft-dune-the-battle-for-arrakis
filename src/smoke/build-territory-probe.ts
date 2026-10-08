@@ -11,7 +11,7 @@ import { ensureMap } from '../emperor/preview-map.ts';
 import { buildMission } from '../emperor/mission.ts';
 import { BUILD_DIR, RAW_DIR } from '../config/paths.ts';
 import { territoryMapPrefix } from '../config/story.ts';
-import { ART_ABILITY, TERRAIN } from '../config/wc3.ts';
+import { ART_ABILITY, TERRAIN, UNIT_FIELD } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import { EFFECT_MAX_RADIUS } from '../config/models.ts';
 import * as BATTLE from '../config/battle.ts';
@@ -25,6 +25,8 @@ const flag = (f: string): boolean => args.includes(f);
 const all = loadAll();
 const trike = all.units.rawcode.get('ATTrike') as string;
 const trikeOrder = [...all.units.portOrders].find(([, real]) => real === trike)?.[0] as string;
+// --vetrange: the trike's own attack range (WC3 units)
+const trikeRange = Number(all.units.objects.find((o) => o.id === trike)?.mods.filter((m) => m.field === UNIT_FIELD.range).at(-1)?.value);
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
 const fxShown = [...new Map([...all.units.effects.values()].flatMap((fx) => fx.map((m, k) => [m, k] as const)).filter(([m, k]) => m && (!flag('--fxhits') || k === 2))).entries()];
 const meta = readMeta(path.join(ensureMap(territoryMapPrefix(n))[0] as string, 'test.xbf'));
@@ -76,6 +78,56 @@ const m = buildMission({
     call Preload("art:"${Object.entries(ART_ABILITY).map(([k, a]) => ` + " ${k}=" + GetAbilityEffectById('${a.id}', ${a.type}, 0)`).join('')})
     call Preload("storm on=" + I2S(IntegerTertiaryOp(EmpStormFx != null, 1, 0)) + " at " + I2S(R2I(x0)) + "," + I2S(R2I(y0)) + " moved=" + I2S(R2I(SquareRoot((EmpStormX - x0) * (EmpStormX - x0) + (EmpStormY - y0) * (EmpStormY - y0)))) + " trikes alive=" + I2S(alive) + "/8 infantry alive=" + I2S(infAlive) + "/8")
     call PreloadGenEnd("DuneSmoke\\\\storm.pld")
+endfunction`,
+  } : {}),
+  // --vetrange: veterancy ExtraRange (ATTrike level 3: +50 %): a plain trike and one raised to level 3
+  // the scripts' way (SetVeterancy) attack paused targets 1.25 x the base range away; the veteran
+  // should fire from where it stands, as the same unit counted as a trike, its stats put back
+  ...(flag('--vetrange') ? {
+    extraStart: 'VetRangeRun',
+    extraFunctions: `function VetRangeRow takes integer row, boolean vet returns unit
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0))) + row * 400.0
+    local unit s = CreateUnit(Player(0), '${trike}', x, y, 0.0)
+    local unit t = CreateUnit(Player(1), '${trike}', x + ${trikeRange * 1.25}, y, 180.0)
+    call PauseUnit(t, true)
+    call SetUnitInvulnerable(t, false)
+    if vet then
+        set EmpVetArgUnit = s
+        set EmpVetArgLevel = 3
+        call EmpVetSetFromArgs()
+    endif
+    // the probe's own data under the shooter's handle, past the veterancy children
+    call SaveUnitHandle(EmpVetUnit, GetHandleId(s), 100, t)
+    call SaveReal(EmpVetUnit, GetHandleId(s), 101, x)
+    call SaveReal(EmpVetUnit, GetHandleId(s), 102, GetWidgetLife(t))
+    set t = null
+    return s
+endfunction
+
+function VetRangeLog takes unit s, integer row returns string
+    return "row " + I2S(row) + " handle " + I2S(GetHandleId(s)) + " wc3 type " + I2S(GetUnitTypeId(s)) + " emp type " + I2S(EmpType(s)) + " level " + I2S(LoadInteger(EmpVetUnit, GetHandleId(s), 1)) + " damage " + I2S(BlzGetUnitBaseDamage(s, 0)) + " speed " + R2S(GetUnitMoveSpeed(s)) + " max " + I2S(BlzGetUnitMaxHP(s)) + " moved " + R2S(RAbsBJ(GetUnitX(s) - LoadReal(EmpVetUnit, GetHandleId(s), 101))) + " target lost " + R2S(LoadReal(EmpVetUnit, GetHandleId(s), 102) - GetWidgetLife(LoadUnitHandle(EmpVetUnit, GetHandleId(s), 100)))
+endfunction
+
+function VetRangeRun takes nothing returns nothing
+    local unit a
+    local unit b
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(2.0)
+    set a = VetRangeRow(0, false)
+    set b = VetRangeRow(1, true)
+    call TriggerSleepAction(1.0)
+    call IssueTargetOrder(a, "attack", LoadUnitHandle(EmpVetUnit, GetHandleId(a), 100))
+    call IssueTargetOrder(b, "attack", LoadUnitHandle(EmpVetUnit, GetHandleId(b), 100))
+    call TriggerSleepAction(6.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload("trike range ${trikeRange} target at ${trikeRange * 1.25} trike type ${trike}")
+    call Preload(VetRangeLog(a, 0))
+    call Preload(VetRangeLog(b, 1))
+    call Preload("trikes of player 0 counted " + I2S(EmpCount('${trike}', 0)))
+    call PreloadGenEnd("DuneSmoke\\\\vetrange.pld")
 endfunction`,
   } : {}),
   // --port: a starport sells trike orders at the current price (Rules.txt Cost * EmpPortPct %); a

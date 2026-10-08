@@ -13,7 +13,7 @@ function EmpDetected takes unit u returns boolean
         set v = FirstOfGroup(g)
         exitwhen v == null
         call GroupRemoveUnit(g, v)
-        set r = LoadReal(EmpVet, GetUnitTypeId(v), 3)
+        set r = LoadReal(EmpVet, EmpType(v), 3)
         if not seen and r > 0.0 and EmpAlive(v) and IsUnitEnemy(v, GetOwningPlayer(u)) and IsUnitInRange(v, u, r) then
             set seen = true
         endif
@@ -29,7 +29,7 @@ function EmpStillEnum takes nothing returns boolean
     local real x = GetUnitX(u)
     local real y = GetUnitY(u)
     local boolean hide
-    if EmpAlive(u) and (LoadBoolean(EmpVet, GetUnitTypeId(u), 2) or LoadBoolean(EmpVetUnit, h, 6)) and not IsUnitInGroup(u, EmpStealthGroup) then
+    if EmpAlive(u) and (LoadBoolean(EmpVet, EmpType(u), 2) or LoadBoolean(EmpVetUnit, h, 6)) and not IsUnitInGroup(u, EmpStealthGroup) then
         if not HaveSavedReal(EmpVetUnit, h, 7) or (x - LoadReal(EmpVetUnit, h, 7)) * (x - LoadReal(EmpVetUnit, h, 7)) + (y - LoadReal(EmpVetUnit, h, 8)) * (y - LoadReal(EmpVetUnit, h, 8)) > 4.0 then
             call SaveReal(EmpVetUnit, h, 7, x)
             call SaveReal(EmpVetUnit, h, 8, y)
