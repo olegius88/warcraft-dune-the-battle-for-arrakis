@@ -213,6 +213,9 @@ function EmpSpCrushEnum takes nothing returns nothing
     local unit u = GetEnumUnit()
     if not EmpAlive(u) then
         call GroupRemoveUnit(EmpSpCrushers, u)
+        // handle ids are reused: a stale position would make a new unit "moved" at its first check
+        call RemoveSavedReal(EmpSpTab, GetHandleId(u), 33)
+        call RemoveSavedReal(EmpSpTab, GetHandleId(u), 34)
     elseif not HaveSavedReal(EmpSpTab, GetHandleId(u), 33) or RAbsBJ(GetUnitX(u) - LoadReal(EmpSpTab, GetHandleId(u), 33)) + RAbsBJ(GetUnitY(u) - LoadReal(EmpSpTab, GetHandleId(u), 34)) < 1.0 then
         // standing (or seen for the first time): it runs nobody over, even with an order (attacking
         // from where it is); the position is compared with the one at the last check

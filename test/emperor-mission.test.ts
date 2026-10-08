@@ -379,6 +379,8 @@ test('special abilities: data from Rules.txt and their runtime', opts, () => {
   // new leech at the map's corner.
   assert.ok(m.script.includes('call SaveReal(EmpSpTab, GetHandleId(u), 33, GetUnitX(u))'), 'crusher position kept');
   assert.ok(!m.script.includes('elseif GetUnitCurrentOrder(u) != 0 then'), 'an order alone is not moving');
+  // the position goes with the crusher: WC3 reuses handle ids, a new unit must not compare with it
+  assert.ok(m.script.includes('call RemoveSavedReal(EmpSpTab, GetHandleId(u), 33)'), 'stale crusher position cleared');
   assert.ok(m.script.includes('if GetUnitTypeId(u) != 0 then'), 'no leech out of a removed host');
 });
 
