@@ -25,8 +25,12 @@
 // TODO(ai): still simplified against Game.exe: a territory battle's enemy starts from a fixed base
 // template whose lost buildings are rebuilt first (BASE_TEMPLATE; Emperor's campaign start base is not
 // traced); sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not
-// turn); maintenance does not try a sub-house building first (0x42fcb3); builder state 3 (0x430c90)
-// and the skill rolls of AIs given a personality are not reproduced; a windtrap goes first when short
+// turn); maintenance does not try a sub-house building first (0x42fcb3); builder state 3, Game.exe's
+// defence plan (0x430c90 / 0x42e5d0: with AiBuildsDefences and a tech level over
+// FirstCampaignGameTechLevel + 1, turrets and walls at a building cluster's defence points, walls given
+// up after 10 minutes, "AI has been building walls for %d minutes so aborting"), stands in as turrets by
+// ratio with a wall row each (ai.j EmpAiWalls); the skill rolls of AIs given a personality are not
+// reproduced; a windtrap goes first when short
 // of power (not traced in Game.exe). Risk: the AI's base grows in another order than Emperor's.
 
 import { real, str } from '../wc3/jass.ts';
