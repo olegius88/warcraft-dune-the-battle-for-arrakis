@@ -79,7 +79,7 @@ import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
 import { EMPEROR_TILE, TICKS_PER_SECOND, TICK_SECONDS, WC3_UNITS_PER_TILE, HP_DIVISOR, moveSpeed } from '../config/scale.ts';
 import { TERRAIN, UNIT_FIELD, ART_ABILITY, EFFECT, ABILITY } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
-import type { WormRules, Rules } from './rules.ts';
+import type { WormRules, Rules, RulesObject } from './rules.ts';
 import type { AiRules } from './ai-rules.ts';
 import { parseAiRules } from './ai-rules.ts';
 import { superweapons } from './superweapons.ts';
@@ -327,20 +327,24 @@ endfunction`;
   const category = { core: 0, defence: 1, manufacturing: 2, resource: 3 } as const;
   const aiLines: string[] = ['    set EmpAiTab = InitHashtable()'];
   const buildingCost: string[] = [];
+  const flag = (r: RulesObject, key: string): boolean => /^true$/i.test((r.raw[key] ?? '').trim());
+  // Game.exe 0x42e9b0: the builder group of a building (C.AI_GROUP_FLAGS)
+  const groupOf = (r: RulesObject): string => C.AI_GROUP_FLAGS.find(([key]) => flag(r, key))?.[1] ?? (flag(r, C.AI_WALL) ? 'critical' : 'none');
   PREFIXES.forEach((h, hi) => {
-    const entries = C.AI_BUILDING_CATEGORY.filter(([sfx]) => rc(h + sfx));
+    const own = [...(o.rules?.objects.values() ?? [])].filter((r) => r.category === 'Building' && r.name.startsWith(h) && rc(r.name));
+    const entries = own.filter((r) => !flag(r, 'Dockable') && groupOf(r) in category);
     if (entries.length > C.TEMPLATE_SLOTS) throw new Error(`AI buildings of ${entries.length} > TEMPLATE_SLOTS`);
-    entries.forEach(([sfx, cat], k) => {
-      const id = rc(h + sfx) as string;
-      const r = o.rules?.objects.get(h + sfx);
+    entries.forEach((r, k) => {
+      const id = rc(r.name) as string;
+      const g = groupOf(r) as keyof typeof category;
       aiLines.push(`    set EmpAiBType[${hi * C.TEMPLATE_SLOTS + k}] = '${id}'`,
-        `    call SaveInteger(EmpAiTab, '${id}', 0, ${category[cat]})`,
-        `    call SaveBoolean(EmpAiTab, '${id}', 1, ${C.AI_TURRETS.includes(sfx)})`,
-        `    call SaveBoolean(EmpAiTab, '${id}', 2, ${C.AI_EXIT_BUILDINGS.includes(sfx)})`,
-        `    call SaveBoolean(EmpAiTab, '${id}', 3, ${sfx === 'Refinery'})`,
-        // Rules.txt BuildTime is in game ticks
-        `    call SaveReal(EmpAiTab, '${id}', 4, ${real((r?.buildTime ?? 0) / TICKS_PER_SECOND)})`);
+        `    call SaveInteger(EmpAiTab, '${id}', 0, ${category[g]})`,
+        `    call SaveBoolean(EmpAiTab, '${id}', 1, ${g === 'defence'})`,
+        `    call SaveBoolean(EmpAiTab, '${id}', 2, ${flag(r, C.AI_EXIT_FLAG)})`,
+        `    call SaveBoolean(EmpAiTab, '${id}', 3, ${r.name === `${h}Refinery`})`);
     });
+    // every building it may build takes its Rules.txt BuildTime (game ticks), the critical ones too
+    for (const r of own) aiLines.push(`    call SaveReal(EmpAiTab, '${rc(r.name)}', 4, ${real((r.buildTime ?? 0) / TICKS_PER_SECOND)})`);
     const wall = rc(h + C.AI_WALL), windtrap = rc(`${h}SmWindtrap`);
     aiLines.push(`    set EmpAiBCount[${hi}] = ${entries.length}`, `    set EmpAiWall[${hi}] = ${wall ? `'${wall}'` : 0}`, `    set EmpAiPower[${hi}] = ${windtrap ? `'${windtrap}'` : 0}`);
     // the critical needs (ai.j EmpAiCritical): the house's refinery, its helipad (Rules.txt Helipad)
@@ -349,10 +353,7 @@ endfunction`;
     const pad = helipad ? rc(helipad.name) : undefined;
     aiLines.push(`    set EmpAiRefinery[${hi}] = ${refinery ? `'${refinery}'` : 0}`, `    set EmpAiHelipad[${hi}] = ${pad ? `'${pad}'` : 0}`);
     // the buildings the AI builds or rebuilds pay their Rules.txt Cost too
-    for (const sfx of new Set([...C.AI_BUILDING_CATEGORY.map(([x]) => x), ...C.BASE_TEMPLATE.map(([x]) => x), C.AI_WALL])) {
-      const id = rc(h + sfx);
-      if (id) buildingCost.push(`    call SaveInteger(EmpCostTab, '${id}', 0, ${o.rules?.objects.get(h + sfx)?.cost ?? 0})`);
-    }
+    for (const r of own) buildingCost.push(`    call SaveInteger(EmpCostTab, '${rc(r.name)}', 0, ${r.cost})`);
   });
   (['core', 'defence', 'manufacturing', 'resource'] as const).forEach((c) => aiLines.push(`    set EmpAiRatio[${category[c]}] = ${ai.buildRatios[c]}`));
   // building upgrades per house (units.ts) the AI buys, and the upgrade each produced type requires

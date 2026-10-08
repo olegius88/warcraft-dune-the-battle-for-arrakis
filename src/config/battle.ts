@@ -88,19 +88,18 @@ export const SURFACE_WORM = 'SurfaceWorm';
 /** Enemy base template entries per house in the runtime table (EmpTpl*). */
 export const TEMPLATE_SLOTS = 16;
 
-/** Enemy base builder (src/jass/battle/ai.j): ai.ini [BuildingConstructionRatios] category of a
- * building by its name suffix (house prefix added; missing ones skipped). The construction yard and
- * the refinery dock (built by Emperor on a refinery) are not built by it. Walls are Defence too. */
-export const AI_BUILDING_CATEGORY: ReadonlyArray<readonly [string, 'core' | 'defence' | 'manufacturing' | 'resource']> = [
-  ['SmWindtrap', 'core'], ['Outpost', 'core'], ['Palace', 'core'],
-  ['Barracks', 'manufacturing'], ['Factory', 'manufacturing'], ['Hanger', 'manufacturing'], ['Helipad', 'manufacturing'], ['Starport', 'manufacturing'],
-  ['Refinery', 'resource'],
-  ['Pillbox', 'defence'], ['RocketTurret', 'defence'], ['FlameTurret', 'defence'], ['GunTurret', 'defence'], ['GasTurret', 'defence'], ['PopUpTurret', 'defence'],
+/** Enemy base builder (src/jass/battle/ai.j): the group of a building of its house, Game.exe 1.09
+ * 0x42e9b0, by the first Rules.txt flag set in this order; else a wall (Rules.txt Wall, type kind 0x1e)
+ * of a great house is critical, else none. Only core / defence / manufacturing / resource are built by
+ * the ai.ini [BuildingConstructionRatios]; critical ones only by the critical needs (ai.j
+ * EmpAiCritical: windtraps, helipads, barracks without a flag), none never (factory frigates, the
+ * yard). Dockable types (refinery pads) are never available to build (0x53d3d0). Defence types are
+ * the turrets (MinimumGapBetweenTurrets, MaxTurretsAtLowTech, FirstTechLevelToBuildTurrets); AiExit
+ * gives the [PositionAlgorithmRatiosExits] weights (builder list entry +0xc). */
+export const AI_GROUP_FLAGS: ReadonlyArray<readonly [string, 'core' | 'critical' | 'defence' | 'manufacturing' | 'resource']> = [
+  ['AiCore', 'core'], ['AiCritical', 'critical'], ['AiDefence', 'defence'], ['AiManufacturing', 'manufacturing'], ['AiResource', 'resource'],
 ];
-/** Buildings that release units (ai.ini [PositionAlgorithmRatiosExits] weights), by name suffix. */
-export const AI_EXIT_BUILDINGS: readonly string[] = ['Barracks', 'Factory', 'Hanger', 'Helipad', 'Starport', 'Refinery'];
-/** Turrets (MinimumGapBetweenTurrets, MaxTurretsAtLowTech, FirstTechLevelToBuildTurrets) and walls. */
-export const AI_TURRETS: readonly string[] = ['Pillbox', 'RocketTurret', 'FlameTurret', 'GunTurret', 'GasTurret', 'PopUpTurret'];
+export const AI_EXIT_FLAG = 'AiExit';
 export const AI_WALL = 'Wall';
 /** Wall pieces built in a row on the outer side of a turret once the AI has MinMoneyToStartBuildingWalls. */
 export const AI_WALL_PIECES = 3;

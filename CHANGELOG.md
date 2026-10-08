@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### Changed
+- 2026-10-09 Группы зданий строителя ИИ — по флагам Rules.txt, как в `Game.exe` (`0x42e9b0`, `AI_GROUP_FLAGS` в
+  [config/battle.ts](src/config/battle.ts)): `AiCore` → Core, `AiCritical` → только по критической нужде,
+  `AiDefence`, `AiManufacturing`, `AiResource`; `AiExit` — веса выходов; Dockable не строится. Раньше группы
+  брались по суффиксам имён: ветряки были Core, вертолётные площадки — Manufacturing. Теперь шаг Core
+  стартового сценария ставит заставу, ветряки — критическая нужда (проверено пробником: НПЗ → фабрика →
+  застава → казармы → ветряки). Время постройки пишется для всех зданий дома: ветряк по критической нужде
+  вставал мгновенно. Тест «the base builder groups buildings».
+
 ### Added
 - 2026-10-09 Критические потребности строителя ИИ целиком по `Game.exe` 1.09 (`0x42d6e0`, [ai.j](src/jass/battle/ai.j)
   `EmpAiCritical`, `AI_CRITICAL_REFINERY` / `AI_CRITICAL_HELIPAD` в [config/battle.ts](src/config/battle.ts)):

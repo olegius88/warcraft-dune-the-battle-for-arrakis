@@ -1430,3 +1430,30 @@ test('the builder\'s critical needs: refineries by time, power by ExtraPower, he
   assert.ok(m.script.includes(`set EmpAiRefinery[0] = '${id('ATRefinery')}'`) && m.script.includes(`set EmpAiHelipad[0] = '${id('ATHelipad')}'`), 'types per house');
   assert.ok(m.script.includes(`call SaveBoolean(EmpAiTab, '${id('ATOrni')}', 9, true)`) && m.script.includes(`call SaveBoolean(EmpAiTab, '${id('HKGunship')}', 9, true)`), 'ornithopters (Rules.txt Ornithoptor)');
 });
+
+// The base builder's building groups came from name suffixes (AI_BUILDING_CATEGORY): windtraps were
+// Core and helipads Manufacturing. Game.exe 1.09 (0x42e9b0) groups a type by
+// its Rules.txt flags: AiCore -> Core, else AiCritical -> critical (built only by the critical needs:
+// windtraps, helipads),
+// AiDefence -> Defence, AiManufacturing -> Manufacturing, AiResource -> Resource, a wall (type kind
+// 0x1e) of a great house -> critical, else none; AiExit is the exit weight. Dockable types are never
+// available to build (0x53d3d0). Critical and none are left out of the ratios.
+test('the base builder groups buildings by their Rules.txt Ai* flags (Game.exe 0x42e9b0)', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'groups', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const id = (n: string) => all.units.rawcode.get(n);
+  const cat = (n: string) => (m.script.match(new RegExp(`call SaveInteger\\(EmpAiTab, '${id(n)}', 0, (\\d)\\)`)) ?? [])[1];
+  assert.deepStrictEqual(['ATOutpost', 'ATPalace', 'HKOutpost'].map(cat), ['0', '0', '0'], 'AiCore');
+  assert.deepStrictEqual(['ATPillbox', 'HKGunTurret', 'ORGasTurret'].map(cat), ['1', '1', '1'], 'AiDefence');
+  assert.deepStrictEqual(['ATBarracks', 'HKBarracks', 'ORBarracks', 'ATFactory', 'HKFactory', 'ORStarport'].map(cat), ['2', '2', '2', '2', '2', '2'], 'AiManufacturing');
+  assert.deepStrictEqual(['ATRefinery', 'ORRefinery'].map(cat), ['3', '3'], 'AiResource');
+  assert.deepStrictEqual(['ATSmWindtrap', 'HKSmWindtrap', 'ATHelipad', 'ATConYard', 'ATRefineryDock', 'ATFactoryFrigate'].map(cat), [undefined, undefined, undefined, undefined, undefined, undefined], 'critical, none, dockable: no ratio');
+  assert.ok(m.script.includes(`call SaveBoolean(EmpAiTab, '${id('ATRefinery')}', 2, true)`) && m.script.includes(`call SaveBoolean(EmpAiTab, '${id('ATHanger')}', 2, false)`), 'AiExit');
+  // what the critical needs build is still paid for and takes its BuildTime (a windtrap stood at once,
+  // probe 2026-10-09: the build time was saved for the ratio types only)
+  for (const n of ['ATSmWindtrap', 'ATHelipad', 'HKSmWindtrap']) {
+    assert.ok(m.script.includes(`call SaveInteger(EmpCostTab, '${id(n)}', 0, `), `${n} costs`);
+    assert.ok(m.script.includes(`call SaveReal(EmpAiTab, '${id(n)}', 4, ${(all.rules.objects.get(n)?.buildTime ?? 0) / 25}`), `${n} build time`);
+  }
+});
