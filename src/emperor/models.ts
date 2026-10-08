@@ -12,7 +12,7 @@ import { readTga } from '../wc3/tga.ts';
 import { writeBlpImage, resize, pow2Ceil } from '../wc3/blp.ts';
 import { writeMdx } from '../wc3/mdx.ts';
 import { gameData } from '../config/paths.ts';
-import { MODEL_PATH, MAX_TEXTURE_SIZE, HOUSE_COLOUR_TEXTURE, HOUSE_COLOUR_PIXEL, WEAPON_ATTACHMENT } from '../config/models.ts';
+import { MODEL_PATH, MAX_TEXTURE_SIZE, HOUSE_COLOUR_TEXTURE, HOUSE_COLOUR_PIXEL, COLOUR_KEY_PIXEL, WEAPON_ATTACHMENT } from '../config/models.ts';
 
 export interface ModelSet {
   /** Emperor object name -> value of the unit model field */
@@ -43,16 +43,32 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
   const files = new Set(wanted.values());
   const xbf = new Map<string, Buffer>();
   for (const f of readArchive(archive, (n) => files.has(n))) xbf.set(f.name, f.data);
+  // two passes: the textures the models use, converted (which have a colour key), then the models,
+  // whose layers on keyed textures are alpha-tested (COLOUR_KEY_PIXEL)
   const textureFiles = new Set<string>();
+  const keyed = new Set<string>();
+  const scenes = new Map<string, ReturnType<typeof readXbf>>();
+  for (const [obj, file] of wanted) {
+    if (scenes.has(file) || set.failed.has(obj)) continue;
+    try {
+      const scene = readXbf(xbf.get(file) as Buffer);
+      xbfToMdx(baseName(file), scene, readAnimations(xbf.get(file) as Buffer), (tex) => { textureFiles.add(tex.toLowerCase()); return { path: MODEL_PATH.texture(tex), alpha: false }; });
+      scenes.set(file, scene);
+    } catch (e) {
+      set.failed.set(obj, `${file}: ${(e as Error).message}`);
+    }
+  }
+  Object.assign(set.files, convertTextures(archive, textureFiles, undefined, keyed));
   const converted = new Map<string, string>(); // archive model file -> model field
   for (const [obj, file] of wanted) {
+    const scene = scenes.get(file);
+    if (!scene) continue;
     let field = converted.get(file);
     if (!field) {
       const data = xbf.get(file) as Buffer;
       const key = baseName(file).replace(/_H0\.xbf$/i, '');
       try {
-        const scene = readXbf(data);
-        const ref = (tex: string): TextureRef => { textureFiles.add(tex.toLowerCase()); return { path: MODEL_PATH.texture(tex), alpha: false, teamColour: HOUSE_COLOUR_TEXTURE(tex) }; };
+        const ref = (tex: string): TextureRef => ({ path: MODEL_PATH.texture(tex), alpha: keyed.has(tex.toLowerCase()), teamColour: HOUSE_COLOUR_TEXTURE(tex) });
         const { model } = xbfToMdx(key, scene, readAnimations(data), ref);
         if (model.attachments?.some((a) => a.name === WEAPON_ATTACHMENT)) armed.add(file);
         set.files[MODEL_PATH.model(key)] = writeMdx(model);
@@ -66,7 +82,6 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
     set.model.set(obj, field);
     if (armed.has(file)) set.weapon.add(obj);
   }
-  Object.assign(set.files, convertTextures(archive, textureFiles));
   return set;
 }
 
@@ -82,12 +97,20 @@ function lightAlpha(rgba: Uint8Array | Buffer): void {
 
 /** Textures/<file>.tga of the archive (names in lower case) -> BLP (power-of-two sides, at most
  * MAX_TEXTURE_SIZE, mipmaps, alpha when used), by archive path. */
-function convertTextures(archive: string, textureFiles: Set<string>, alphaFromLight?: (name: string) => boolean): Record<string, Buffer> {
+function convertTextures(archive: string, textureFiles: Set<string>, alphaFromLight?: (name: string) => boolean, keyed?: Set<string>): Record<string, Buffer> {
   const files: Record<string, Buffer> = {};
   for (const f of readArchive(archive, (n) => /^textures\//i.test(n) && textureFiles.has(baseName(n).toLowerCase()))) {
     const img = readTga(f.data);
     const side = (n: number): number => Math.min(MAX_TEXTURE_SIZE, pow2Ceil(n));
     let alpha = false;
+    // colour key (COLOUR_KEY_PIXEL): see-through, the texture's layers alpha-tested (`keyed`)
+    let key = false;
+    for (let i = 0; i < img.rgba.length; i += 4) {
+      if (!COLOUR_KEY_PIXEL(img.rgba[i] as number, img.rgba[i + 1] as number, img.rgba[i + 2] as number)) continue;
+      img.rgba[i] = 0; img.rgba[i + 1] = 0; img.rgba[i + 2] = 0; img.rgba[i + 3] = 0;
+      key = true;
+    }
+    if (key) { alpha = true; keyed?.add(baseName(f.name).toLowerCase()); }
     if (alphaFromLight?.(baseName(f.name))) {
       lightAlpha(img.rgba);
       alpha = true;

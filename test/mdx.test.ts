@@ -237,6 +237,32 @@ test('XBF -> MDX: house-colour textures ("=") get a team colour layer and see-th
   assert.ok(clear > blp.rgba.length / 4 * 0.03, `${clear} transparent pixels`);
 });
 
+// Colour key: Emperor's girder, pipe and scaffold textures are mostly pure magenta (AT_pipes_64: 82 %
+// of the pixels), the see-through parts of a lattice. The converted models drew them opaque: magenta
+// panels on the Atreides refinery and factory (contest map, 2026-10-09). The key becomes transparent
+// and the layer alpha-tested.
+test('XBF -> MDX: magenta colour-key texels are transparent and their layers alpha-tested', { skip: fs.existsSync(archive + '.RFH') ? false : 'Emperor not installed' }, async () => {
+  const path = await import('node:path');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const { buildModels } = await import('../src/emperor/models.ts');
+  const { readBlpPaletted } = await import('../src/wc3/blp.ts');
+  const { RAW_DIR } = await import('../src/config/paths.ts');
+  const set = buildModels(['ATRefinery'], loadArtIni(path.join(RAW_DIR, 'ArtIni.txt')));
+  const pipes = 'Emperor\\Textures\\AT_pipes_64.blp';
+  const blp = readBlpPaletted(set.files[pipes] as Buffer);
+  let magenta = 0, clear = 0;
+  for (let i = 0; i < blp.rgba.length; i += 4) {
+    if ((blp.rgba[i + 3] as number) === 0) clear++;
+    else if ((blp.rgba[i] as number) > 200 && (blp.rgba[i + 2] as number) > 200 && (blp.rgba[i + 1] as number) < 60) magenta++;
+  }
+  assert.ok(clear > blp.rgba.length / 4 * 0.5 && magenta === 0, `clear ${clear}, magenta left ${magenta}`);
+  const m = new MdlxModel();
+  m.load(new Uint8Array(set.files['Emperor\\Models\\at_refinery.mdx'] as Buffer));
+  const tex = m.textures.findIndex((t: { path: string }) => t.path === pipes);
+  const layer = m.materials.flatMap((x: { layers: Array<{ textureId: number; filterMode: number }> }) => x.layers).find((l: { textureId: number }) => l.textureId === tex);
+  assert.strictEqual(layer?.filterMode, 1, 'alpha-tested (transparent)');
+});
+
 // Texture names differ by flag characters (@nebulas_256 / %nebulas_256) that the archive path does
 // not keep for units; two names on one path must be the same file (only ix-grille-128 /
 // ix_grille_128 are, byte for byte). The menu scene keeps every flag in its paths.

@@ -151,4 +151,8 @@ export const OVERHEAD_GAP = 30;
  * in the side's colour (ArtIni.txt Recolor); they become the WC3 team colour. Blue panel = a pixel
  * whose blue clearly dominates (=At_Hk_patch_high0000_256: 6.9 % of the pixels, the panels only). */
 export const HOUSE_COLOUR_TEXTURE = (file: string): boolean => file.startsWith('=');
+/** Colour key: pure magenta texels are the see-through parts of Emperor's girder, pipe and scaffold
+ * textures (AT_pipes_64: 82 % of its pixels, at_largegirder_128: 71 %); they become transparent (alpha
+ * 0, colour black so the mipmaps fringe dark, not pink) and the texture's layers alpha-tested. */
+export const COLOUR_KEY_PIXEL = (r: number, g: number, b: number): boolean => r >= 240 && g <= 16 && b >= 240;
 export const HOUSE_COLOUR_PIXEL = (r: number, g: number, b: number): boolean => b > 60 && b > r * 2 && b > g * 1.6;
