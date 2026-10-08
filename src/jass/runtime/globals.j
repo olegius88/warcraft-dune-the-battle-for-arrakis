@@ -67,6 +67,9 @@
     // harvester replacement / cash delivery (battle economy.j): tick the last harvester went, next cash
     integer array EmpHarvGone
     integer array EmpCashNext
+    // starport prices (mission starport.j)
+    hashtable EmpPortTab = null
+    integer array EmpPortPct
     // in-game announcements (helpers.j EmpUiSay; data from mission.ts)
     string array EmpUiText
     string array EmpUiSound

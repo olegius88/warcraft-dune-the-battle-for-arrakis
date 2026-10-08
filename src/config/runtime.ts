@@ -138,6 +138,10 @@ export const UI = Object.fromEntries(UI_EVENTS.map(([name], i) => [name, i + 1])
 /** Special abilities (src/jass/mission/specials.j): scan period (s); how far around a unit to look,
  * how close (edge to edge) an engineer / saboteur must be to a building, a crusher to infantry. */
 export const SP_TICK = 0.5;
+/** Order id of Cancel (a purchase the player cannot pay at the starport's price). */
+export const ORDER_CANCEL = 851976;
+/** Shown at a starport purchase with the price paid (mission starport.j). */
+export const PORT_PRICE_TEXT = 'Космопорт: цена ';
 export const SP_REACH = 400;
 export const SP_TOUCH = 48;
 export const SP_CRUSH = 64;

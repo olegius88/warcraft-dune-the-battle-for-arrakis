@@ -67,6 +67,28 @@ const m = buildMission({
     call PreloadGenEnd("DuneSmoke\\\\storm.pld")
 endfunction`,
   } : {}),
+  // --port: a purchase at a starport pays the current price (Rules.txt Cost * EmpPortPct %)
+  ...(flag('--port') ? {
+    extraStart: 'PortProbeRun',
+    extraFunctions: `function PortProbeRun takes nothing returns nothing
+    local unit b
+    local integer before
+    local boolean ok
+    set EmpNormalConditions = false
+    call TriggerSleepAction(3.0)
+    set b = CreateUnit(Player(0), '${all.units.rawcode.get('ATStarport')}', EmpEntrX[EmpEntranceFor(0)], EmpEntrY[EmpEntranceFor(0)], 270.0)
+    call SetPlayerTechMaxAllowed(Player(0), '${all.units.rawcode.get('ATTrike')}', -1)
+    call SetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD, 10000)
+    set before = GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)
+    set ok = IssueImmediateOrderById(b, '${all.units.rawcode.get('ATTrike')}')
+    call TriggerSleepAction(1.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload("port order=" + I2S(IntegerTertiaryOp(ok, 1, 0)) + " gold " + I2S(before) + " -> " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " trike pct=" + I2S(EmpPortPct[LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 0)]) + " cost=" + I2S(LoadInteger(EmpPortTab, '${all.units.rawcode.get('ATTrike')}', 1)))
+    call PreloadGenEnd("DuneSmoke\\\\port.pld")
+    set b = null
+endfunction`,
+  } : {}),
   // --harv: the player's harvesters go, a refinery of his stays: one is back after HarvReplacementDelay
   ...(flag('--harv') ? {
     extraStart: 'HarvProbeRun',

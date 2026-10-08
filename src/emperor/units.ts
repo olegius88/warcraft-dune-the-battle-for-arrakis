@@ -247,9 +247,8 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       // Production: units whose PrimaryBuilding names this building.
       // (super weapon charges cost nothing: Cost 0, trained for their BuildTime)
       // A starport (Starport = TRUE) sells the Starportable types of its house and the houseless
-      // ones (Harvester, MCV, Carryall). TODO(starport): Emperor's prices vary by
-      // StarportCostVariationPercent every StarportCostUpdateDelay ticks, with a stock and a frigate
-      // delivery; here they cost their Rules.txt Cost and arrive after their BuildTime.
+      // ones (Harvester, MCV, Carryall). Their prices change at run time (mission starport.j; the stock
+      // and the frigate delivery are TODO(starport) there).
       const sells = /^true$/i.test((o.raw.Starport ?? '').trim())
         ? all.filter((u) => u.category === 'Unit' && u.cost > 0 && /^true$/i.test((u.raw.Starportable ?? '').trim()) && (u.house === o.house || (!u.house && !houseOf(u))))
         : [];

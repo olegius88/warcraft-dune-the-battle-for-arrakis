@@ -272,6 +272,25 @@ function buildMission(p: MissionParams): BuiltMission {
     swLimitLines.push(`        call SetPlayerTechMaxAllowed(Player(i), '${id}', 1)`);
   }
 
+  // ---- starport prices ([General] StarportCost*; mission starport.j) ----
+  const portLines: string[] = [];
+  let portTypes = 0;
+  for (const o of p.rules ? p.rules.objects.values() : []) {
+    const id = p.units.rawcode.get(o.name);
+    if (!id) continue;
+    if (/^true$/i.test((o.raw.Starport ?? '').trim())) portLines.push(`    call SaveBoolean(EmpPortTab, '${id}', 2, true)`);
+    if (o.category === 'Unit' && o.cost > 0 && /^true$/i.test((o.raw.Starportable ?? '').trim())) {
+      portLines.push(`    call SaveInteger(EmpPortTab, '${id}', 0, ${portTypes})`, `    call SaveInteger(EmpPortTab, '${id}', 1, ${o.cost})`);
+      portTypes++;
+    }
+  }
+  const portVariation = Number(p.rules?.general.StarportCostVariationPercent ?? 0) || 0;
+  const portScope = {
+    portLines: portLines.join('\n'), portTypes, pctMin: 100 - portVariation, pctMax: 100 + portVariation,
+    updateSeconds: (Number(p.rules?.general.StarportCostUpdateDelay ?? 0) || TICKS_PER_SECOND) / TICKS_PER_SECOND,
+    ORDER_CANCEL: RT.ORDER_CANCEL, PORT_PRICE_TEXT: RT.PORT_PRICE_TEXT,
+  };
+
   // ---- special abilities (src/emperor/specials.ts; runtime mission specials.j) ----
   const sp = p.rules ? specialAbilities(p.rules) : null;
   const spLines: string[] = [];
@@ -357,7 +376,7 @@ function buildMission(p: MissionParams): BuiltMission {
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -379,6 +398,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('superweapon'),
     jass('subhouse'),
     jass('specials'),
+    jass('starport'),
     `function EmpPlaced takes nothing returns nothing\n${placed.join('\n')}\nendfunction`,
     `function EmpMissionTick takes nothing returns nothing\n${dispatch}\nendfunction`,
     ...(debriefBlocks.length ? [`function EmpDebriefSpeech takes boolean win returns real\n    local real t = 0.0\n${debriefBlocks.join('\n')}\n    return t\nendfunction`] : []),
