@@ -173,7 +173,12 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   // automatic flow test: one report line per hub visit; on the first visit attack the first
   // reachable territory that has a battle map (enemy capitals stay closed before the last war phase)
   // the report shows the sub-house alliances the missions stored (mission campaign.j)
-  const allyReport = Object.keys(SUBHOUSE_TAGS).map((t) => ` + " ally${t}=" + I2S(GetStoredInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.allyPrefix + t)}))`).join('');
+  // attacks whose win picks a Fail / Win defence variant (mission.ts stores won<script>)
+  const wonAttacks = new Set(Object.values(o.campaign.missions[o.house].defend)
+    .map((d) => defendVariant(o.campaign, o.house, d.phase, d.territory)?.attack).filter((x): x is string => Boolean(x)));
+  const allyReport = Object.keys(SUBHOUSE_TAGS).map((t) => ` + " ally${t}=" + I2S(GetStoredInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.allyPrefix + t)}))`).join('')
+    // ... and how many won attacks the missions stored (they pick the defence variants)
+    + ` + " won=" + I2S(${[...wonAttacks].map((a) => `GetStoredInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.wonPrefix + a)})`).join(' + ') || '0'})`;
   const autoTestFunctions = renderFile(jassFile('hub/autotest'), {
     AUTOTEST_HUB_DELAY, CAT, K, KIND_ID, TERRITORY_COUNT, me, musicList, allyReport,
     notEnemyCapitalN: jp.filter((_, h) => h !== me).map((x) => `n != ${x}`).join(' and '),
@@ -184,10 +189,7 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   const movie = movieJass(o.movies, foes.map((f) => HOUSES[f] as HouseCode), o.house);
   const globals = renderFile(jassFile('hub/globals'), { PHASE, START_TECH }) + movie.movieGlobals;
 
-  // a new campaign forgets the won attacks that pick Fail / Win defence variants (mission.ts)
-  const wonAttacks = new Set(Object.values(o.campaign.missions[o.house].defend)
-    .map((d) => defendVariant(o.campaign, o.house, d.phase, d.territory)?.attack).filter((x): x is string => Boolean(x)));
-  // ... and the sub-house alliances (config SUBHOUSE_TAGS)
+  // a new campaign forgets the won attacks that pick Fail / Win defence variants (mission.ts) ...
   const wonClearLines = [...[...wonAttacks].map((a) => CACHE_KEY.wonPrefix + a), ...Object.keys(SUBHOUSE_TAGS).map((t) => CACHE_KEY.allyPrefix + t)]
     .map((key) => `        call StoreInteger(EmpCache, ${CAT}, ${str(key)}, 0)`).join('\n');
   const functions = renderFile(jassFile('hub/functions'), {
