@@ -654,6 +654,44 @@ test('effects: an explosion where an object dies, a muzzle flash where it fires 
   assert.ok(m.script.includes('local string at = "weapon"') && m.script.includes('call EmpFxPlay(AddSpecialEffectTarget(LoadStr(EmpFxTab, t, 1), u, at), t, 1)'), 'muzzle at the weapon');
 });
 
+// FXData MASTER is a track of frames (Game.exe 1.09 0x46edf0: u32 frames, u32 name length, u32 events
+// of each frame, the name, the events frame by frame; 0x46efe0 runs a frame's events on that frame).
+// Ours read the events without their frames: textures spread evenly over the animation, every emitter
+// one 100 ms burst of `count` at its "delay". Game.exe emits `count` particles every tick from the
+// emitter's start event (3) to its stop event (4) (0x4b0000), and the record field taken for a delay is
+// the particle life's random part (life = +0x08 + rand % (+0x0c + 1), 0x4b03ba).
+test('FXData MASTER events keep their frames: node textures and emitter windows follow them', opts, async () => {
+  const { fxTrack, buildEffects } = await import('../src/emperor/effects.ts');
+  const { readXbf } = await import('../src/emperor/xbf.ts');
+  const { readArchive } = await import('../src/emperor/rfh.ts');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const { gameData } = await import('../src/config/paths.ts');
+  const file = [...readArchive(gameData('3DDATA0001'), (n) => n.toLowerCase() === 'explosion/explosion.xbf')][0];
+  assert.ok(file, 'Explosion/explosion.xbf');
+  const track = fxTrack(readXbf(file.data).fx);
+  assert.ok(track);
+  assert.strictEqual(track.frames, 49);
+  const emit = track.events.filter((e) => e.type === 3 || e.type === 4).map((e) => [e.type, e.frame, e.id, e.node]);
+  assert.deepStrictEqual(emit, [[3, 0, '3B0C9770#17', '#Centreboom'], [3, 0, '3B0C9770#18', '#Centreboom'], [4, 1, '3B0C9770#18', '#Centreboom'], [4, 11, '3B0C9770#17', '#Centreboom']]);
+  const fire = track.events.filter((e) => e.type === 6 && e.node === '?innerfire');
+  assert.deepStrictEqual(fire.map((e) => e.frame), [0, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  assert.strictEqual(fire[1]?.name, '!%boom1.tga');
+  // the converted explosion: !%boom1 shown from frame 6, #17 emits `count` a tick over frames 0..11
+  const set = buildEffects(['Explosion'], loadArtIni(path.join(RAW, 'ArtIni.txt')));
+  const m = new MdlxModel();
+  m.load(new Uint8Array(set.files[(set.model.get('explosion') as string).replace(/\.mdl$/, '.mdx')] as Buffer));
+  const death = m.sequences.find((s: { name: string }) => s.name === 'Death') as { interval: ArrayLike<number> };
+  const start = death.interval[0] as number;
+  const flip = m.materials.flatMap((x: { layers: Array<{ animations: Array<{ name: string; frames: ArrayLike<number> }> }> }) => x.layers.flatMap((l) => l.animations)).filter((a: { name: string }) => a.name === 'KMTF');
+  assert.ok(flip.some((a: { frames: ArrayLike<number> }) => Array.from(a.frames).includes(start + 6 * 40)), 'texture at its frame');
+  const e17 = m.particleEmitters2.find((x: { name: string }) => x.name.startsWith('3B0C9770#17'));
+  const rate = e17?.animations.find((a: { name: string }) => a.name === 'KP2E') as { frames: ArrayLike<number>; values: ArrayLike<ArrayLike<number>> };
+  assert.ok(rate, 'emission track');
+  const on = Array.from(rate.frames).indexOf(start);
+  const off = Array.from(rate.frames).indexOf(start + 11 * 40);
+  assert.ok(on >= 0 && off > on && (rate.values[on] as ArrayLike<number>)[0] as number > 0 && (rate.values[off] as ArrayLike<number>)[0] === 0, 'emits from its start to its stop event');
+});
+
 // Sixth audit: 17 converted models have no "Weapon Ref" (no #fire node: HKBuzzsaw, ATMongoose...); the
 // muzzle flash asked for "weapon" on them. Those flash at "chest".
 test('a muzzle flash goes to the chest of a converted model without a weapon attachment', opts, async () => {

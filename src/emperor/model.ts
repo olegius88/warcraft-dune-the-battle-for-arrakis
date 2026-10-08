@@ -246,7 +246,7 @@ export interface SceneOptions {
   /** bones also get scaling tracks (effects grow and shrink; unit models keep translation / rotation) */
   scaling?: boolean;
   /** the textures a node shows one after the other over every sequence (effects: FXData MASTER) */
-  nodeTextures?: (node: string) => string[] | null;
+  nodeTextures?: (node: string) => Array<{ texture: string; frame: number }> | null;
   /** layers drawn one-sided (effects: a two-sided additive shell burns twice) */
   oneSided?: boolean;
   /** the frames of a texture sequence ("!%boom0.tga" -> !%boom0..10), shown one after the other over
@@ -265,11 +265,12 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   const materials: Material[] = [];
   const materialOf = new Map<string, number>();
   const usedFiles: string[] = [];
-  const nodeList = (n: string): string[] | null => { const l = opts.nodeTextures?.(n); return l && l.length ? l : null; };
-  // layers that flip through a texture sequence: their KMTF tracks are made once the sequences are known
-  const flips: Array<{ material: number; first: number; count: number }> = [];
+  const nodeList = (n: string): Array<{ texture: string; frame: number }> | null => { const l = opts.nodeTextures?.(n); return l && l.length ? l : null; };
+  // layers that flip through a texture sequence: their KMTF tracks are made once the sequences are
+  // known; at: the frame each texture starts at (a node's list), else they are spread evenly
+  const flips: Array<{ material: number; first: number; count: number; at?: number[] }> = [];
   /** material of a texture; with own frames (a node's texture list, nodeTextures) one per node */
-  const material = (raw: string, ownFrames?: string[], key?: string): number => {
+  const material = (raw: string, ownFrames?: string[], key?: string, at?: number[]): number => {
     const file = M.TEXTURE_FILE(raw);
     let id = materialOf.get((key ?? file).toLowerCase());
     if (id !== undefined) return id;
@@ -283,7 +284,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
       if (tf) { usedFiles.push(f); t = t ?? tf; }
     }
     id = materials.length;
-    if (files.length > 1) flips.push({ material: id, first: texId, count: files.length });
+    if (files.length > 1) flips.push({ material: id, first: texId, count: files.length, ...(ownFrames && at ? { at } : {}) });
     const flags = M.TWO_SIDED && !opts.oneSided ? LAYER_FLAG.twoSided : 0;
     const sceneBlend = opts.blend ? opts.blend(raw) : null;
     if (sceneBlend !== null && sceneBlend !== undefined) {
@@ -302,6 +303,12 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     }
     materialOf.set((key ?? file).toLowerCase(), id);
     return id;
+  };
+  /** the material of a node with its own texture list (nodeTextures), null without one */
+  const nodeMaterial = (node: string): number | null => {
+    const list = nodeList(node);
+    if (!list) return null;
+    return material((list[0] as { texture: string }).texture, list.map((x) => x.texture), `node:${node}`, list.map((x) => x.frame));
   };
 
   const geosets: Geoset[] = [];
@@ -346,7 +353,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
       }
       if (!pose) all.push(...pts);
       ids.push(geosets.length);
-      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: nodeList(node.name) ? material((nodeList(node.name) as string[])[0] as string, nodeList(node.name) as string[], `node:${node.name}`) : material(textureOf(tex)), extent: extentOf(pts), sequenceExtents: [] });
+      geosets.push({ vertices, normals, uvs, faces: idx, bones: [bone], materialId: nodeMaterial(node.name) ?? material(textureOf(tex)), extent: extentOf(pts), sequenceExtents: [] });
     }
     return ids;
   };
@@ -486,13 +493,15 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     bone.translation = rec.t;
     bone.rotation = rec.r;
   }
-  // texture sequences: frame k of a layer's sequence over the k-th part of every sequence
+  // texture sequences: frame k of a layer's sequence from its own frame (a node's list, FXData MASTER)
+  // or over the k-th part of every sequence
   for (const fl of flips) {
     const layer = (materials[fl.material] as Material).layers[0] as Material['layers'][number];
     const track: Track = { frames: [], values: [], interpolation: 0 };
     for (const sq of [...sequences].sort((a, b) => a.start - b.start)) {
       for (let k = 0; k < fl.count; k++) {
-        const at = sq.start + Math.floor((k * (sq.end - sq.start)) / fl.count);
+        const at = fl.at ? sq.start + (fl.at[k] as number) * M.MS_PER_FRAME : sq.start + Math.floor((k * (sq.end - sq.start)) / fl.count);
+        if (at >= sq.end && k > 0) continue;
         if (track.frames.length && at <= (track.frames[track.frames.length - 1] as number)) continue;
         track.frames.push(at); track.values.push([fl.first + k]);
       }
@@ -515,9 +524,10 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   // with frame copies, the bind-pose geosets of morphing nodes are never shown
   if (morphGeosets) for (const m of morphs) for (const id of m.staticGeosets) geosetAnimations.push({ geosetId: id, staticAlpha: 0 });
   if (opts.fade) {
-    // TODO(models): the effect's own textures go dark (FXData MASTER, effects.ts); the times of those
-    // events and any fade of its own are not read, so this fade is an approximation. Risk: effects end
-    // a little differently from the original.
+    // The effect's own textures go dark at their MASTER frames (effects.ts nodeTextures).
+    // TODO(models): MASTER events 7 / 8 give a node two per-tick values and take them away again
+    // (Game.exe 1.09 0x4afde0 / 0x4afee0; ?innerfire: -0.01, 0), what they change is not traced, so
+    // this fade stands in. Risk: effects end a little differently from the original.
     const fade = opts.fade;
     const animated = new Set(geosetAnimations.map((g) => g.geosetId));
     const keys: Track = { frames: [], values: [] };
