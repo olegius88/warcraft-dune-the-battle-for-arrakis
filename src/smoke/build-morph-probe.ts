@@ -1,7 +1,8 @@
 // Morph probe map (src/jass/smoke/morph-probe.j): does a Chaos-based ability switch a unit to a type
-// with a longer range while it stays the same unit (veterancy ExtraRange, TODO(veterancy) in
-// src/jass/mission/veterancy.j)? Chaos 'Sca1', field Cha1 = new unit type (common.j:
-// ABILITY_ILF_NEW_UNIT_TYPE = 'Cha1').
+// with a longer range while it stays the same unit (veterancy ExtraRange in
+// src/jass/mission/veterancy.j)? Yes (2026-10-08): the morph is used there. Chaos 'Sca1', field
+// Cha1 = new unit type (common.j: ABILITY_ILF_NEW_UNIT_TYPE = 'Cha1'; AbilityMetaData.slk: UnitID
+// column, data pointer 0).
 // Usage: node src/smoke/build-morph-probe.ts, then
 //        pwsh tools/run-wc3-classic.ps1 -Map build\test\MorphProbe.w3x -Seconds 30
 

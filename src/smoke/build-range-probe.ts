@@ -1,5 +1,5 @@
 // Range probe map (src/jass/smoke/range-probe.j): does setting a unit's weapon attack range change
-// how far it shoots (veterancy ExtraRange, TODO(veterancy) in src/jass/mission/veterancy.j)?
+// how far it shoots (veterancy ExtraRange)? No in 1.31.1 (2026-10-08): veterancy.j morphs the unit instead.
 // Usage: node src/smoke/build-range-probe.ts, then (idle-gated)
 //        pwsh tools/run-wc3-classic.ps1 -Map build\test\RangeProbe.w3x -Seconds 40
 

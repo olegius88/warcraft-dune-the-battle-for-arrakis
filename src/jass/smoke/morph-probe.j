@@ -1,6 +1,6 @@
 // Morph probe (src/smoke/build-morph-probe.ts): can a unit switch to a type with a longer attack range
 // through a Chaos-based ability ({{morph}}, Cha1 = {{veteran}}) and stay the same unit for the scripts
-// (veterancy ExtraRange, TODO(veterancy) in src/jass/mission/veterancy.j)?
+// (veterancy ExtraRange, src/jass/mission/veterancy.j)? Yes: answered 2026-10-08, the morph is used there.
 // Row 0: control shooter. Row 1: the same shooter with max life / base damage / armour changed and a
 // hashtable entry under its handle id, then morphed. Logged right after the morph: handle id, type,
 // the hashtable entry, life, max life, damage, armour, selection; after {{wait}} s: how far each
