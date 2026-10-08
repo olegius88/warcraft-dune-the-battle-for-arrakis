@@ -316,8 +316,12 @@ endfunction`;
     aiLines.push(`    set EmpAiTMax[${lvl}] = ${t.maxUnits}`, `    set EmpAiTBuildings[${lvl}] = ${t.numBuildings}`,
       `    set EmpAiTBuildDelay[${lvl}] = ${real(Math.max(1, t.buildingDelay) / TICKS_PER_SECOND)}`, `    set EmpAiTUnitDelay[${lvl}] = ${real(Math.max(1, t.unitDelay) / TICKS_PER_SECOND)}`,
       `    set EmpAiTGap[${lvl}] = ${real((Math.max(1, t.gapBetweenScripts) / TICKS_PER_SECOND) * (100 / Math.max(1, ai.largeAttackModifier)))}`,
-      `    set EmpAiTFirst[${lvl}] = ${t.firstAttackDelay}`, `    set EmpAiTMinDef[${lvl}] = ${t.minDefence}`, `    set EmpAiTMaxDef[${lvl}] = ${t.maxDefence}`, `    set EmpAiTTurrets[${lvl}] = ${t.maxTurrets}`);
+      `    set EmpAiTFirst[${lvl}] = ${t.firstAttackDelay}`, `    set EmpAiTMinDef[${lvl}] = ${t.minDefence}`, `    set EmpAiTMaxDef[${lvl}] = ${t.maxDefence}`, `    set EmpAiTTurrets[${lvl}] = ${t.maxTurrets}`,
+      `    set EmpAiTBuildTicks[${lvl}] = ${t.buildingDelay}`, `    set EmpAiTGapTicks[${lvl}] = ${t.gapBetweenScripts}`);
   });
+  // the ai.ini values SideAIBehaviour* re-tunes (forces.j EmpAiBehave)
+  aiLines.push(`    set EmpAiDefPct = ${ai.defencePercent}`, `    set EmpAiWander = ${ai.defenceWanderTiles}`,
+    `    set EmpAiBuildsDef = ${ai.buildsDefences}`, `    set EmpAiScoutTeams = ${ai.scoutTeams}`);
   // the house's palace super weapon (src/emperor/superweapons.ts): charge type, palace, charge ticks
   const sw = o.rules ? superweapons(o.rules) : [];
   PREFIXES.forEach((h, hi) => {
@@ -337,7 +341,21 @@ endfunction`;
   // story mission: index of the house whose base of side 1 the AI runs, -1 none
   const storyCode = !o.territoryBattle && o.storyAi ? storyAiHouse(o.meta) : null;
   const storyHouse = storyCode ? PREFIXES.indexOf(storyCode) : -1;
+  // SideAIBehaviour*: per tech level (arrays, index l) and single values, AI_BEHAVIOUR_PCT
+  const tuneLines = (list: ReadonlyArray<readonly [C.AiTuned, number]>, perLevel: boolean, indent: string): string =>
+    list.filter(([v]) => v.startsWith('EmpAiT') === perLevel)
+      .map(([v, pct]) => { const x = perLevel ? `${v}[l]` : v; return `${indent}set ${x} = EmpAiPct(${x}, ${pct})`; }).join('\n');
+  const setLines = (s: Readonly<Record<string, boolean | number>>): string[] => [
+    ...('buildsDefences' in s ? [`        set EmpAiBuildsDef = ${s.buildsDefences}`] : []),
+    ...('scoutTeams' in s ? [`        set EmpAiScoutTeams = ${s.scoutTeams}`] : []),
+  ];
+  const BP = C.AI_BEHAVIOUR_PCT;
   fns.push(jass('forces', {
+    strongTech: tuneLines(BP.strong, true, '        '),
+    aggressiveTech: tuneLines(BP.aggressive, true, '            '), defensiveTech: tuneLines(BP.defensive, true, '            '),
+    aggressiveSide: [tuneLines(BP.aggressive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.aggressive)].join('\n'),
+    defensiveSide: [tuneLines(BP.defensive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.defensive)].join('\n'),
+    gapFactor: 100 / Math.max(1, ai.largeAttackModifier), TPS: TICKS_PER_SECOND,
     aiFunctions, storyAi: storyHouse >= 0, storyHouse,
     harvester, playerBase,
     vehMax: C.ENEMY_VEHICLES.length - 1, infMax: C.ENEMY_INFANTRY.length - 1,

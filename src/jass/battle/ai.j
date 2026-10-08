@@ -15,6 +15,14 @@
 // after TicksUntilAbandonForming. Simplifications: sites are tried on rings around the base point
 // (Perpendicular and Rotation weights are not used: WC3 buildings do not turn).
 {{dataFunction}}
+// Game.exe 1.09 (0x432040, SideAIBehaviour*): an AI value changed by pct percent of itself,
+// v + v * pct * 0.01 computed in the FPU's single precision (Direct3D 7's default DDSCL_FPUSETUP;
+// Emperor's SetCooperativeLevel flags 0x8 / 0x13 / 0x293 never ask for DDSCL_FPUPRESERVE 0x1000), so
+// JASS reals (32-bit) give the same result, truncated like its float-to-int (0x4706c0)
+function EmpAiPct takes integer v, integer pct returns integer
+    return R2I(I2R(v) * I2R(pct) * 0.01 + I2R(v))
+endfunction
+
 // the row of ai_difficulty.ini for the battle's tech level (1..8)
 function EmpAiT takes nothing returns integer
     return IMinBJ(IMaxBJ(EmpTechLevel, 1), {{C.AI_TECH_LEVELS}})
@@ -441,9 +449,9 @@ function EmpAiBuild takes nothing returns nothing
             exitwhen best < 0
             set skip[best] = true
             if best == 1 then
-                if {{ai.buildsDefences}} and EmpTechLevel >= {{ai.firstTechTurrets}} and (EmpTechLevel >= {{C.AI_LOW_TECH_BELOW}} or EmpAiCount(-1) < {{ai.maxTurretsLowTech}}) and EmpAiCount(-1) < EmpAiTTurrets[EmpAiT()] then
+                if EmpAiBuildsDef and EmpTechLevel >= {{ai.firstTechTurrets}} and (EmpTechLevel >= {{C.AI_LOW_TECH_BELOW}} or EmpAiCount(-1) < {{ai.maxTurretsLowTech}}) and EmpAiCount(-1) < EmpAiTTurrets[EmpAiT()] then
                     set t = EmpAiPick(1)
-                elseif {{ai.buildsDefences}} and EmpEnemyGold() >= {{ai.minMoneyWalls}} and EmpAiWalls() then
+                elseif EmpAiBuildsDef and EmpEnemyGold() >= {{ai.minMoneyWalls}} and EmpAiWalls() then
                     return
                 endif
             elseif best != 3 or EmpAiCount(-2) < {{ai.maxRefineries}} then
@@ -551,7 +559,7 @@ function EmpAiTactics takes nothing returns nothing
                 set EmpAiKnownY = GetUnitY(u)
                 call EmpAiLog("target found " + GetUnitName(u))
             endif
-            if IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], {{real ai.defenceWanderTiles}} * tile) then
+            if IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], I2R(EmpAiWander) * tile) then
                 set threat = u
             endif
         endif
@@ -584,7 +592,7 @@ function EmpAiTactics takes nothing returns nothing
                 endif
                 if threat != null and GetUnitCurrentOrder(u) == 0 then
                     call IssueTargetOrder(u, "attack", threat)
-                elseif not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], {{real ai.defenceWanderTiles}} * tile) then
+                elseif not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], I2R(EmpAiWander) * tile) then
                     call IssuePointOrder(u, "move", EmpBaseX[b], EmpBaseY[b])
                 elseif EmpAiCYHit > 0 and EmpTick - EmpAiCYHit < R2I({{real C.AI_CY_ALARM_SECONDS}} * {{TPS}}) and EmpTick >= {{ai.ticksDefendCY}} and EmpTechLevel >= {{ai.firstTechDefendCY}} then
                     call IssuePointOrder(u, "attack", GetUnitX(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]), GetUnitY(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]))
@@ -595,7 +603,7 @@ function EmpAiTactics takes nothing returns nothing
     call DestroyGroup(g)
     set g = null
     // a new scout (one unit per team) once enough units were made
-    if EmpAiProduced >= {{ai.unitsBeforeScout}} and scouts < {{ai.scoutTeams}} and best != null then
+    if EmpAiProduced >= {{ai.unitsBeforeScout}} and scouts < EmpAiScoutTeams and best != null then
         call SaveInteger(EmpWaveTab, GetHandleId(best), 1, 1)
         call EmpAiRoam(best)
         call EmpAiLog("scout " + GetUnitName(best))
@@ -672,7 +680,7 @@ function EmpAiWave takes nothing returns nothing
         endif
     endloop
     // PercentageOfUnitsForDefence stay home, within Minimum / MaximumUnitsForDefence (ai_difficulty.ini)
-    set send = home - IMinBJ(IMaxBJ(home * {{ai.defencePercent}} / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])
+    set send = home - IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])
     call GroupEnumUnitsOfPlayer(g, Player(1), null)
     loop
         set u = FirstOfGroup(g)
@@ -701,6 +709,8 @@ function EmpAiInit takes nothing returns nothing
     call TriggerAddAction(tr, function EmpAiOnAttacked)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiTactics)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiSuperweapon)
-    call TimerStart(CreateTimer(), EmpAiTGap[EmpAiT()], true, function EmpAiWave)
+    set EmpAiWaveTimer = CreateTimer()
+    call TimerStart(EmpAiWaveTimer, EmpAiTGap[EmpAiT()], true, function EmpAiWave)
+    set EmpAiOn = true
     set tr = null
 endfunction

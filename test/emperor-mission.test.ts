@@ -198,7 +198,7 @@ test('enemy AI pace from ai_difficulty.ini by tech level', opts, () => {
   assert.ok(m.script.includes('set EmpAiTUnitDelay[1] = 35.0') && m.script.includes('set EmpAiTBuildDelay[4] = 19.2'), 'delays in seconds (875 / 480 ticks)');
   assert.ok(m.script.includes('set EmpAiTMax[1] = 22') && m.script.includes('set EmpAiTTurrets[3] = 2') && m.script.includes('set EmpAiTFirst[1] = 5000'));
   assert.ok(m.script.includes('call TimerStart(CreateTimer(), EmpAiTUnitDelay[EmpAiT()], true, function EmpEnemyProduce)'), 'unit delay');
-  assert.ok(m.script.includes('call TimerStart(CreateTimer(), EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)'), 'building delay');
+  assert.ok(m.script.includes('call TimerStart(EmpAiBuildTimer, EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)'), 'building delay (kept: SideAIBehaviour* re-times it)');
   assert.ok(m.script.includes('if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] then'), 'MaxAiUnits');
   assert.ok(m.script.includes('if EmpTick < EmpAiTFirst[EmpAiT()] then'), 'FirstAttackDelay');
   assert.ok(m.script.includes('EmpAiCount(-1) < EmpAiTTurrets[EmpAiT()]'), 'MaxTurretsAllowed');
@@ -973,7 +973,7 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes('local boolean veh = GetRandomInt(1, 20 + 80) > 20'), 'Foot / Tank mix');
-  assert.ok(m.script.includes('set send = home - IMinBJ(IMaxBJ(home * 24 / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])'), 'defence share stays home (within ai_difficulty.ini bounds)');
+  assert.ok(m.script.includes('set send = home - IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])') && m.script.includes('    set EmpAiDefPct = 24'), 'defence share stays home (within ai_difficulty.ini bounds)');
   assert.ok(m.script.includes('local boolean stay = GetRandomInt(1, 100) > 50'), 'retreat chance');
   assert.ok(m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'rebuild money');
   const yard = all.units.rawcode.get('HKConYard');
@@ -992,6 +992,44 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   // report 2026-10-08). The type the AI has fewest of is picked (random among equals).
   const pick = m.script.slice(m.script.indexOf('function EmpAiPick'), m.script.indexOf('endfunction', m.script.indexOf('function EmpAiPick')));
   assert.ok(pick.includes('set have = EmpCount(1, t)') && pick.includes('if have < fewest then'), 'fewest-first pick');
+});
+
+// SideAIBehaviourAggressive / Normal / Defensive (script ids 0x42 / 0x44 / 0x4d) set the AI side's
+// behaviour 1 / 0 / 2 in Game.exe 1.09 (jump table 0x4f3fb4 -> 0x428c40 -> 0x431d90), which re-tunes
+// its ai.ini / ai_difficulty.ini values (0x432040: Aggressive = AGGRESSIVE + STRONG, Defensive =
+// DEFENSIVE + STRONG, Normal = no change); they give no orders. Ours switched the order-based side AI:
+// Aggressive sent every unit of the base the AI runs at the player (mode 1) past its defence share,
+// Defensive stopped the side (mode 0). Found 2026-10-08 (END missions, Ordos homeworld assault).
+test('SideAIBehaviour* re-tunes the AI that runs side 1 like Game.exe, compounding on every call', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  // v + v * pct * 0.01 in single precision (Direct3D 7 default FPU), truncated, on the current value
+  assert.ok(body('EmpAiPct').includes('return R2I(I2R(v) * I2R(pct) * 0.01 + I2R(v))'), 'Game.exe arithmetic');
+  const behave = body('EmpAiBehave');
+  for (const line of [
+    'set EmpAiTMax[l] = EmpAiPct(EmpAiTMax[l], 25)', 'set EmpAiTBuildTicks[l] = EmpAiPct(EmpAiTBuildTicks[l], -25)',
+    'set EmpAiTGapTicks[l] = EmpAiPct(EmpAiTGapTicks[l], -52)', 'set EmpAiTFirst[l] = EmpAiPct(EmpAiTFirst[l], -25)',
+    'set EmpAiTMinDef[l] = EmpAiPct(EmpAiTMinDef[l], -25)', 'set EmpAiTMaxDef[l] = EmpAiPct(EmpAiTMaxDef[l], -20)',
+    'set EmpAiDefPct = EmpAiPct(EmpAiDefPct, -50)', 'set EmpAiWander = EmpAiPct(EmpAiWander, 25)', 'set EmpAiBuildsDef = false',
+    'set EmpAiTGapTicks[l] = EmpAiPct(EmpAiTGapTicks[l], 80)', 'set EmpAiTFirst[l] = EmpAiPct(EmpAiTFirst[l], 55)',
+    'set EmpAiTMinDef[l] = EmpAiPct(EmpAiTMinDef[l], 50)', 'set EmpAiTMaxDef[l] = EmpAiPct(EmpAiTMaxDef[l], 100)',
+    'set EmpAiDefPct = EmpAiPct(EmpAiDefPct, 50)', 'set EmpAiBuildsDef = true', 'set EmpAiScoutTeams = 1',
+  ]) assert.ok(behave.includes(line), line);
+  assert.ok(behave.includes('call TimerStart(EmpAiWaveTimer, EmpAiTGap[EmpAiT()], true, function EmpAiWave)'), 'wave pace follows');
+  // the tactics read the tuned values
+  assert.ok(m.script.includes('set send = home - IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])'), 'defence share');
+  assert.ok(m.script.includes('scouts < EmpAiScoutTeams'), 'scout teams');
+  assert.ok(m.script.includes('    set EmpAiDefPct = 24') && m.script.includes('    set EmpAiTGapTicks[1] = '), 'ai.ini values');
+  // the script functions: side 1 with the AI running goes to EmpAiBehave; other sides keep the
+  // order-based modes, Defensive keeping the units home like Normal instead of idling them
+  for (const [name, mode] of [['SideAIBehaviourAggressive', 1], ['SideAIBehaviourNormal', 0], ['SideAIBehaviourDefensive', 2]] as const) {
+    const f = body(`EF_${name}`);
+    assert.ok(f.includes('if a1 == 1 and EmpAiOn then') && f.includes(`set EmpAiBehaveMode = ${mode}`) && f.includes('call ExecuteFunc("EmpAiBehave")'), name);
+  }
+  assert.ok(body('EF_SideAIBehaviourDefensive').includes('set EmpAIMode[a1] = 8') && !body('EF_SideAIBehaviourDefensive').includes('set EmpAIMode[a1] = 0'), 'defensive side stays home');
+  assert.ok(body('EmpAiInit').includes('set EmpAiOn = true'), 'flag');
 });
 
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines

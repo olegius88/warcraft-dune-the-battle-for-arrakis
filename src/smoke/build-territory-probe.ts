@@ -410,6 +410,33 @@ function FxGridRun takes nothing returns nothing
     call TimerStart(CreateTimer(), 2.5, true, function FxGridTick)
 endfunction`,
   } : {}),
+  // --behave: SideAIBehaviour* on side 1 while the AI runs it (forces.j EmpAiBehave): the values before,
+  // after Aggressive twice (compounding), after Normal (no change); the side keeps its AI mode (8)
+  ...(flag('--behave') ? {
+    extraStart: 'BehaveProbeRun',
+    extraFunctions: `function BehaveProbeLine takes string at returns string
+    return at + ": on=" + I2S(IntegerTertiaryOp(EmpAiOn, 1, 0)) + " mode=" + I2S(EmpAIMode[1]) + " max1=" + I2S(EmpAiTMax[1]) + " max8=" + I2S(EmpAiTMax[8]) + " gap1=" + I2S(EmpAiTGapTicks[1]) + " gapS=" + R2S(EmpAiTGap[1]) + " first1=" + I2S(EmpAiTFirst[1]) + " min1=" + I2S(EmpAiTMinDef[1]) + " maxdef1=" + I2S(EmpAiTMaxDef[1]) + " def%=" + I2S(EmpAiDefPct) + " wander=" + I2S(EmpAiWander) + " walls=" + I2S(IntegerTertiaryOp(EmpAiBuildsDef, 1, 0)) + " scouts=" + I2S(EmpAiScoutTeams) + " wave left=" + R2S(TimerGetRemaining(EmpAiWaveTimer)) + " build period=" + R2S(TimerGetTimeout(EmpAiBuildTimer))
+endfunction
+
+function BehaveProbeRun takes nothing returns nothing
+    set EmpNormalConditions = false
+    call TriggerSleepAction(3.0)
+    // one Preload line per stage: a line holds some 250 characters
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(BehaveProbeLine("start"))
+    call EF_SideAIBehaviourAggressive(1)
+    call Preload(BehaveProbeLine("aggressive"))
+    call EF_SideAIBehaviourAggressive(1)
+    call Preload(BehaveProbeLine("aggressive x2"))
+    call EF_SideAIBehaviourNormal(1)
+    call Preload(BehaveProbeLine("normal"))
+    call EF_SideAIBehaviourDefensive(1)
+    call TriggerSleepAction(1.0)
+    call Preload(BehaveProbeLine("defensive"))
+    call PreloadGenEnd("DuneSmoke\\\\behave.pld")
+endfunction`,
+  } : {}),
   // --mounds: spice mounds and fields at 5 s and after the first bursts (Size + Cost ticks = 60 s)
   ...(flag('--mounds') ? {
     extraStart: 'MoundProbeRun',

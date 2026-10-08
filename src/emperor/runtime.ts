@@ -17,6 +17,7 @@ import { jassFile, RUNTIME_API_DIR } from '../config/paths.ts';
 import * as RT from '../config/runtime.ts';
 import { TICKS_PER_SECOND, WC3_UNITS_PER_TILE } from '../config/scale.ts';
 import { EFFECT, ITEM, ABILITY, ART_ABILITY } from '../config/wc3.ts';
+import { AI_BEHAVIOUR, AI_RUN_SIDE } from '../config/battle.ts';
 
 const FACING = real(RT.DEFAULT_FACING);
 const TPS = real(TICKS_PER_SECOND);
@@ -39,7 +40,7 @@ export interface Runtime {
 }
 
 /** Values the runtime JASS files (src/jass/runtime) refer to. */
-const SCOPE = { RT, UI: RT.UI, FACING, TPS, EFFECT, ITEM, ABILITY, ART_ABILITY, WC3_UNITS_PER_TILE, airstrikeTicks: RT.AIRSTRIKE_SECONDS * TICKS_PER_SECOND };
+const SCOPE = { RT, UI: RT.UI, FACING, TPS, AI_BEHAVIOUR, AI_RUN_SIDE, EFFECT, ITEM, ABILITY, ART_ABILITY, WC3_UNITS_PER_TILE, airstrikeTicks: RT.AIRSTRIKE_SECONDS * TICKS_PER_SECOND };
 
 /** globals block lines (src/jass/runtime/globals.j) */
 const headerGlobals = (): string => renderFile(jassFile('runtime/globals'), SCOPE);

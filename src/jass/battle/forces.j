@@ -147,7 +147,43 @@ endfunction
 // the pace of the enemy by its tech level (ai_difficulty.ini; after EmpAiInit, which loads it)
 function EmpAiStartPace takes nothing returns nothing
     call TimerStart(CreateTimer(), EmpAiTUnitDelay[EmpAiT()], true, function EmpEnemyProduce)
-    call TimerStart(CreateTimer(), EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
+    set EmpAiBuildTimer = CreateTimer()
+    call TimerStart(EmpAiBuildTimer, EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
+endfunction
+
+// SideAIBehaviourNormal / Aggressive / Defensive on side 1 while the AI runs it (EmpAiBehaveMode 0 /
+// 1 / 2): Game.exe 1.09 re-tunes the AI's values (src/config/battle.ts AI_BEHAVIOUR_PCT), each on its
+// current value, so a second call compounds; the attack waves and the builder keep the new pace.
+function EmpAiBehave takes nothing returns nothing
+    local integer m = EmpAiBehaveMode
+    local integer l = 1
+    call EmpAiLog("behaviour " + I2S(m))
+    if m == {{C.AI_BEHAVIOUR.normal}} then
+        return
+    endif
+    loop
+        exitwhen l > {{C.AI_TECH_LEVELS}}
+{{strongTech}}
+        if m == {{C.AI_BEHAVIOUR.aggressive}} then
+{{aggressiveTech}}
+        else
+{{defensiveTech}}
+        endif
+        set EmpAiTBuildDelay[l] = I2R(IMaxBJ(1, EmpAiTBuildTicks[l])) / {{TPS}}
+        set EmpAiTGap[l] = I2R(IMaxBJ(1, EmpAiTGapTicks[l])) / {{TPS}} * {{real gapFactor}}
+        set l = l + 1
+    endloop
+    if m == {{C.AI_BEHAVIOUR.aggressive}} then
+{{aggressiveSide}}
+    else
+{{defensiveSide}}
+    endif
+    if EmpAiWaveTimer != null then
+        call TimerStart(EmpAiWaveTimer, EmpAiTGap[EmpAiT()], true, function EmpAiWave)
+    endif
+    if EmpAiBuildTimer != null then
+        call TimerStart(EmpAiBuildTimer, EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
+    endif
 endfunction
 
 {{#if storyAi}}// ---- story missions: the base of side 1 placed on the map (battle.ts storyAiHouse) is run by the AI

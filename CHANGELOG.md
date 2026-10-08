@@ -5,6 +5,26 @@
 ## [Unreleased]
 
 ### Changed
+- 2026-10-08 `SideAIBehaviourAggressive` / `Normal` / `Defensive` по `Game.exe` 1.09
+  ([forces.j](src/jass/battle/forces.j) `EmpAiBehave`, [config/battle.ts](src/config/battle.ts)
+  `AI_BEHAVIOUR_PCT`):
+  - **Что это в Emperor.** Скрипт ставит стороне поведение ИИ 1 / 0 / 2 (таблица переходов
+    `0x4f3fb4`, `0x428c40`, `0x431d90`). Это перенастройка значений ai.ini / ai_difficulty.ini
+    (`0x432040`), а не приказ: Aggressive = AGGRESSIVE + STRONG, Defensive = DEFENSIVE + STRONG,
+    Normal ничего не меняет. Каждое значение становится `v + v·p/100` от текущего, поэтому вызовы
+    складываются.
+  - **Раньше** Aggressive у стороны с базой под ИИ (финальные миссии, атака на родину Ордосов)
+    отправлял в атаку всех её юнитов в обход доли обороны, а Defensive оставлял сторону без дела.
+  - **Теперь** сторона 1 с работающим ИИ получает изменения MaxAiUnits, BuildingDelay,
+    GapBetweenNewScripts, FirstAttackDelay, Min/MaximumUnitsForDefence, PercentageOfUnitsForDefence,
+    DefenceTacticWanderDistance, AiBuildsDefences, NumberOfScoutTeams; темп волн и стройки
+    перезапускается. Стороны с ИИ по приказам: Defensive держит юнитов у базы, как Normal.
+  - **Округление** как у Emperor: одинарная точность FPU (по умолчанию в Direct3D 7 —
+    [DDSCL_FPUSETUP](https://learn.microsoft.com/en-us/windows/win32/api/ddraw/nf-ddraw-idirectdraw7-setcooperativelevel);
+    Emperor не просит `DDSCL_FPUPRESERVE`) и отбрасывание дробной части (`0x4706c0`).
+  - **Проверено в игре** (проба `build-territory-probe.ts 9 --behave`): после двух Aggressive и
+    Defensive MaxAiUnits 22→27→33→41, на Tech8 100→125→156→195; доля обороны 24→12→6→9; режим
+    стороны остался 8.
 - 2026-10-08 Энергия по `Game.exe` 1.09 ([power.j](src/jass/battle/power.j)):
   - **Выработка и потребление.** Сторона вырабатывает `PowerGenerated` своих зданий с учётом их
     здоровья и тратит `PowerUsed` (`0x53f3c0`).

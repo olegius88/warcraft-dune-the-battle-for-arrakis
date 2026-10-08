@@ -129,3 +129,32 @@ export const AI_CY_ALARM_SECONDS = 15;
 export const AI_REPORT_LINES = 60;
 /** ai_difficulty.ini has [Tech1]..[Tech8]. */
 export const AI_TECH_LEVELS = 8;
+
+/** The AI values a SideAIBehaviour* call re-tunes, by the name of their JASS variable (src/jass/battle
+ * forces.j EmpAiBehave): per tech level (arrays indexed by l) or single. */
+export type AiTuned = 'EmpAiTMax' | 'EmpAiTBuildTicks' | 'EmpAiTGapTicks' | 'EmpAiTFirst' | 'EmpAiTMinDef' | 'EmpAiTMaxDef' | 'EmpAiDefPct' | 'EmpAiWander';
+/** SideAIBehaviourAggressive / Normal / Defensive: Game.exe 1.09 runs script ids 0x42 / 0x44 / 0x4d as
+ * AI side behaviour 1 / 0 / 2 (jump table 0x4f3fb4, 0x428c40, 0x431d90), i.e. personality and strength
+ * (0x432040): AGGRESSIVE + STRONG, no change, DEFENSIVE + STRONG. Each value becomes v + v * pct / 100
+ * of its current value (calls compound). Their ai.ini / ai_difficulty.ini keys (Strategy index /
+ * Difficulty index in Game.exe's key tables 0x5f2770 / 0x5f2820): MaxAiUnits D0, BuildingDelay D2,
+ * GapBetweenNewScripts D6, FirstAttackDelay D5, Minimum- / MaximumUnitsForDefence D8 / D10,
+ * PercentageOfUnitsForDefence S10, DefenceTacticWanderDistance S11. Not modelled here (the AI has no
+ * such value): STRONG MaintenanceDelay D3 -25, AGGRESSIVE MaxScriptsToRunAtOnce D4 +50 and
+ * DefensiveLocationTileAddition S18 = 16, and the AI skill (+0x400: side difficulty +2, used by
+ * Game.exe's random checks). */
+export const AI_BEHAVIOUR_PCT: Readonly<Record<'strong' | 'aggressive' | 'defensive', ReadonlyArray<readonly [AiTuned, number]>>> = {
+  strong: [['EmpAiTMax', 25], ['EmpAiTBuildTicks', -25]],
+  aggressive: [['EmpAiTGapTicks', -52], ['EmpAiDefPct', -50], ['EmpAiWander', 25], ['EmpAiTFirst', -25], ['EmpAiTMinDef', -25], ['EmpAiTMaxDef', -20]],
+  defensive: [['EmpAiTGapTicks', 80], ['EmpAiDefPct', 50], ['EmpAiWander', 0], ['EmpAiTFirst', 55], ['EmpAiTMinDef', 50], ['EmpAiTMaxDef', 100]],
+};
+/** Values the personalities set outright: AiBuildsDefences S15 (AGGRESSIVE 0, DEFENSIVE 1),
+ * NumberOfScoutTeams S4 (DEFENSIVE 1). */
+export const AI_BEHAVIOUR_SET = {
+  aggressive: { buildsDefences: false },
+  defensive: { buildsDefences: true, scoutTeams: 1 },
+} as const;
+/** Behaviour codes of SideAIBehaviour* (EmpAiBehaveMode): Game.exe's AI side behaviour numbers. */
+export const AI_BEHAVIOUR = { normal: 0, aggressive: 1, defensive: 2 } as const;
+/** The side the base-running AI (src/jass/battle/ai.j, Player(1)) plays. */
+export const AI_RUN_SIDE = 1;

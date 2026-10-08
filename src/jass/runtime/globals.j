@@ -217,6 +217,18 @@
     integer array EmpAiTMinDef
     integer array EmpAiTMaxDef
     integer array EmpAiTTurrets
+    // the same in ticks (BuildingDelay, GapBetweenNewScripts) and the ai.ini values SideAIBehaviour*
+    // re-tunes (battle forces.j EmpAiBehave); EmpAiOn: the AI runs side 1 (ai.j EmpAiInit)
+    integer array EmpAiTBuildTicks
+    integer array EmpAiTGapTicks
+    integer EmpAiDefPct = 0
+    integer EmpAiWander = 0
+    boolean EmpAiBuildsDef = false
+    integer EmpAiScoutTeams = 0
+    boolean EmpAiOn = false
+    integer EmpAiBehaveMode = 0
+    timer EmpAiWaveTimer = null
+    timer EmpAiBuildTimer = null
     string array EmpAiLogLine
     integer EmpAiLogCount = 0
     integer array EmpPowerSum
