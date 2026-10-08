@@ -31,8 +31,10 @@
 // builder state 3, Game.exe's defence plan (0x430c90 / 0x42e5d0: with AiBuildsDefences and a tech
 // level over FirstCampaignGameTechLevel + 1, turrets and walls at a building cluster's defence points,
 // walls given up after 10 minutes, "AI has been building walls for %d minutes so aborting"), stands in
-// as turrets by ratio with a wall row each (ai.j EmpAiWalls); of the 17 skill rolls (0x46c5d0) only the
-// maintenance one is reproduced, not those at 0x42db67 (more barracks), 0x4304c0, 0x430786, 0x430e30,
+// as turrets by ratio with a wall row each (ai.j EmpAiWalls); of the 17 skill rolls (0x46c5d0) the
+// maintenance one and the critical barracks (0x42db67, ai.j EmpAiCriticalBarracks, asked in every
+// builder turn like 0x42f07d does) are reproduced, the builder update's own critical check (0x430e30:
+// rand % 1000 < skill each update, in the [StartScript] too) not; nor those at 0x4304c0, 0x430786,
 // 0x440613, 0x44e680 (pro-active targets), 0x450575, 0x4582a0 (scouts), 0x45a600, 0x45b030 (extra
 // units), 0x463980, 0x465473, 0x468410 (infiltrators), 0x469c60; a story mission's AI record
 // (SetupMissionData 0x4903b0 -> 0x534d80) is not traced for its personality / skill, so there the skill
@@ -368,6 +370,8 @@ endfunction`;
   }
   const aiFunctions = renderFile(jassFile('battle/ai'), {
     C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND, ABILITY,
+    // the enemy house's barracks type (Game.exe 0x43b920: by the side's house)
+    barracksPick: barracksOf.map((id, h) => `    if EmpEnemyHouse == ${h} then\n        set t = '${id}'\n    endif`).join('\n'),
     aiReport: o.aiReport ?? '',
     dataFunction: `function EmpAiData takes nothing returns nothing\n${aiLines.join('\n')}\nendfunction\n`,
   });

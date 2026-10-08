@@ -337,6 +337,40 @@ function EmpAiWait takes integer why, string s returns nothing
     endif
 endfunction
 
+// the builder's critical need for barracks (src/config/battle.ts AI_CRITICAL_BARRACKS, Game.exe 1.09
+// 0x42db2d): the house's barracks type when the side has none, else 0
+function EmpAiCriticalBarracks takes nothing returns integer
+    local integer m = {{C.AI_CRITICAL_BARRACKS.early}}
+    local integer t = 0
+    local group g
+    local unit u
+    local boolean have = false
+    if EmpAiStrength == 0 or EmpAiSkill < {{C.AI_CRITICAL_BARRACKS.skillUnder}} then
+        set m = {{C.AI_CRITICAL_BARRACKS.late}}
+    endif
+    if EmpTick <= m * {{C.AI_CRITICAL_BARRACKS.ticksPerMinute}} or GetRandomInt(0, {{C.AI_CRITICAL_BARRACKS.rollMax}}) >= EmpAiSkill then
+        return 0
+    endif
+{{barracksPick}}
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and EmpType(u) == t then
+            set have = true
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    if have then
+        return 0
+    endif
+    call EmpAiLog("critical: more barracks required")
+    return t
+endfunction
+
 // a building upgrade whose research time has passed (EmpAiUpgrade)
 function EmpAiUpgradeDone takes nothing returns nothing
     local timer tm = GetExpiredTimer()
@@ -487,12 +521,14 @@ function EmpAiBuild takes nothing returns nothing
         set EmpAiMaintaining = true
         call EmpAiLog("maintains")
     endif
+    // the critical needs first (0x42d6e0): barracks
+    set t = EmpAiCriticalBarracks()
     // short of power: a windtrap first (MinMoneyToBuildMaintenanceBuildings)
-    if EmpPowerSum[1] < 0 and EmpAiPower[EmpEnemyHouse] != 0 and EmpEnemyGold() >= {{ai.minMoneyMaintenance}} then
+    if t == 0 and EmpPowerSum[1] < 0 and EmpAiPower[EmpEnemyHouse] != 0 and EmpEnemyGold() >= {{ai.minMoneyMaintenance}} then
         set t = EmpAiPower[EmpEnemyHouse]
-    elseif EmpAiUpgrade() then
+    elseif t == 0 and EmpAiUpgrade() then
         return
-    else
+    elseif t == 0 then
         set c = 0
         set total = 0
         loop

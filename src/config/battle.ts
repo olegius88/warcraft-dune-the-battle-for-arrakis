@@ -192,6 +192,12 @@ export const AI_SKILL = { none: -1, baseMax: 8, lowPhases: [1, 2] as readonly nu
 /** Game.exe 1.09 0x42f3d0, the builder's choice in maintenance: rand % (ratioRoll * 10) < skill with at
  * least ratioGold credits (0x439990: the side's credits less a reserve, by a percentage, >= 1100;
  * here the credits) builds a group by ratio; else the maintenance choice (0x42fca0). */
+/** Game.exe 1.09 0x42db2d ("Critical: More barracks required", the builder's critical needs 0x42d6e0,
+ * asked in every state): past `late` minutes when the strength is 0 (0x432800) or the skill under
+ * `skillUnder` (0x46c5b0), else past `early` minutes (0x46c180: minutes x 1500 ticks), on
+ * rand % (roll * 10) < skill, a side without a building of its barracks type (0x43b920, 0x46c680)
+ * builds one first. */
+export const AI_CRITICAL_BARRACKS = { early: 2, late: 6, skillUnder: 4, roll: 10, rollMax: 10 * 10 - 1, ticksPerMinute: 1500 } as const;
 export const AI_MAINTAIN_RATIO = { roll: 7, rollMax: 7 * 10 - 1, gold: 1100 } as const;
 /** EmpAiTab child: the type has Rules.txt AiManufacturing (counted by the losing test). */
 export const AI_TAB_MANUFACTURING = 6;

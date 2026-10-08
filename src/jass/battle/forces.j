@@ -194,6 +194,7 @@ function EmpAiTune takes boolean strong, integer m, integer strength returns not
     elseif m == {{C.AI_BEHAVIOUR.defensive}} then
 {{defensiveSide}}
     endif
+    set EmpAiStrength = strength
     set EmpAiSkill = IMinBJ({{C.AI_SKILL.max}}, IMaxBJ({{C.AI_SKILL.min}}, EmpAiSkillBase + (strength - 1) * {{C.AI_SKILL.step}}))
     call EmpAiLog("skill " + I2S(EmpAiSkill))
     if EmpAiWaveTimer != null then

@@ -244,7 +244,7 @@ test('building upgrades: researched by the building, required by UpgradedPrimary
   // the enemy AI buys the upgrades of its house and produces gated types only after them
   assert.ok(m.script.includes(`'${atUp.id}'`) && /set EmpAiUpg\[\d+\] = '/.test(m.script), 'AI upgrade table');
   assert.ok(m.script.includes(`call SaveInteger(EmpAiTab, '${all.units.rawcode.get('ATKindjal')}', 5, '${atUp.id}')`), 'Kindjal waits for the upgrade');
-  assert.ok(m.script.includes('elseif EmpAiUpgrade() then'), 'builder turn tries upgrades');
+  assert.ok(m.script.includes('elseif t == 0 and EmpAiUpgrade() then'), 'builder turn tries upgrades');
 });
 
 // The 64 *Fail / *Win variants of defence scripts were parsed and never played. Inferred from their
@@ -1239,6 +1239,11 @@ test('the campaign enemy gets the personality, strength and skill of its phase (
   assert.ok(body('EmpAiBehave').includes('call EmpAiTune(true, m, 2)'), 'behaviour');
   assert.ok(m.script.includes('    call EmpAiInit()\n    call EmpAiCampaignTune()'), 'at the battle start');
   assert.ok(body('EmpAiBuild').includes('GetRandomInt(0, 69) < EmpAiSkill and EmpEnemyGold() >= 1100'), 'maintenance: by ratio on the skill roll');
+  // the builder's critical needs (0x42d6e0): no barracks past 2 / 6 minutes, rand % 100 < skill
+  const crit = body('EmpAiCriticalBarracks');
+  assert.ok(crit.includes('if EmpAiStrength == 0 or EmpAiSkill < 4 then') && crit.includes('if EmpTick <= m * 1500 or GetRandomInt(0, 99) >= EmpAiSkill then'), 'barracks roll');
+  assert.ok(body('EmpAiBuild').includes('set t = EmpAiCriticalBarracks()'), 'asked by the builder');
+  assert.ok(t.includes('set EmpAiStrength = strength'), 'strength kept');
 });
 
 // Briefings: sounds.txt section Briefing maps a mission script name to one or more Mentat lines

@@ -456,6 +456,41 @@ endfunction`,
     call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 20000)
 endfunction`,
   } : {}),
+  // --critical: the builder's critical barracks (ai.j EmpAiCriticalBarracks): skill 99, strength 2,
+  // side 1's barracks destroyed after its [StartScript] built them; the AI report logs the direct call
+  // ("critical: more barracks required", the type). The builder itself rebuilds the template barracks
+  // first (forces.j EmpEnemyBuildTurn), so in a turn the critical need shows only past the template.
+  ...(flag('--critical') ? {
+    extraStart: 'CriticalProbeRun',
+    extraFunctions: `function CriticalProbeKill takes nothing returns boolean
+    local integer t = EmpType(GetFilterUnit())
+    if EmpAlive(GetFilterUnit()) and (${['AT', 'HK', 'OR'].map((h) => `t == '${all.units.rawcode.get(`${h}Barracks`)}'`).join(' or ')}) then
+        call KillUnit(GetFilterUnit())
+    endif
+    return false
+endfunction
+
+function CriticalProbeRun takes nothing returns nothing
+    local group g = CreateGroup()
+    set EmpNormalConditions = false
+    call TriggerSleepAction(2.0)
+    set EmpAiSkill = 99
+    set EmpAiStrength = 2
+    call GroupEnumUnitsOfPlayer(g, Player(1), Condition(function CriticalProbeKill))
+    call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 20000)
+    // the [StartScript] builds barracks (step 4): destroyed again once it is past them
+    loop
+        exitwhen EmpTick > 4000
+        call TriggerSleepAction(1.0)
+    endloop
+    call GroupEnumUnitsOfPlayer(g, Player(1), Condition(function CriticalProbeKill))
+    call EmpAiLog("probe: barracks destroyed")
+    call TriggerSleepAction(2.0)
+    call EmpAiLog("probe: critical -> " + I2S(EmpAiCriticalBarracks()) + " skill " + I2S(EmpAiSkill) + " strength " + I2S(EmpAiStrength) + " house " + I2S(EmpEnemyHouse))
+    call DestroyGroup(g)
+    set g = null
+endfunction`,
+  } : {}),
   // --losing: the AI's losing test (ai.j EmpAiLosingCase / Check): side 1 loses its refineries and
   // credits, the clock passes 15000 ticks; the case, then retreat (units leave) or last gasp (attack)
   ...(flag('--losing') ? {
