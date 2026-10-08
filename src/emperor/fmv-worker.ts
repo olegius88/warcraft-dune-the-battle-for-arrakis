@@ -3,5 +3,5 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { convertMovie } from './fmv.ts';
 
-const { name, root } = workerData as { name: string; root: string };
-parentPort?.postMessage(await convertMovie(name, { root }));
+const { name, root, quality } = workerData as { name: string; root: string; quality: number };
+parentPort?.postMessage(await convertMovie(name, { root, quality }));

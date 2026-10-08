@@ -4,6 +4,8 @@
 
 import { buildMap } from '../wc3/map.ts';
 import { str, real } from '../wc3/jass.ts';
+import { moviePlayer } from './movie-player.ts';
+import type { PlayerMovies } from './movie-player.ts';
 import { buildRuntime } from './runtime.ts';
 import { renderFile } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
@@ -87,6 +89,13 @@ export interface MissionParams {
   music?: string[];
   /** import the icons and Emperor models into this map (false: the campaign archive holds them once) */
   iconsInMap?: boolean;
+  /** a single map outside the campaign (src/emperor/build-contest.ts): a start mission that ends with
+   * the game's own victory / defeat instead of going on in the campaign */
+  standalone?: boolean;
+  /** movies shown before the mission starts (movie/player.j; their files in extraImports) */
+  intro?: { movies: string[]; player: PlayerMovies };
+  /** more archive files (the movies and music of a standalone map) */
+  extraImports?: Record<string, Buffer>;
 }
 
 export interface BuiltMission {
@@ -102,6 +111,7 @@ export interface BuiltMission {
 
 function buildMission(p: MissionParams): BuiltMission {
   const t = buildTerrain(p.meta);
+  const intro = p.intro ? moviePlayer(p.intro.player, `${RT.DEBUG_REPORT_DIR}\\${p.debugName ?? 'Mission'}_Movies.pld`) : null;
   const typeNames = p.ctx.objectTypes.map((o) => o.name);
   const rawcodeOfIndex = (n: number): string => {
     const name = typeNames[n];
@@ -442,14 +452,15 @@ function buildMission(p: MissionParams): BuiltMission {
   const musicList = p.music && p.music.length ? str(p.music.join(';')) : '';
 
   const glueGlobals = renderFile(jassFile('mission/globals'), {
-    phase: p.defaultPhase || DEFAULT_PHASE, tech: p.defaultTech || DEFAULT_TECH, defaultEnemy, territory: p.territory || 0,
+    // ?? not ||: phase 0 is the start missions' (bug fixed 2026-10-09, test "a standalone start mission")
+    phase: p.defaultPhase ?? DEFAULT_PHASE, tech: p.defaultTech ?? DEFAULT_TECH, defaultEnemy, territory: p.territory || 0,
   });
 
   // values of the src/jass/mission files
   const scope = {
     CACHE_FILE, CAT, K, RT, UI: RT.UI, ITEM, EFFECT, ICON, ART_ABILITY, FACING, ARMOR_REDUCTION, TICK_SECONDS, HOUSE_ID, OTHER_ENEMY_COLOR,
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
-    isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
+    isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
     hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
@@ -487,6 +498,8 @@ function buildMission(p: MissionParams): BuiltMission {
     ...(briefingBlocks.length ? [`function EmpBriefingSpeech takes nothing returns nothing\n${briefingBlocks.join('\n')}\nendfunction`] : []),
     ...(p.autoWinSeconds ? [jass('autowin')] : []),
     jass('start'),
+    // a standalone map's movies before the mission (movie/player.j): EmpStart once they are over
+    ...(intro && p.intro ? [intro.functions, `function EmpIntroMovies takes nothing returns nothing\n    call EmpMovieData()\n    call EmpMovieAdd(${str(p.intro.movies.join(';'))})\n    call EmpMoviePlay(function EmpStart)\nendfunction`] : []),
   ].join('\n\n');
 
   // players: 0 user + 1..11 computer (sides); all on their own team
@@ -496,12 +509,12 @@ function buildMission(p: MissionParams): BuiltMission {
   const players: ScriptPlayer[] = [{ id: 0, control: 'user', race: 'human', team: 0, x: sx, y: sy, name: RT.PLAYER_NAME }];
   for (let i = 1; i <= RT.MAX_SIDE; i++) players.push({ id: i, control: 'computer', race: 'orc', team: i, x: sx, y: sy, name: `${RT.SIDE_NAME_PREFIX}${i}` });
 
-  const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3map.w3q': p.units.w3q, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports, ...(p.iconsInMap === false ? {} : { ...p.units.icons, ...p.units.models }) };
+  const imports: Record<string, Buffer> = { 'war3map.w3u': p.units.w3u, 'war3map.w3a': p.units.w3a, 'war3map.w3q': p.units.w3q, 'war3mapMisc.txt': Buffer.from(p.units.misc, 'utf8'), ...speechImports, ...(p.iconsInMap === false ? {} : { ...p.units.icons, ...p.units.models }), ...p.extraImports };
   const m = buildMap({
     name: p.name, description: p.briefing || '', width: t.width, height: t.height, boundary: t.boundary,
     tileset: t.tileset, ground: t.ground, cliffs: t.cliffs, corner: t.corner, pathing: t.pathing, minimapColor: t.minimapColor,
-    players, globals: rt.globals + glueGlobals + '\n' + scripts.map((s) => s.tr.globals).join('\n'), functions,
-    init: '    call TimerStart( CreateTimer(), 0.0, false, function EmpStart )',
+    players, globals: rt.globals + glueGlobals + '\n' + scripts.map((s) => s.tr.globals).join('\n') + (intro ? `\n${intro.globals}` : ''), functions,
+    init: `    call TimerStart( CreateTimer(), 0.0, false, function ${intro ? 'EmpIntroMovies' : 'EmpStart'} )`,
     imports,
     loadingTitle: p.name, loadingText: p.briefing || '',
   });

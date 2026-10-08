@@ -1330,6 +1330,19 @@ test('sides start neutral to each other except the player vs the main enemy', op
 // attacks ran only in territory battles. In Emperor the AI runs it, tuned by ai_<house>_<map>.ini
 // (ai_atreides_a1.ini "Homeworld attack with AI playing Atreides"), with the credits the script gives
 // (T36 Atreides Homeworld Assault: AddSideCash(GetEnemySide(),40000)). Found 2026-10-08.
+// The contest map (src/emperor/build-contest.ts) is a house's start mission on its own: the movies
+// first, then the mission, ending with the game's victory dialog. Bug (contest run 2026-10-09): its
+// phase 0 (START_MISSION_PHASE) came out as 1, `defaultPhase || DEFAULT_PHASE` taking 0 for none.
+test('a standalone start mission: phase 0, movies before EmpStart, the game\'s own end', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#U1 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'contest', playerHouse: 'Atreides', kind: 'start', standalone: true, defaultPhase: 0, defaultTech: 2, hubMap: 'AT_Hub.w3x',
+    intro: { movies: ['I00_F03E'], player: { info: new Map([['I00_F03E', { frames: 10, fps: 15, width: 640, height: 480, sound: true }]]) } } });
+  assert.ok(m.script.includes('integer EmpPhase = 0'), 'phase 0');
+  assert.ok(m.script.includes('call TimerStart( CreateTimer(), 0.0, false, function EmpIntroMovies )') && m.script.includes('call EmpMoviePlay(function EmpStart)'), 'movies first');
+  assert.ok(!m.script.includes('set EmpPhase = 0\n    set EmpTechLevel'), 'not the campaign start (EmpInCampaign)');
+});
+
 test('the AI runs the map\'s own base of side 1 in story missions, with ai_<house>_<map>.ini', opts, async () => {
   const { storyAiHouse } = await import('../src/emperor/battle.ts');
   const { loadAiRules, aiOverride } = await import('../src/emperor/ai-rules.ts');

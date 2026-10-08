@@ -5,6 +5,18 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-09 Конкурсная карта «За гранью Warcraft III» ([build-contest.ts](src/emperor/build-contest.ts),
+  [config/contest.ts](src/config/contest.ts)). Первая игра дома в одной самостоятельной .w3x: ролик выбора дома и
+  брифинг Ментата (кадры при качестве 70, звук, субтитры), затем стартовая миссия. Модели, иконки, музыка
+  и речь лежат внутри карты (около 178 МБ), конец игры — стандартная победа или поражение. Параметры
+  миссии `standalone`, `intro`, `extraImports`; качество кадров роликов передаётся параметром
+  ([fmv.ts](src/emperor/fmv.ts)). Проверено в 1.31.1: ролики, затем миссия с речью и музыкой. Пробник
+  размера ([build-size-probe.ts](src/smoke/build-size-probe.ts)): 1.31.1 загружает одиночную карту на 428 МБ.
+
+### Fixed
+- 2026-10-09 Фаза 0 стартовых миссий терялась при явном `defaultPhase` (`||` вместо `??`,
+  [mission.ts](src/emperor/mission.ts); тест «a standalone start mission»).
+
 - 2026-10-08 Стартовый сценарий ИИ из ai.ini `[StartScript]` по `Game.exe` 1.09 ([ai.j](src/jass/battle/ai.j)
   `EmpAiStartStep`): ИИ сначала строит группы по порядку (Resource, Manufacturing, Core, Manufacturing,
   Resource) в темпе десятой доли `BuildingDelay`. Сценарий не запускается, если стоящая база

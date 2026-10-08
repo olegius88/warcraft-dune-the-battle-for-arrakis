@@ -26,7 +26,7 @@ interface Manifest extends Omit<MovieInfo, 'sound'> { settings: string; sound?: 
 
 const FFMPEG = ['-hide_banner', '-loglevel', 'error'];
 /** Everything that changes the output: a manifest written with other settings is redone. */
-const SETTINGS = JSON.stringify({ quality: MOVIE_JPEG_QUALITY, audio: MOVIE_AUDIO, version: 2 });
+const settings = (quality: number): string => JSON.stringify({ quality, audio: MOVIE_AUDIO, version: 2 });
 
 /** Local file of an archive path under `root` (the Warcraft III folder). */
 const localFile = (root: string, archivePath: string): string => path.join(root, ...archivePath.split('\\').filter(Boolean));
@@ -42,19 +42,20 @@ function probe(name: string): { width: number; height: number; fps: number; soun
 }
 
 /** The manifest of a converted movie, if it was made with the current settings. */
-function readManifest(name: string, root = WC3_DIR): MovieInfo | null {
+function readManifest(name: string, root = WC3_DIR, quality = MOVIE_JPEG_QUALITY): MovieInfo | null {
   const file = localFile(root, MOVIE_PATH.manifest(name));
   if (!fs.existsSync(file)) return null;
   const m = JSON.parse(fs.readFileSync(file, 'utf8')) as Manifest;
-  if (m.settings !== SETTINGS) return null;
+  if (m.settings !== settings(quality)) return null;
   // manifests written before `sound` existed: every movie but the credits has sound (ffprobe)
   return { frames: m.frames, fps: m.fps, width: m.width, height: m.height, sound: m.sound ?? probe(name).sound };
 }
 
-/** Convert one movie into `root` (skipped when its manifest matches); `seconds` limits it (tests). */
-async function convertMovie(name: string, { root = WC3_DIR, seconds }: { root?: string; seconds?: number } = {}): Promise<MovieInfo> {
+/** Convert one movie into `root` (skipped when its manifest matches); `seconds` limits it (tests);
+ * `quality`: JPEG quality of the frames (a smaller map, src/emperor/build-contest.ts). */
+async function convertMovie(name: string, { root = WC3_DIR, seconds, quality = MOVIE_JPEG_QUALITY }: { root?: string; seconds?: number; quality?: number } = {}): Promise<MovieInfo> {
   if (!seconds) {
-    const done = readManifest(name, root);
+    const done = readManifest(name, root, quality);
     if (done) return done;
   }
   const src = gameData('MOVIES', `${name}.BIK`);
@@ -74,7 +75,7 @@ async function convertMovie(name: string, { root = WC3_DIR, seconds }: { root?: 
     pending = pending.length ? Buffer.concat([pending, chunk]) : chunk;
     while (pending.length >= size) {
       if (frames >= 10 ** MOVIE_FRAME_DIGITS) throw new Error(`${name}: more than ${10 ** MOVIE_FRAME_DIGITS} frames`);
-      fs.writeFileSync(localFile(root, MOVIE_PATH.frame(name, frames)), writeBlpJpeg({ width, height, rgba: pending.subarray(0, size) }, MOVIE_JPEG_QUALITY));
+      fs.writeFileSync(localFile(root, MOVIE_PATH.frame(name, frames)), writeBlpJpeg({ width, height, rgba: pending.subarray(0, size) }, quality));
       frames++;
       pending = pending.subarray(size);
     }
@@ -82,16 +83,16 @@ async function convertMovie(name: string, { root = WC3_DIR, seconds }: { root?: 
   const code: number = await new Promise((resolve) => { if (ff.exitCode !== null) resolve(ff.exitCode); else ff.on('close', (c: number | null) => resolve(c ?? 1)); });
   if (code !== 0) throw new Error(`${name}: ffmpeg failed: ${errors}`);
   const info: MovieInfo = { frames, fps, width, height, sound };
-  if (!seconds) fs.writeFileSync(localFile(root, MOVIE_PATH.manifest(name)), JSON.stringify({ ...info, settings: SETTINGS }, null, 1));
+  if (!seconds) fs.writeFileSync(localFile(root, MOVIE_PATH.manifest(name)), JSON.stringify({ ...info, settings: settings(quality) }, null, 1));
   return info;
 }
 
 /** Convert movies in parallel (MOVIE_WORKERS threads); already converted ones only read their manifest. */
-async function convertMovies(names: Iterable<string>, root = WC3_DIR): Promise<Map<string, MovieInfo>> {
+async function convertMovies(names: Iterable<string>, root = WC3_DIR, quality = MOVIE_JPEG_QUALITY): Promise<Map<string, MovieInfo>> {
   const result = new Map<string, MovieInfo>();
   const todo: string[] = [];
   for (const n of new Set(names)) {
-    const done = readManifest(n, root);
+    const done = readManifest(n, root, quality);
     if (done) result.set(n, done);
     else todo.push(n);
   }
@@ -100,7 +101,7 @@ async function convertMovies(names: Iterable<string>, root = WC3_DIR): Promise<M
     while (next < todo.length) {
       const name = todo[next++] as string;
       const info = await new Promise<MovieInfo>((resolve, reject) => {
-        const w = new Worker(new URL('./fmv-worker.ts', import.meta.url), { workerData: { name, root } });
+        const w = new Worker(new URL('./fmv-worker.ts', import.meta.url), { workerData: { name, root, quality } });
         w.once('message', (m: MovieInfo) => resolve(m));
         w.once('error', reject);
         w.once('exit', (c) => { if (c !== 0) reject(new Error(`${name}: worker exited with ${c}`)); });
