@@ -79,6 +79,27 @@ test('MDX: a particle emitter 2 (PRE2), read back by the independent reader', ()
   assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf, 'byte-exact round trip');
 });
 
+// FXData rings (Game.exe 1.09 0x4b074e: +0x3c < 0 emits in one of three planes) are line emitters
+// (flags 0x20000: directions only in the emitter's XZ plane, mdx-m3-viewer particle2.ts) turned into
+// their plane by a rotation track (KGRT) of the emitter's generic object.
+test('MDX: a particle emitter 2 with a rotation track and the line emitter flag', () => {
+  const ring: MdxModel = { ...tiny, pivots: [[0, 0, 0], [0, 0, 0]],
+    emitters: [{ name: 'ring', parentId: -1, flags: 0x8000 | 0x20000, speed: 100, variation: 0, latitude: 180, gravity: 0, lifeSpan: 1, emissionRate: 20, width: 1, length: 1,
+      filterMode: 1, rows: 1, columns: 1, headOrTail: 0, tailLength: 0, timeMiddle: 0.5,
+      colors: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], alphas: [255, 255, 0], scaling: [10, 10, 10],
+      headIntervals: [[0, 0, 1], [0, 0, 1]], tailIntervals: [[0, 0, 1], [0, 0, 1]], textureId: 0, squirt: 0, priorityPlane: 0, replaceableId: 0,
+      rotation: { frames: [0, 1000], values: [[Math.SQRT1_2, 0, 0, Math.SQRT1_2], [Math.SQRT1_2, 0, 0, Math.SQRT1_2]], interpolation: 0 },
+      visibility: { frames: [0], values: [[1]], interpolation: 0 } }] };
+  const buf = writeMdx(ring);
+  const m = new MdlxModel();
+  m.load(new Uint8Array(buf));
+  const e = m.particleEmitters2[0];
+  assert.strictEqual(e.flags & 0x20000, 0x20000, 'line emitter');
+  assert.deepStrictEqual(e.animations.map((a: { name: string }) => a.name), ['KGRT', 'KP2V']);
+  assert.ok(Math.abs((e.animations[0].values[0] as ArrayLike<number>)[0] as number - Math.SQRT1_2) < 1e-6, 'rotation value');
+  assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf, 'byte-exact round trip');
+});
+
 // Glue-screen models (the campaign background, src/emperor/menu-scene.ts) need a camera and tracks
 // that loop on their own (global sequences).
 test('MDX: global sequences and a camera, read back by the independent reader', () => {

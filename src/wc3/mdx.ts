@@ -101,6 +101,8 @@ export interface ParticleEmitter2 {
   textureId: number; squirt: number; priorityPlane: number; replaceableId: number;
   /** KP2V visibility (0 / 1), KP2E emission rate */
   visibility?: Track; emission?: Track;
+  /** KGRT rotation of the emitter's generic object (quaternions x, y, z, w) */
+  rotation?: Track;
 }
 
 export interface MdxModel {
@@ -266,8 +268,11 @@ function writeMdx(m: MdxModel): Buffer {
         e.visibility ? trackBytes('KP2V', e.visibility, 1) : Buffer.alloc(0),
         e.emission ? trackBytes('KP2E', e.emission, 1) : Buffer.alloc(0),
       ]);
-      // size, generic object (size 96, name, object id, parent, flags), 171 bytes of fields, tracks
-      c.u32(4 + 96 + 171 + anims.length); c.u32(96); c.str(e.name, 80); c.i32(first + i); c.i32(e.parentId); c.u32(0x1000 | (e.flags ?? 0));
+      const node = e.rotation ? trackBytes('KGRT', e.rotation, 4) : Buffer.alloc(0);
+      // size, generic object (size 96 + its tracks, name, object id, parent, flags, KGRT), 171 bytes of
+      // fields, tracks
+      c.u32(4 + 96 + node.length + 171 + anims.length); c.u32(96 + node.length); c.str(e.name, 80); c.i32(first + i); c.i32(e.parentId); c.u32(0x1000 | (e.flags ?? 0));
+      c.push(node);
       c.f32(e.speed); c.f32(e.variation); c.f32(e.latitude); c.f32(e.gravity); c.f32(e.lifeSpan); c.f32(e.emissionRate); c.f32(e.width); c.f32(e.length);
       c.u32(e.filterMode); c.u32(e.rows); c.u32(e.columns); c.u32(e.headOrTail); c.f32(e.tailLength); c.f32(e.timeMiddle);
       for (const col of e.colors) c.f32s(col);
