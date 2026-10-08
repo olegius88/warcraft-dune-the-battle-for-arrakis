@@ -82,6 +82,24 @@ export interface Camera { name: string; position: V3; fieldOfView: number; farCl
 /** Attachment point (effects attach to it by name: "origin", "overhead", "chest", "weapon"). */
 export interface Attachment { name: string; parentId: number; attachmentId: number }
 
+type V3i = [number, number, number];
+/** Particle emitter 2 (particleemitter2.ts): sprites shot from the pivot, coloured / faded / scaled over
+ * three segments; filterMode 0 blend, 1 additive, 2 modulate, 3 modulate 2x, 4 alpha key; rows x
+ * columns cells of the texture, head intervals [start, end, repeat] of cells over life (first half,
+ * second half). Object ids follow the attachments'. */
+export interface ParticleEmitter2 {
+  name: string; parentId: number;
+  /** generic object flags besides 0x1000 (0x8000 unshaded, 0x80000 model space, 0x100000 XY quad) */
+  flags?: number;
+  speed: number; variation: number; latitude: number; gravity: number; lifeSpan: number; emissionRate: number; width: number; length: number;
+  filterMode: number; rows: number; columns: number; headOrTail: number; tailLength: number; timeMiddle: number;
+  colors: [V3, V3, V3]; alphas: V3i; scaling: V3;
+  headIntervals: [V3i, V3i]; tailIntervals: [V3i, V3i];
+  textureId: number; squirt: number; priorityPlane: number; replaceableId: number;
+  /** KP2V visibility (0 / 1), KP2E emission rate */
+  visibility?: Track; emission?: Track;
+}
+
 export interface MdxModel {
   name: string;
   extent: Extent;
@@ -93,7 +111,9 @@ export interface MdxModel {
   bones: Bone[];
   /** attachment points; their object ids follow the bones' */
   attachments?: Attachment[];
-  /** one pivot per object (bones first: object id = bone index, then the attachments) */
+  /** particle emitters 2; their object ids follow the attachments' */
+  emitters?: ParticleEmitter2[];
+  /** one pivot per object (bones first: object id = bone index, then the attachments, the emitters) */
   pivots: V3[];
   /** durations (ms) of the global sequences tracks refer to */
   globalSequences?: number[];
@@ -227,6 +247,27 @@ function writeMdx(m: MdxModel): Buffer {
     chunk(o, 'ATCH', c.buffer());
   }
   if (m.pivots.length) { const c = new Out(); m.pivots.forEach((p) => c.f32s(p)); chunk(o, 'PIVT', c.buffer()); }
+  if (m.emitters?.length) {
+    const c = new Out();
+    const first = m.bones.length + (m.attachments?.length ?? 0);
+    m.emitters.forEach((e, i) => {
+      const anims = Buffer.concat([
+        e.visibility ? trackBytes('KP2V', e.visibility, 1) : Buffer.alloc(0),
+        e.emission ? trackBytes('KP2E', e.emission, 1) : Buffer.alloc(0),
+      ]);
+      // size, generic object (size 96, name, object id, parent, flags), 171 bytes of fields, tracks
+      c.u32(4 + 96 + 171 + anims.length); c.u32(96); c.str(e.name, 80); c.i32(first + i); c.i32(e.parentId); c.u32(0x1000 | (e.flags ?? 0));
+      c.f32(e.speed); c.f32(e.variation); c.f32(e.latitude); c.f32(e.gravity); c.f32(e.lifeSpan); c.f32(e.emissionRate); c.f32(e.width); c.f32(e.length);
+      c.u32(e.filterMode); c.u32(e.rows); c.u32(e.columns); c.u32(e.headOrTail); c.f32(e.tailLength); c.f32(e.timeMiddle);
+      for (const col of e.colors) c.f32s(col);
+      c.push(Buffer.from(e.alphas.map((a) => Math.max(0, Math.min(255, Math.round(a))))));
+      c.f32s(e.scaling);
+      for (const iv of [...e.headIntervals, ...e.tailIntervals]) iv.forEach((v) => c.u32(v));
+      c.i32(e.textureId); c.u32(e.squirt); c.i32(e.priorityPlane); c.u32(e.replaceableId);
+      c.push(anims);
+    });
+    chunk(o, 'PRE2', c.buffer());
+  }
   if (m.cameras?.length) {
     const c = new Out();
     for (const cam of m.cameras) { c.u32(120); c.str(cam.name, 80); c.f32s(cam.position); c.f32(cam.fieldOfView); c.f32(cam.farClip); c.f32(cam.nearClip); c.f32s(cam.target); }

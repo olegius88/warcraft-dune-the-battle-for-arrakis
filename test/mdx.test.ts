@@ -54,6 +54,31 @@ test('MDX: a layer texture id track (KMTF), read back by the independent reader'
   assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf, 'byte-exact round trip');
 });
 
+// Emperor's FXData particle emitters (hits, sparks, smoke) become particle emitters 2 (PRE2): a
+// generic object (flags 0x1000) after the attachments, its pivot after theirs, the emitter fields and
+// a visibility track (KP2V) (mdx-m3-viewer particleemitter2.ts).
+test('MDX: a particle emitter 2 (PRE2), read back by the independent reader', () => {
+  const emit: MdxModel = { ...tiny, attachments: [{ name: 'Origin Ref', parentId: -1, attachmentId: 0 }], pivots: [[0, 0, 0], [0, 0, 0], [1, 2, 3]],
+    emitters: [{ name: 'spark', parentId: 0, speed: 200, variation: 0.3, latitude: 30, gravity: 50, lifeSpan: 0.8, emissionRate: 20, width: 10, length: 10,
+      filterMode: 1, rows: 2, columns: 4, headOrTail: 0, tailLength: 0, timeMiddle: 0.5,
+      colors: [[1, 0.5, 0], [1, 0.3, 0], [0.2, 0.1, 0]], alphas: [255, 200, 0], scaling: [1, 1.5, 2],
+      headIntervals: [[0, 7, 1], [0, 0, 1]], tailIntervals: [[0, 0, 1], [0, 0, 1]], textureId: 0, squirt: 0, priorityPlane: 0, replaceableId: 0,
+      visibility: { frames: [1100, 1300], values: [[1], [0]], interpolation: 0 } }] };
+  const buf = writeMdx(emit);
+  const m = new MdlxModel();
+  m.load(new Uint8Array(buf));
+  const e = m.particleEmitters2[0];
+  assert.strictEqual(e.name, 'spark');
+  assert.strictEqual(e.objectId, 2, 'after the bone and the attachment');
+  assert.strictEqual(e.parentId, 0);
+  assert.strictEqual(e.speed, 200);
+  assert.strictEqual(e.columns, 4);
+  assert.deepStrictEqual([...e.segmentAlphas], [255, 200, 0]);
+  assert.strictEqual(e.animations[0].name, 'KP2V');
+  assert.deepStrictEqual([...m.pivotPoints[2]], [1, 2, 3]);
+  assert.deepStrictEqual(Buffer.from(m.saveMdx()), buf, 'byte-exact round trip');
+});
+
 // Glue-screen models (the campaign background, src/emperor/menu-scene.ts) need a camera and tracks
 // that loop on their own (global sequences).
 test('MDX: global sequences and a camera, read back by the independent reader', () => {
