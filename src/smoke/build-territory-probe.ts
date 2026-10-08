@@ -491,6 +491,52 @@ function CriticalProbeRun takes nothing returns nothing
     set g = null
 endfunction`,
   } : {}),
+  // --plan: the defence plan (battle ai-map.j): tech 5, DEFENSIVE (walls past 2..3 minutes), strong,
+  // credits, 24 infantry of side 1, maintenance at once; no fog, the camera on the enemy base. The AI
+  // report logs the clusters, the roads, the plan's points and turrets and the walls started.
+  ...(flag('--plan') ? {
+    extraStart: 'PlanProbeRun',
+    extraFunctions: `function PlanProbeRun takes nothing returns nothing
+    local integer l = 1
+    local integer i = 0
+    set EmpNormalConditions = false
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(2.0)
+    set EmpTechLevel = 5
+    set EmpAiBuildsDef = true
+    set EmpAiPersonality = 2
+    set EmpAiStrength = 2
+    set EmpAiSkill = 9
+    loop
+        exitwhen l > ${BATTLE.AI_TECH_LEVELS}
+        set EmpAiTBuildings[l] = 1
+        set EmpAiTMaintDelay[l] = 3.0
+        set l = l + 1
+    endloop
+    call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 40000)
+    loop
+        exitwhen i >= 24
+        call CreateUnit(Player(1), '${all.units.rawcode.get('HKLightInf')}', EmpBaseX[EmpBaseOfSide(1)] + GetRandomReal(-300.0, 300.0), EmpBaseY[EmpBaseOfSide(1)] - 900.0, 270.0)
+        set i = i + 1
+    endloop
+    call SetCameraPositionForPlayer(Player(0), EmpBaseX[EmpBaseOfSide(1)], EmpBaseY[EmpBaseOfSide(1)])
+    call EmpAiLog("probe: clusters " + I2S(EmpAiClN) + " builds defences " + I2S(EF_B2I(EmpAiBuildsDef)))
+    loop
+        exitwhen EmpTick > 8500
+        call TriggerSleepAction(2.0)
+    endloop
+    set i = 0
+    loop
+        exitwhen i >= EmpAiClN
+        call EmpAiLog("probe: cluster " + I2S(i) + " box " + I2S(EmpAiClX0[i]) + "," + I2S(EmpAiClY0[i]) + " .. " + I2S(EmpAiClX1[i]) + "," + I2S(EmpAiClY1[i]) + " plan " + I2S(LoadInteger(EmpAiMapTab, -1 - i, 0)))
+        set i = i + 1
+    endloop
+    set i = EmpAiClN - 1
+    call SetCameraFieldForPlayer(Player(0), CAMERA_FIELD_TARGET_DISTANCE, 3000.0, 0.0)
+    call SetCameraPositionForPlayer(Player(0), EmpAiTileWX((EmpAiClX0[i] + EmpAiClX1[i]) / 2), EmpAiTileWY((EmpAiClY0[i] + EmpAiClY1[i]) / 2))
+endfunction`,
+  } : {}),
   // --critneeds: the builder's critical needs (ai.j EmpAiCritical): skill 99, strength 2; the AI report
   // logs EmpAiCritical() past 1 minute (refineries: want 3 > the template's), with the windtraps gone
   // (power) and with 3 ornithopters of the enemy house and its helipads gone (helipads)

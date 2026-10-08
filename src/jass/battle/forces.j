@@ -34,6 +34,9 @@ endfunction
 // (re)builds template entry k of the enemy house at the base b
 function EmpTplBuild takes integer k, integer b returns nothing
     set EmpTplUnit[k] = CreateUnit(Player(1), EmpTplType[k], EmpBaseX[b] + EmpTiles(EmpTplDx[k]), EmpBaseY[b] - EmpTiles(EmpTplDy[k]), {{FACING}})
+    // on the AI's map (battle ai-map.j; before its data, EmpAiMapInit takes the standing ones)
+    set EmpAiMapUnit = EmpTplUnit[k]
+    call ExecuteFunc("EmpAiMapAdd")
 endfunction
 
 // ---- starting forces / enemy base (territory battles). Armies are sets of the house's units worth
@@ -219,6 +222,7 @@ function EmpAiTune takes boolean strong, integer m, integer strength returns not
 {{defensiveSide}}
     endif
     set EmpAiStrength = strength
+    set EmpAiPersonality = m
     set EmpAiSkill = IMinBJ({{C.AI_SKILL.max}}, IMaxBJ({{C.AI_SKILL.min}}, EmpAiSkillBase + (strength - 1) * {{C.AI_SKILL.step}}))
     call EmpAiLog("skill " + I2S(EmpAiSkill))
     if EmpAiWaveTimer != null then

@@ -35,15 +35,9 @@
 // template whose lost buildings are rebuilt first (BASE_TEMPLATE; Emperor's campaign start base is not
 // traced); sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not
 // turn);
-// builder state 3, Game.exe's defence plan (0x430c90 / 0x42e5d0: with AiBuildsDefences and a tech
-// level over FirstCampaignGameTechLevel + 1, turrets and walls at a building cluster's defence points,
-// walls given up after 10 minutes, "AI has been building walls for %d minutes so aborting"; entered
-// (0x430c90) also with 22 units, no critical need, the plan not done (0x429210) and 600 credits over
-// the reserve; the plan (cluster +0x20, 0x429230) is a list of (tile, turret 0x43c140 or wall 0x43c1c0
-// by 0x436780) along the contour the AI map traces round the cluster box grown 5 tiles, gaps of 1..3
-// closed (0x435d50: 0x435b70, 0x436410 -> 0x436570, 0x435dc0 steps; the tracing is not ported), taken
-// in order where placeable (0x429380)), stands in as turrets by ratio with a wall row each (ai.j
-// EmpAiWalls); of the 17 skill rolls (0x46c5d0) the
+// Builder state 3 is Game.exe's defence plan (ai-map.j, AI_PLAN / AI_MAP): walls along the contour of
+// a building cluster on the AI's map of tiles, turrets where the walls end at its roads. Of the 17
+// skill rolls (0x46c5d0) the
 // maintenance one, the critical barracks (0x42db67, ai.j EmpAiCriticalBarracks, asked in every
 // builder turn like 0x42f07d does), the harvester flight (0x45a91b, ai.j EmpAiHarvTick,
 // AI_HARV_FLIGHT; probe --harvflee) and the special units (0x465500, forces.j EmpAiSpecialTurn,
@@ -77,6 +71,7 @@ import type { Scope } from '../wc3/template.ts';
 import { jassFile } from '../config/paths.ts';
 import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
 import { EMPEROR_TILE, TICKS_PER_SECOND, TICK_SECONDS, WC3_UNITS_PER_TILE, HP_DIVISOR, moveSpeed } from '../config/scale.ts';
+import { aiMapRuns, occupyCells } from './ai-map.ts';
 import { TERRAIN, UNIT_FIELD, ART_ABILITY, EFFECT, ABILITY } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules, RulesObject } from './rules.ts';
@@ -407,7 +402,33 @@ endfunction`;
     const name = [...o.units.rawcode].find(([, v]) => v === id)?.[0];
     if (name && o.rules?.objects.get(name)?.aiSpecial) aiLines.push(`    call SaveBoolean(EmpAiTab, '${id}', ${C.AI_TAB_SPECIAL}, true)`);
   }
+  // the AI's map (ai-map.j): its static layer, the cells of the buildings of the AI houses, the plan
+  // turrets; data functions of AI_MAP.linesPerChunk calls each (a thread each: the op limit)
+  const mapCalls: string[] = [];
+  const mapInit: string[] = [];
+  if (o.meta.tiles && o.meta.mapSize) {
+    const [W, H] = o.meta.mapSize;
+    const [ax, ay] = o.terrain.toWorld(0, 0).map((v) => v / WC3_UNITS_PER_TILE) as [number, number];
+    mapInit.push(`    set EmpAiMapW = ${W}`, `    set EmpAiMapH = ${H}`, `    set EmpAiMapAx = ${real(ax)}`, `    set EmpAiMapAy = ${real(ay)}`);
+    for (const [y, x0, x1, v] of aiMapRuns(o.meta.tiles, W, H)) mapCalls.push(`    call EmpAiMapRun(${y}, ${x0}, ${x1}, ${v})`);
+  }
+  PREFIXES.forEach((h, hi) => {
+    for (const r of [...(o.rules?.objects.values() ?? [])].filter((x) => x.category === 'Building' && x.name.startsWith(h) && rc(x.name))) {
+      const cells = occupyCells(r.occupy);
+      for (const [dx, dy] of cells.body) mapCalls.push(`    call EmpAiOcc('${rc(r.name)}', ${dx}, ${dy}, true)`);
+      for (const [dx, dy] of cells.reserved) mapCalls.push(`    call EmpAiOcc('${rc(r.name)}', ${dx}, ${dy}, false)`);
+    }
+    const turret = rc(h + (C.AI_PLAN.turret[h] ?? ''));
+    mapInit.push(`    set EmpAiPlanTurret[${hi}] = ${turret ? `'${turret}'` : 0}`);
+  });
+  const chunks: string[] = [];
+  for (let i = 0; i < mapCalls.length; i += C.AI_MAP.linesPerChunk) chunks.push(`function EmpAiMapData${chunks.length} takes nothing returns nothing\n${mapCalls.slice(i, i + C.AI_MAP.linesPerChunk).join('\n')}\nendfunction\n`);
+  chunks.forEach((_, i) => mapInit.push(`    call ExecuteFunc("EmpAiMapData${i}")`));
+  const aiMapFunctions = renderFile(jassFile('battle/ai-map'), {
+    M: C.AI_MAP, P: C.AI_PLAN, C, ai, WC3_UNITS_PER_TILE, planTech: ai.firstCampaignTech + 1, mapData: chunks.join('\n'), mapInit: mapInit.join('\n'),
+  });
   const aiFunctions = renderFile(jassFile('battle/ai'), {
+    aiMapFunctions,
     C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND, TICK_SECONDS, ABILITY,
     // AI_HARV_FLIGHT: the tech level the harvester flight waits past (FirstCampaignGameTechLevel + 1)
     harvFlightTech: ai.firstCampaignTech + 1,

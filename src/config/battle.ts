@@ -100,9 +100,39 @@ export const AI_GROUP_FLAGS: ReadonlyArray<readonly [string, 'core' | 'critical'
   ['AiCore', 'core'], ['AiCritical', 'critical'], ['AiDefence', 'defence'], ['AiManufacturing', 'manufacturing'], ['AiResource', 'resource'],
 ];
 export const AI_EXIT_FLAG = 'AiExit';
+/** The enemy AI's map of tiles (Game.exe 1.09 AiMap, src/emperor/ai-map.ts, ai-map.j), a byte per
+ * tile: class (bits 0-1: 0 free rock, 1 a building's body, 2 no building may stand here: 0x433e50
+ * takes the first building type's terrain mask, HKSmWindtrap "Terrain = Rock" - inferred from the type
+ * order, 0x46afe0 not traced), road 0x4, reserved 0x8, ramp top 0x20 (a rock tile next to a ramp,
+ * 0x4369a0, reserved too). `rock` marks the static rock tiles here (unsaved = class 2). Game.exe drops
+ * class 2 map-wide when one of its buildings dies (0x436f90) and never sets it again; here it stays.
+ * Distances in tiles: `reserve` round a building that is no defence (0x434564), `join` a building to a
+ * cluster box (0x42c69a), `grow` the box for the contour (0x435b7f), `gapFill` the widest gap closed
+ * (0x435c06), `edge` the map margin of plan points (0x4364c6), `apron` the strips before an exit
+ * (0x435690), `rampRoad` the half length of the strips towards a ramp (0x434ad0), `probeTurn` the
+ * steps before the road turns (0x436b70), `roadWidth` the strips of a road. */
+/** Game.exe 1.09 builder state 3, the defence plan (ai.j EmpAiShouldDefend / EmpAiWallsGo / EmpAiBuild):
+ * entered (0x430c90) with AiBuildsDefences, a tech level over FirstCampaignGameTechLevel + 1, `units`
+ * units, no critical need, and `gold` credits while the newest cluster's plan runs, else
+ * MinMoneyToStartBuildingWalls credits past `minutes` + rand(0..minutesRand) minutes of the game
+ * (`defensiveMinutes` when DEFENSIVE, + `weakPlus` when the strength is 0; 0x430d93..0x430e18); kept
+ * (0x42f07d) with `stayUnits` units and `stayGold` credits; plans give up `wallTicks` after the first
+ * entry (0x42e70a, "AI has been building walls for %d minutes so aborting"). `facing`: the side the
+ * exits of a building face (0 -y, 1 +x, 2 +y, 3 -x; WC3 buildings face south, Game.exe's default
+ * vector 0xb7d8c8 not traced). The plan's turret per house (0x43c1c0) by name suffix. */
+export const AI_PLAN = {
+  units: 22, stayUnits: 20, gold: 600, stayGold: 500, minutes: 7, defensiveMinutes: 2, minutesRand: 1, weakPlus: 2,
+  wallTicks: 15000, facing: 2, turret: { AT: 'Pillbox', HK: 'FlameTurret', OR: 'GasTurret' } as Readonly<Record<string, string>>,
+} as const;
+export const AI_MAP = {
+  classMask: 3, free: 0, body: 1, blocked: 2, road: 0x4, reserved: 0x8, rampTop: 0x20, rock: 0x40,
+  reserve: 3, join: 6, grow: 5, gapFill: 3, edge: 3, apron: 3, rampRoad: 7, probeTurn: 5, roadWidth: 3,
+  /** clusters kept (Game.exe: a list); tiles clear of units round a plan point (EmpAiFree) */
+  maxClusters: 32, fitClear: 0.4,
+  /** EmpAiMapRun / EmpAiOcc calls per data function (each its own thread: the op limit) */
+  linesPerChunk: 400,
+} as const;
 export const AI_WALL = 'Wall';
-/** Wall pieces built in a row on the outer side of a turret once the AI has MinMoneyToStartBuildingWalls. */
-export const AI_WALL_PIECES = 3;
 /** "Low tech" for MaxTurretsAtLowTech (ai.ini: "Max turrets at tech < 5"). */
 export const AI_LOW_TECH_BELOW = 5;
 /** Building sites tried: rings around the base point every AI_SITE_STEP tiles out to AI_SITE_MAX,

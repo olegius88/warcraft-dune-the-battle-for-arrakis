@@ -122,6 +122,8 @@ export interface RulesObject {
   size: number;
   /** [width, height] in tiles from the Occupy rows */
   footprint: [number, number] | null;
+  /** the Occupy rows as written (cell letters b d p n s, Game.exe 0x526e76; src/emperor/ai-map.ts) */
+  occupy: string[];
   turrets: Turret[];
   /** base-level key/values as written */
   raw: Record<string, string>;
@@ -318,6 +320,7 @@ function loadRules(rulesPath: string): Rules {
       tastyToWorms: v.TastyToWorms === undefined || bool(v.TastyToWorms), wormAttraction: num(v.WormAttraction, 1), stormDamage: num(v.StormDamage),
       size: num(v.Size, 1),
       footprint: occupy.length ? [Math.max(...occupy.map((r) => r.length)), occupy.length] : null,
+      occupy: [...occupy],
       turrets, raw: v,
     });
   }

@@ -5,8 +5,8 @@
 // the free site that scores best by the
 // [PositionAlgorithmRatios*] weights; it appears after the building's Rules.txt BuildTime. Turrets
 // keep MinimumGapBetweenTurrets, wait for FirstTechLevelToBuildTurrets and stay within
-// MaxTurretsAtLowTech below tech AI_LOW_TECH_BELOW; refineries stop at MaxRefineries; with
-// MinMoneyToStartBuildingWalls a turret gets a row of wall pieces on its outer side.
+// MaxTurretsAtLowTech below tech AI_LOW_TECH_BELOW; refineries stop at MaxRefineries. Walls come from
+// the defence plan (ai-map.j) in builder state 3.
 // Tactics: scouts once UnitsToBuildBeforeCreatingScoutTactic units were made (NumberOfScoutTeams,
 // one unit each, roaming; the first player building they see becomes the attack target, after
 // TicksUntilAISeesIntoShroud the player's base is known anyway); base defence chases enemies within
@@ -228,6 +228,8 @@ function EmpAiFinish takes nothing returns nothing
     if EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
         set u = CreateUnit(Player(1), t, x, y, {{FACING}})
         call EmpAiLog("built " + GetUnitName(u))
+        set EmpAiMapUnit = u
+        call ExecuteFunc("EmpAiMapAdd")
         set u = null
     else
         call EmpAiLog("lost (no construction yard) " + GetObjectName(t))
@@ -286,49 +288,7 @@ function EmpAiPick takes integer c returns integer
     return pick
 endfunction
 
-// wall pieces in a row on the outer side of a turret that has none yet
-function EmpAiWalls takes nothing returns boolean
-    local group g = CreateGroup()
-    local unit u
-    local integer b = EmpBaseOfSide(1)
-    local real a
-    local integer k
-    local real x
-    local real y
-    local boolean done = false
-    local integer w = EmpAiWall[EmpEnemyHouse]
-    if w == 0 or GetPlayerTechMaxAllowed(Player(1), w) == 0 then
-        call DestroyGroup(g)
-        set g = null
-        return false
-    endif
-    call GroupEnumUnitsOfPlayer(g, Player(1), null)
-    loop
-        set u = FirstOfGroup(g)
-        exitwhen u == null or done
-        call GroupRemoveUnit(g, u)
-        if EmpAlive(u) and LoadBoolean(EmpAiTab, EmpType(u), 1) and not LoadBoolean(EmpAiTab, GetHandleId(u), 20) then
-            call SaveBoolean(EmpAiTab, GetHandleId(u), 20, true)
-            set a = Atan2(GetUnitY(u) - EmpBaseY[b], GetUnitX(u) - EmpBaseX[b])
-            set k = 0
-            loop
-                exitwhen k >= {{C.AI_WALL_PIECES}}
-                // across the line from the base: pieces either side of the point 2 tiles outside
-                set x = GetUnitX(u) + 2.0 * {{real WC3_UNITS_PER_TILE}} * Cos(a) + (k - {{C.AI_WALL_PIECES}} / 2) * {{real WC3_UNITS_PER_TILE}} * Cos(a + bj_PI / 2.0)
-                set y = GetUnitY(u) + 2.0 * {{real WC3_UNITS_PER_TILE}} * Sin(a) + (k - {{C.AI_WALL_PIECES}} / 2) * {{real WC3_UNITS_PER_TILE}} * Sin(a + bj_PI / 2.0)
-                if EmpAiFree(x, y, 0.4) and EmpEnemyGold() >= LoadInteger(EmpCostTab, w, 0) then
-                    call EmpAiStart(w, x, y)
-                endif
-                set k = k + 1
-            endloop
-            call EmpAiLog("walls by a turret")
-            set done = true
-        endif
-    endloop
-    call DestroyGroup(g)
-    set g = null
-    return done
-endfunction
+{{aiMapFunctions}}
 
 // why the base builder is idle, logged when it changes (0 building; reasons in EmpAiBuild)
 function EmpAiWait takes integer why, string s returns nothing
@@ -583,6 +543,22 @@ function EmpAiBuild takes nothing returns nothing
     endif
     // the critical needs first (0x42d6e0): refineries, power, helipads, barracks
     set t = EmpAiCritical()
+    // Game.exe's builder states 3 / 4 (0x42f07d / 0x42f0da): in maintenance the defence plan (ai-map.j)
+    if EmpAiWalling then
+        if t == 0 and EmpAiWallsGo() and EmpEnemyGold() >= {{C.AI_PLAN.stayGold}} and EmpAiUnitCount() >= {{C.AI_PLAN.stayUnits}} then
+            call EmpAiPlanStep()
+            return
+        endif
+        set EmpAiWalling = false
+        call EmpAiLog("walls: back to maintenance")
+    elseif EmpAiMaintaining and t == 0 and EmpAiShouldDefend() then
+        if EmpAiWallSince == 0 then
+            set EmpAiWallSince = EmpTick
+        endif
+        set EmpAiWalling = true
+        call EmpAiLog("walls: defence plan")
+        return
+    endif
     if t == 0 and EmpAiUpgrade() then
         return
     elseif t == 0 then
@@ -647,8 +623,6 @@ function EmpAiBuild takes nothing returns nothing
             if best == 1 then
                 if EmpAiBuildsDef and EmpTechLevel >= {{ai.firstTechTurrets}} and (EmpTechLevel >= {{C.AI_LOW_TECH_BELOW}} or EmpAiCount(-1) < {{ai.maxTurretsLowTech}}) and EmpAiCount(-1) < EmpAiTTurrets[EmpAiT()] then
                     set t = EmpAiPick(1)
-                elseif EmpAiBuildsDef and EmpEnemyGold() >= {{ai.minMoneyWalls}} and EmpAiWalls() then
-                    return
                 endif
             elseif best != 3 or EmpAiCount(-2) < {{ai.maxRefineries}} then
                 set t = EmpAiPick(best)
@@ -1158,6 +1132,7 @@ endfunction
 function EmpAiInit takes nothing returns nothing
     local trigger tr = CreateTrigger()
     call EmpAiData()
+    call EmpAiMapInit()
     call TriggerRegisterPlayerUnitEvent(tr, Player(1), EVENT_PLAYER_UNIT_ATTACKED, null)
     call TriggerAddAction(tr, function EmpAiOnAttacked)
     set EmpAiHarvHitTrig = CreateTrigger()

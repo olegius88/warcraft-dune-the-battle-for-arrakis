@@ -183,6 +183,44 @@
     integer array EmpAiBCount
     integer array EmpAiWall
     integer array EmpAiPower
+    // the AI's map of tiles and its defence plan (battle ai-map.j)
+    hashtable EmpAiMapTab = null
+    integer EmpAiMapW = 0
+    integer EmpAiMapH = 0
+    real EmpAiMapAx = 0.0
+    real EmpAiMapAy = 0.0
+    unit EmpAiMapUnit = null
+    integer EmpAiBbX0 = 0
+    integer EmpAiBbY0 = 0
+    integer EmpAiBbX1 = 0
+    integer EmpAiBbY1 = 0
+    integer EmpAiRsX = 0
+    integer EmpAiRsY = 0
+    integer EmpAiClN = 0
+    integer array EmpAiClX0
+    integer array EmpAiClY0
+    integer array EmpAiClX1
+    integer array EmpAiClY1
+    boolean array EmpAiClMade
+    boolean array EmpAiClDone
+    integer array EmpAiTrX
+    integer array EmpAiTrY
+    integer EmpAiTrN = 0
+    integer EmpAiTrX0 = 0
+    integer EmpAiTrY0 = 0
+    integer EmpAiTrX1 = 0
+    integer EmpAiTrY1 = 0
+    integer EmpAiTrPh = 0
+    integer EmpAiTrCx = 0
+    integer EmpAiTrCy = 0
+    integer EmpAiTrSx = 0
+    integer EmpAiTrSy = 0
+    integer EmpAiTrHit = 0
+    integer EmpAiPlanC = 0
+    integer array EmpAiPlanTurret
+    integer EmpAiWallSince = 0
+    boolean EmpAiWalling = false
+    integer EmpAiPersonality = 0
     // the builder's critical needs (ai.j EmpAiCritical): refinery and helipad type per house
     integer array EmpAiRefinery
     integer array EmpAiHelipad

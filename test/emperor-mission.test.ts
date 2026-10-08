@@ -1457,3 +1457,30 @@ test('the base builder groups buildings by their Rules.txt Ai* flags (Game.exe 0
     assert.ok(m.script.includes(`call SaveReal(EmpAiTab, '${id(n)}', 4, ${(all.rules.objects.get(n)?.buildTime ?? 0) / 25}`), `${n} build time`);
   }
 });
+
+// The AI's walls were an invention (EmpAiWalls: a row of wall pieces beside each turret). Game.exe 1.09
+// walls a building cluster along the contour its AI map traces round it (0x429230 / 0x435d50), with
+// turrets at the ends of the wall next to its roads (0x436780), in builder state 3 (0x430c90: tech over
+// FirstCampaignGameTechLevel + 1, 22 units, 600 credits or MinMoneyToStartBuildingWalls and 7..8
+// minutes, 2..3 DEFENSIVE, + 2 weak; stays with 20 units and 500 credits, at most 10 minutes).
+test('the AI walls its base along its AI map\'s contour (Game.exe defence plan)', opts, async () => {
+  const { aiMapRuns, occupyCells } = await import('../src/emperor/ai-map.ts');
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'plan', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const id = (n: string) => all.units.rawcode.get(n);
+  const [W, H] = meta.mapSize as [number, number];
+  assert.strictEqual((m.script.match(/call EmpAiMapRun\(/g) ?? []).length, aiMapRuns(meta.tiles as Buffer, W, H).length, 'static layer');
+  const yard = occupyCells(all.rules.objects.get('ATConYard')?.occupy ?? []);
+  assert.strictEqual((m.script.match(new RegExp(`call EmpAiOcc\\('${id('ATConYard')}', `, 'g')) ?? []).length, yard.body.length + yard.reserved.length, 'yard cells');
+  assert.ok(m.script.includes(`set EmpAiPlanTurret[0] = '${id('ATPillbox')}'`) && m.script.includes(`set EmpAiPlanTurret[1] = '${id('HKFlameTurret')}'`) && m.script.includes(`set EmpAiPlanTurret[2] = '${id('ORGasTurret')}'`), 'plan turrets (0x43c1c0)');
+  for (const f of ['EmpAiMapGet', 'EmpAiMapMark', 'EmpAiRoadsToRamp', 'EmpAiPlanTrace', 'EmpAiGateEnd', 'EmpAiPlanStep']) assert.ok(m.script.includes(`function ${f} takes`), f);
+  const should = body('EmpAiShouldDefend');
+  assert.ok(should.includes('EmpTechLevel <= 3 or') && should.includes('EmpAiUnitCount() < 22') && should.includes('>= 600'), 'gates');
+  assert.ok(should.includes('GetRandomInt(0, 1) + 7') && should.includes('GetRandomInt(0, 1) + 2') && should.includes('set mins = mins + 2'), 'minutes');
+  assert.ok(body('EmpAiWallsGo').includes('> 15000'), 'ten minutes');
+  assert.ok(body('EmpAiBuild').includes('>= 500') && body('EmpAiBuild').includes('>= 20'), 'stays walling');
+  assert.ok(!m.script.includes('function EmpAiWalls takes'), 'no invented wall rows');
+  assert.ok(body('EmpTplBuild').includes('call ExecuteFunc("EmpAiMapAdd")') && body('EmpAiFinish').includes('call ExecuteFunc("EmpAiMapAdd")'), 'every building on the map');
+});
