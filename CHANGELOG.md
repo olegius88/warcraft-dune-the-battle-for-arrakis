@@ -29,7 +29,8 @@
   [src/jass/mission/specials.j](src/jass/mission/specials.j)): Девиатор (`DeviateDuration`,
   `CanBeDeviated`), Лич и Заразитель (`Leech_B`/`Contaminator_B`), инженер (`CanBeEngineered`), диверсант
   (`SaboteurBomb`), давка (`Crushes`/`Crushable`), ремонтник (`RepairTileRange`, `RepairRate`). В игре
-  проверены Девиатор, Заразитель и Лич ([src/smoke/build-specials-mission.ts](src/smoke/build-specials-mission.ts)).
+  проверены все: Девиатор, Заразитель, Лич, инженер, диверсант, ремонтник, давка
+  ([src/smoke/build-specials-mission.ts](src/smoke/build-specials-mission.ts)).
 - 2026-10-08 Темп ИИ по `ai_difficulty.ini` для тех-уровня (`UnitDelay`, `BuildingDelay`, `MaxAiUnits`,
   `NumBuildings`, `MaxTurretsAllowed`, `FirstAttackDelay`, `GapBetweenNewScripts`, пределы обороны) вместо
   выдуманных периодов; на своей столице ИИ следует `ai_<дом>_t<N>.ini` (без обороны).
@@ -284,6 +285,11 @@
   ([tools/test-maps.ps1](tools/test-maps.ps1), [tools/make-gif.ts](tools/make-gif.ts); devDependencies `gifenc`, `pngjs`).
 
 ### Fixed
+- 2026-10-08 Карта AT_A07 роняла клиент 1.31 при загрузке («Not enough memory… Requested 437369793696
+  bytes»): длинный брифинг был вписан прямо в `w3i` и `config()`. Как в картах редактора, тексты карты
+  теперь в `war3map.wts` со ссылками `TRIGSTR_nnn` ([src/wc3/map.ts](src/wc3/map.ts), регрессия в
+  [test/wc3-map.test.ts](test/wc3-map.test.ts)); найдено сессией кампании, причина сужена пробой
+  [src/smoke/build-territory-probe.ts](src/smoke/build-territory-probe.ts).
 - 2026-10-08 Строители появлялись только у построенной игроком стройплощадки; у готовых баз (оборона,
   сюжетные карты, скрипты) игрок не мог строить. Теперь их получает любая стройплощадка игрока.
 - 2026-10-08 Оборона HK_D01 всегда шла в варианте Fail: её пара — атака на собственную столицу, которая
