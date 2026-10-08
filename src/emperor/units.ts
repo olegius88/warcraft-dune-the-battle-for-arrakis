@@ -311,6 +311,9 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     if (reqs.length) obj.mods.push(str(F.requires, reqs.join(',')));
   }
   // the order types: the unit's look and requirements, its Rules.txt Cost, unarmed, PORT_ORDER_SECONDS
+  // TODO(starport): an order keeps its unit's requirements, also the factory upgrade of
+  // UpgradedPrimaryRequired types (Minotaurus, Kobra, Missile...): whether Emperor's starport asks for
+  // it is not in the data (fifth audit). Risk: such units need the upgrade at the starport too.
   const portOrders = new Map<string, string>();
   for (const u of portable) {
     const real = objects.find((x) => x.emperor === u) as UnitObject;
