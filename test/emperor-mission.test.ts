@@ -344,6 +344,13 @@ test('sub-house alliances: the allygain message of a won mission allies the sub-
   assert.match(ix, /GetStoredInteger\(EmpCache, "emp", "allyFR"\) == 1/);
   const menu = all.units.objects.find((o) => o.id === all.units.ids.allyBuilders.AT)?.mods.filter((m) => m.field === 'ubui').map((m) => String(m.value)).at(-1)?.split(',') ?? [];
   assert.deepStrictEqual(menu.sort(), ['FRCamp', 'IMBarracks', 'IXResCentre', 'TLFleshVat', 'GUPalace'].map((n) => all.units.rawcode.get(n)).sort(), 'third builder');
+  // the scripts also play "<H>allybreak<n>" when the sub-house's condition fails (ATP1M4FR, Fremen
+  // dead: "the Fremen will be outraged... the alliance is doomed"); it was not read, so a lost
+  // alliance stayed. It ends the alliance whatever the result; of gain and break the later one counts.
+  assert.match(fr, /set EmpMsgAlly\[\d+\] = -1\n/, 'ATallybreak1 marks the Fremen');
+  const end = fr.slice(fr.indexOf('call StoreInteger(EmpCache, "emp", "resultkind"'));
+  assert.ok(end.indexOf('if EmpAllyBreak[1] then') >= 0 && end.indexOf('if EmpAllyBreak[1] then') < end.indexOf('    if win then'), 'stored whatever the result');
+  assert.ok(end.includes('call StoreInteger(EmpCache, "emp", "allyFR", 0)'), 'the Fremen alliance ends');
 });
 
 // Special abilities were missing (independent audit 2026-10-08): Deviator (Deviate_B, DeviateDuration,
@@ -485,6 +492,25 @@ test('starport prices change every StarportCostUpdateDelay ticks within Starport
   // settled a starport price for its own trike. Only starports settle, and the record goes with it.
   const fin = m.script.slice(m.script.indexOf('function EmpPortFinish'), m.script.indexOf('endfunction', m.script.indexOf('function EmpPortFinish')));
   assert.ok(fin.includes('LoadBoolean(EmpPortTab, GetUnitTypeId(b), 2)') && fin.includes('call RemoveSavedInteger(EmpPortTab, GetHandleId(b), t)'), 'starport only, record removed');
+});
+
+// The hub said nothing when an alliance was made or lost; E_Output_Pickup holds the house's debrief
+// lines for it ("<H>allydebriefgain<n>" / "allydebriefbreak<n>": ATallydebriefgain1 "the Fremen are
+// honoured to join us"). Back from a mission the hub compares each alliance with the one it saw.
+test('the hub announces a sub-house alliance made or lost with the original debrief line', opts, async () => {
+  const { buildHub } = await import('../src/emperor/hub.ts');
+  const all = loadAll();
+  const text = (k: string): string => all.ctx.textByKey(k) as string;
+  const hub = buildHub({
+    house: 'AT', autoTest: false, campaign: loadCampaign(RAW, []), battleMap: () => null, storyMap: { heighliner: 'H.w3x', homeDefence: 'D.w3x', civilWar: 'C.w3x', homeAttack: { HK: 'A.w3x', OR: 'O.w3x' }, end: 'E.w3x' },
+    units: { w3u: Buffer.alloc(0), w3a: Buffer.alloc(0), w3q: Buffer.alloc(0) } as never,
+    allyDebrief: (k) => all.ctx.textByKey(k),
+  });
+  assert.ok(hub.script.includes('function EmpAllyDebrief'), 'debrief');
+  assert.ok(hub.script.includes(`call EmpSay(${JSON.stringify(text('ATallydebriefgain1'))})`) && hub.script.includes(`call EmpSay(${JSON.stringify(text('ATallydebriefbreak1'))})`), 'Fremen lines');
+  const apply = hub.script.slice(hub.script.indexOf('function EmpApplyResult'));
+  assert.ok(apply.slice(0, apply.indexOf('endfunction')).includes('call EmpAllyDebrief()'), 'after every mission');
+  assert.ok(hub.script.includes('call StoreInteger(EmpCache, "emp", "allyseenFR", 0)'), 'a new campaign forgets what it saw');
 });
 
 // The starport delivered after the unit's BuildTime; in Emperor a CHOAM frigate brings the order:

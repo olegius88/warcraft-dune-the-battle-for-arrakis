@@ -21,7 +21,7 @@ import type { Campaign, Territory } from './campaign-data.ts';
 import { defendVariant } from './campaign-data.ts';
 import { HOUSE_CODES, HOUSE_RU_BY_ID, HOUSE_COLOR } from '../config/houses.ts';
 import type { HouseCode } from '../config/houses.ts';
-import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
+import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, ALLYGAIN_TAGS, allyDebriefKey, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
 import type { PhaseRules } from './phase-rules.ts';
 import { DEFAULT_FACING, TIME_OF_DAY, DEBUG_REPORT_DIR } from '../config/runtime.ts';
 import { CUSTOM_ID, TERRAIN } from '../config/wc3.ts';
@@ -57,6 +57,8 @@ export interface HubOptions {
   /** movie slide shows (src/emperor/movies.ts, fmv.ts): hub event -> movie names, frame count of
    * each movie and the files to import; without them no movie is shown */
   movies?: HubMovies;
+  /** text of a game string key (the alliance debrief lines, config allyDebriefKey); none: silent */
+  allyDebrief?: (key: string) => string | undefined;
 }
 
 export interface HubMovies {
@@ -190,12 +192,25 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   const globals = renderFile(jassFile('hub/globals'), { PHASE, START_TECH }) + movie.movieGlobals;
 
   // a new campaign forgets the won attacks that pick Fail / Win defence variants (mission.ts) ...
-  const wonClearLines = [...[...wonAttacks].map((a) => CACHE_KEY.wonPrefix + a), ...Object.keys(SUBHOUSE_TAGS).map((t) => CACHE_KEY.allyPrefix + t)]
+  const wonClearLines = [...[...wonAttacks].map((a) => CACHE_KEY.wonPrefix + a), ...Object.keys(SUBHOUSE_TAGS).flatMap((t) => [CACHE_KEY.allyPrefix + t, CACHE_KEY.allySeenPrefix + t])]
     .map((key) => `        call StoreInteger(EmpCache, ${CAT}, ${str(key)}, 0)`).join('\n');
+  // back from a mission: an alliance made or lost since the last visit is told with the house's
+  // debrief line (E_Output_Pickup <H>allydebriefgain<n> / allydebriefbreak<n>)
+  const allyDebriefLines = ALLYGAIN_TAGS.map((tag, i) => {
+    const now = `GetStoredInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.allyPrefix + tag)})`;
+    const seen = `GetStoredInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.allySeenPrefix + tag)})`;
+    const gain = o.allyDebrief?.(allyDebriefKey(o.house, i + 1, true));
+    const lost = o.allyDebrief?.(allyDebriefKey(o.house, i + 1, false));
+    return [
+      ...(gain ? [`    if ${now} == 1 and ${seen} != 1 then`, `        call EmpSay(${str(gain)})`, '    endif'] : []),
+      ...(lost ? [`    if ${now} != 1 and ${seen} == 1 then`, `        call EmpSay(${str(lost)})`, '    endif'] : []),
+      `    call StoreInteger(EmpCache, ${CAT}, ${str(CACHE_KEY.allySeenPrefix + tag)}, ${now})`,
+    ].join('\n');
+  }).join('\n');
   const functions = renderFile(jassFile('hub/functions'), {
     ADJ_STRIDE, CACHE_FILE, CAT, DEFAULT_FACING, K, KIND_ID, PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, ...phaseJass(o.phaseRules),
     TERRITORY_COUNT, TIME_OF_DAY, V, foes, markerId, me, musicList, o, story,
-    movieFunctions: movie.movieFunctions, mv: movie.mv,
+    movieFunctions: movie.movieFunctions, mv: movie.mv, allyDebriefLines,
     autoTestFunctions: o.autoTest ? autoTestFunctions : '',
     dataLines: lines.join('\n'),
     wonClearLines,

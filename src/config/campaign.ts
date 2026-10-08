@@ -26,8 +26,10 @@ export const KIND_ID: Readonly<Record<MissionKind, number>> = { attack: 0, defen
  * ALLYGAIN_TAGS[n - 1], which unlocks its building; Ix and Tleilaxu exclude each other (Wikipedia,
  * Emperor: Battle for Dune). (The tag in a script's name is not the alliance: ATP3M5TL is fought
  * against the Tleilaxu.)
- * TODO(subhouse): no allygain names the Guild, so GUPalace stays locked; losing a sub-house's favour
- * otherwise than through its rival is not modelled. */
+ * "<H>allybreak<n>" ends one (ALLYBREAK_KEY).
+ * TODO(subhouse): no script plays allygain5 / allybreak5 (the Guild: E_Output_Pickup has only the
+ * debrief lines ATallydebriefgain5 / break5), so GUPalace stays locked; what grants the Guild's
+ * alliance in Emperor is not in the data. Risk: the Guild building is never available. */
 export const SUBHOUSE_TAGS: Readonly<Record<string, { building: string; rival?: string }>> = {
   FR: { building: 'FRCamp' },
   SA: { building: 'IMBarracks' },
@@ -37,6 +39,11 @@ export const SUBHOUSE_TAGS: Readonly<Record<string, { building: string; rival?: 
 /** allygain<n> -> sub-house tag (index n - 1), from the message texts (1 Fremen ... 4 Tleilaxu). */
 export const ALLYGAIN_TAGS: readonly string[] = ['FR', 'SA', 'IX', 'TL'];
 export const ALLYGAIN_KEY = /^(?:AT|HK|OR)allygain(\d)$/i;
+/** "<H>allybreak<n>": played when the sub-house's condition fails (ATallybreak1 "the Fremen will be
+ * outraged... the alliance is doomed"); it ends alliance n whatever the mission's result. */
+export const ALLYBREAK_KEY = /^(?:AT|HK|OR)allybreak(\d)$/i;
+/** The hub's line when alliance n (ALLYGAIN_TAGS[n - 1]) was made / lost (E_Output_Pickup). */
+export const allyDebriefKey = (house: string, n: number, gained: boolean): string => `${house}allydebrief${gained ? 'gain' : 'break'}${n}`;
 /** Every sub-house building (the third builder's menu); those without a tag stay locked. */
 export const SUBHOUSE_BUILDINGS: readonly string[] = ['FRCamp', 'IMBarracks', 'IXResCentre', 'TLFleshVat', 'GUPalace'];
 
@@ -86,6 +93,8 @@ export const CACHE_KEY = {
   wonPrefix: 'won',
   /** allyPrefix + sub-house tag (SUBHOUSE_TAGS) = 1: allied with that sub-house */
   allyPrefix: 'ally',
+  /** allySeenPrefix + tag: the alliance as the hub last announced it (hub EmpAllyDebrief) */
+  allySeenPrefix: 'allyseen',
   /** result handed back to the hub: 1 win, 0 loss, -1 none */
   result: 'result',
   resultTerritory: 'resultterr',

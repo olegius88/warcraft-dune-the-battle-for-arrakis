@@ -53,6 +53,7 @@
     // allygain messages (mission.ts): message id -> sub-house k; alliances the mission played
     integer array EmpMsgAlly
     boolean array EmpAllyGain
+    boolean array EmpAllyBreak
     // special abilities (mission specials.j)
     hashtable EmpSpTab = null
     group EmpSpLeeched = null

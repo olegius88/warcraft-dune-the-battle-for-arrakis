@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-08 Потеря союза с субдомом: скрипты произносят «<дом>allybreak<n>», когда условие субдома
+  провалено (ATP1M4FR: «Фримены будут возмущены… Союз обречен»); теперь это разрывает союз при любом
+  исходе миссии, из «gain» и «break» считается последнее ([src/jass/runtime/api/Message.j](src/jass/runtime/api/Message.j),
+  [src/jass/mission/campaign.j](src/jass/mission/campaign.j)). Хаб по возвращении сообщает о новом или
+  потерянном союзе оригинальной репликой (`ATallydebriefgain1` «Фримены считают за честь, объединится с
+  нами…», `…break1` «Фримены разорвали союз с нами.»; [src/jass/hub/functions.j](src/jass/hub/functions.j)
+  `EmpAllyDebrief`). В игре не проверялось: автотест кампании побеждает без реплик скриптов. Союз с
+  Гильдией по-прежнему недоступен — ни один скрипт его не даёт (`TODO(subhouse)`).
 - 2026-10-08 Доставка фрегатом из Starport ([src/jass/mission/starport.j](src/jass/mission/starport.j),
   [src/emperor/units.ts](src/emperor/units.ts) `portOrders`): космопорт продаёт «заказы» (за 1 с, по
   текущей цене), фрегат прилетает через `FrigateCountdown` (2500 тиков = 100 с) и привозит до

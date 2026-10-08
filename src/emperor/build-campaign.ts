@@ -232,6 +232,7 @@ for (const h of houses) {
 
   const hubMap = buildHub({
     house: h, campaign: camp, units: all.units, autoTest, music: useMusic(music ? music.hub(h) : []), phaseRules, movies: hubMovies(h),
+    allyDebrief: (key) => all.ctx.textByKey(key),
     battleMap: (kind, n) => battleFile[`${kind}:${n}`] || null,
     storyMap: { heighliner: storyFile.heighliner, homeDefence: storyFile.homeDefence, civilWar: storyFile.civilWar, homeAttack: storyFile.homeAttack, end: storyFile.end },
   });

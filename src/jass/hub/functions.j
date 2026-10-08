@@ -303,6 +303,12 @@ function EmpCounterAttack takes nothing returns boolean
     return false
 endfunction
 
+// sub-house alliances made or lost by the last mission (mission campaign.j), told with the house's
+// debrief line; what was told is kept (allyseen<tag>)
+function EmpAllyDebrief takes nothing returns nothing
+{{allyDebriefLines}}
+endfunction
+
 function EmpApplyResult takes nothing returns boolean
     local integer r = GetStoredInteger(EmpCache, {{CAT}}, {{K.result}})
     local integer kind = GetStoredInteger(EmpCache, {{CAT}}, {{K.resultKind}})
@@ -312,6 +318,7 @@ function EmpApplyResult takes nothing returns boolean
         return false
     endif
     call StoreInteger(EmpCache, {{CAT}}, {{K.result}}, -1)
+    call EmpAllyDebrief()
     if kind == {{KIND_ID.attack}} or kind == {{KIND_ID.defend}} then
         set EmpBattles = EmpBattles + 1
         set EmpNoGain = EmpNoGain + 1

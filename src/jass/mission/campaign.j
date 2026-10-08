@@ -45,7 +45,8 @@ function EmpCampaignResult takes boolean win returns nothing
     call StoreInteger(EmpCache, {{CAT}}, {{K.outcome}}, EmpOutcome)
     call StoreInteger(EmpCache, {{CAT}}, {{K.resultTerritory}}, EmpTerritory)
     call StoreInteger(EmpCache, {{CAT}}, {{K.resultKind}}, {{kindId}})
-{{#if wonLines}}    if win then
+{{#if breakLines}}{{breakLines}}
+{{/if}}{{#if wonLines}}    if win then
 {{wonLines}}
     endif
 {{/if}}    call SaveGameCache(EmpCache)

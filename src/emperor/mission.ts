@@ -22,7 +22,7 @@ import { specialAbilities } from './specials.ts';
 import type { Speech } from './speech.ts';
 import type { AiRules } from './ai-rules.ts';
 import { HOUSE_ID, HOUSES, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_BY_CODE } from '../config/houses.ts';
-import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, SUBHOUSE_BUILDINGS, ALLYGAIN_TAGS, ALLYGAIN_KEY, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
+import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, SUBHOUSE_BUILDINGS, ALLYGAIN_TAGS, ALLYGAIN_KEY, ALLYBREAK_KEY, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
 import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, DAMAGE_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
@@ -144,9 +144,12 @@ function buildMission(p: MissionParams): BuiltMission {
   init.push(`    set EmpNormalConditions = ${used.has('EndGameWin') || used.has('EndGameLose') ? 'false' : 'true'}`);
   for (const n of messages) { const text = p.ctx.messageText(n); if (text) init.push(`    set EmpMsgText[${n}] = ${str(text)}`); }
   // "<H>allygain<k>" messages: playing one marks the alliance with sub-house k (config ALLYGAIN_TAGS)
+  // ... and "<H>allybreak<k>" ends it (negative: -k)
   for (const n of messages) {
     const k = Number(ALLYGAIN_KEY.exec(p.ctx.messageKey(n) ?? '')?.[1] ?? 0);
     if (k >= 1 && k <= ALLYGAIN_TAGS.length) init.push(`    set EmpMsgAlly[${n}] = ${k}`);
+    const b = Number(ALLYBREAK_KEY.exec(p.ctx.messageKey(n) ?? '')?.[1] ?? 0);
+    if (b >= 1 && b <= ALLYGAIN_TAGS.length) init.push(`    set EmpMsgAlly[${n}] = -${b}`);
   }
   // original speech of the messages this map uses (src/emperor/speech.js; test/emperor-mission.test.ts)
   const speechImports: Record<string, Buffer> = {};
@@ -351,6 +354,8 @@ function buildMission(p: MissionParams): BuiltMission {
     return `        if EmpAllyGain[${k + 1}] then\n            call StoreInteger(EmpCache, ${CAT}, ${allyKey(tag)}, 1)${rival ? `\n            call StoreInteger(EmpCache, ${CAT}, ${allyKey(rival)}, 0)` : ''}\n        endif`;
   });
   const wonLines = [...attackWon, ...allyWon].join('\n');
+  // the alliances whose allybreak message the mission played end, won or lost
+  const breakLines = [...messages].some((n) => ALLYBREAK_KEY.test(p.ctx.messageKey(n) ?? '')) ? ALLYGAIN_TAGS.map((tag, k) => `    if EmpAllyBreak[${k + 1}] then\n        call StoreInteger(EmpCache, ${CAT}, ${allyKey(tag)}, 0)\n    endif`).join('\n') : '';
   // sub-house buildings: locked unless the player is allied with their sub-house (in the campaign)
   const subLines = SUBHOUSE_BUILDINGS.map((b) => {
     const id = p.units.rawcode.get(b);
@@ -391,7 +396,7 @@ function buildMission(p: MissionParams): BuiltMission {
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start', isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
