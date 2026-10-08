@@ -70,6 +70,7 @@
     integer array EmpCashNext
     // starport prices (mission starport.j)
     hashtable EmpPortTab = null
+    hashtable EmpFxTab = null
     integer array EmpPortPct
     // in-game announcements (helpers.j EmpUiSay; data from mission.ts)
     string array EmpUiText

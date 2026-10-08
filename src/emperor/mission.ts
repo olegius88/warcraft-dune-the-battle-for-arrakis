@@ -299,6 +299,8 @@ function buildMission(p: MissionParams): BuiltMission {
     // [General] FrigateCountdown ('time for frigate to arrive', ticks), StarportMaxDeliverySingle
     portFrigateSeconds: (Number(p.rules?.general.FrigateCountdown ?? 0) || TICKS_PER_SECOND) / TICKS_PER_SECOND,
     portMaxDelivery: Number(p.rules?.general.StarportMaxDeliverySingle ?? 0) || 1,
+    // effects of every type (src/emperor/effects.ts; mission effects.j)
+    fxLines: [...(p.units.effects ?? [])].flatMap(([id, fx]) => fx.map((model, k) => (model ? `    call SaveStr(EmpFxTab, '${id}', ${k}, ${str(model)})` : '')).filter(Boolean)).join('\n'),
     // the frigate ([Frigate]) shown flying in and out
     portFrigateUnit: p.units.rawcode.get('Frigate') ?? UNIT.fallback,
     ORDER_CANCEL: RT.ORDER_CANCEL, PORT_PRICE_TEXT: RT.PORT_PRICE_TEXT,
@@ -419,6 +421,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('subhouse'),
     jass('specials'),
     jass('starport'),
+    jass('effects'),
     `function EmpPlaced takes nothing returns nothing\n${placed.join('\n')}\nendfunction`,
     `function EmpMissionTick takes nothing returns nothing\n${dispatch}\nendfunction`,
     ...(debriefBlocks.length ? [`function EmpDebriefSpeech takes boolean win returns real\n    local real t = 0.0\n${debriefBlocks.join('\n')}\n    return t\nendfunction`] : []),

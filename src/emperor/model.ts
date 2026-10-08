@@ -235,6 +235,19 @@ export interface SceneOptions {
   ownLoops?: number;
   /** every layer unshaded and unfogged (a backdrop with no light of its own) */
   unshaded?: boolean;
+  /** Emperor animation -> WC3 sequence table instead of config SEQUENCE_MAP (effects: Stationary ->
+   * Death, played once by DestroyEffect) */
+  sequences?: ReadonlyArray<readonly [string, string, boolean]>;
+  /** effects: every still geoset fades from full to none over the last part of each non-looping
+   * sequence (from this share of it) and is hidden in the looping ones; layers drawn at layerAlpha */
+  fade?: { from: number; layerAlpha: number };
+  /** which nodes are not drawn (default config HIDDEN_NODE; effects draw their ? nodes) */
+  hiddenNode?: (name: string) => boolean;
+  /** bones also get scaling tracks (effects grow and shrink; unit models keep translation / rotation) */
+  scaling?: boolean;
+  /** the frames of a texture sequence ("!%boom0.tga" -> !%boom0..10), shown one after the other over
+   * every sequence (KMTF); null: a still texture */
+  flipbook?: (raw: string) => string[] | null;
 }
 
 function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRange[]>, texture: (file: string) => TextureRef | null, opts: SceneOptions = {}): ConvertedModel {
@@ -248,15 +261,23 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   const materials: Material[] = [];
   const materialOf = new Map<string, number>();
   const usedFiles: string[] = [];
+  // layers that flip through a texture sequence: their KMTF tracks are made once the sequences are known
+  const flips: Array<{ material: number; first: number; count: number }> = [];
   const material = (raw: string): number => {
     const file = M.TEXTURE_FILE(raw);
     let id = materialOf.get(file.toLowerCase());
     if (id !== undefined) return id;
-    const t = texture(file);
+    const frames = opts.flipbook?.(raw) ?? null;
+    const files = frames && frames.length > 1 ? frames.map((f) => M.TEXTURE_FILE(f)) : [file];
     const texId = textures.length;
-    textures.push({ path: t ? t.path : '' });
-    if (t) usedFiles.push(file);
+    let t: TextureRef | null = null;
+    for (const f of files) {
+      const tf = texture(f);
+      textures.push({ path: tf ? tf.path : '' });
+      if (tf) { usedFiles.push(f); t = t ?? tf; }
+    }
     id = materials.length;
+    if (files.length > 1) flips.push({ material: id, first: texId, count: files.length });
     const flags = M.TWO_SIDED ? LAYER_FLAG.twoSided : 0;
     const sceneBlend = opts.blend ? opts.blend(raw) : null;
     if (sceneBlend !== null && sceneBlend !== undefined) {
@@ -326,7 +347,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   interface Morph { node: XbfNode; byTex: Map<number, Faces>; w: Mat; bone: number; staticGeosets: number[]; stored: number[]; poseAt: (frame: number) => { positions: V3[]; normals: V3[] } }
   const morphs: Morph[] = [];
   flat.forEach(({ node }, ni) => {
-    if (M.HIDDEN_NODE(node.name) || !node.faces.length || !kept(ni)) return;
+    if ((opts.hiddenNode ?? M.HIDDEN_NODE)(node.name) || !node.faces.length || !kept(ni)) return;
     const w = mul(K, bind[ni] as Mat);
     // faces by texture
     const byTex = new Map<number, typeof node.faces>();
@@ -351,8 +372,10 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   // sequences: Emperor ranges laid out one after the other
   const extent = extentOf(all);
   const sequences: MdxModel['sequences'] = [];
-  const tracks = new Map<number, { t: Track; r: Track; moved: boolean }>();
-  for (const b of boneOfNode.values()) tracks.set(b, { t: { frames: [], values: [] }, r: { frames: [], values: [] }, moved: false });
+  const tracks = new Map<number, { t: Track; r: Track; s: Track; moved: boolean; scaled: boolean }>();
+  for (const b of boneOfNode.values()) tracks.set(b, { t: { frames: [], values: [] }, r: { frames: [], values: [] }, s: { frames: [], values: [] }, moved: false, scaled: false });
+  /** scale of the affine matrix d (column lengths) */
+  const scaleOf = (d: Mat): number[] => [0, 1, 2].map((c) => Math.hypot(d[c * 4] as number, d[c * 4 + 1] as number, d[c * 4 + 2] as number));
   const used = new Set<string>();
   // the animation table is found by name in the file: ranges beyond the frames the nodes have are
   // not this model's (or not animations at all)
@@ -385,7 +408,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
       if (frames < 1 && !anyParent) continue;
       const span = Math.max(frames, 1);
       const gs = globalSequences.length;
-      const rec = tracks.get(b) as { t: Track; r: Track; moved: boolean };
+      const rec = tracks.get(b) as { t: Track; r: Track; s: Track; moved: boolean; scaled: boolean };
       rec.t.globalSequenceId = gs; rec.r.globalSequenceId = gs;
       for (let f = 0; f <= span; f++) {
         const world = worldAt(flat, f);
@@ -403,7 +426,7 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     }
     sequences.push({ name: 'Stand', start: 0, end: opts.ownLoops, extent });
   }
-  for (const [emperorName, wc3Name, looping] of opts.ownLoops ? [] : M.SEQUENCE_MAP) {
+  for (const [emperorName, wc3Name, looping] of opts.ownLoops ? [] : (opts.sequences ?? M.SEQUENCE_MAP)) {
     const range = anims.get(emperorName)?.[0];
     if (!range || used.has(wc3Name)) continue;
     const first = Math.min(range.start, range.end), last = Math.max(range.start, range.end);
@@ -419,11 +442,16 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
         const moved = apply(d, p);
         const tr = [moved[0] - p[0], moved[1] - p[1], moved[2] - p[2]];
         const q = quat(d);
-        const rec = tracks.get(b) as { t: Track; r: Track; moved: boolean };
+        const rec = tracks.get(b) as { t: Track; r: Track; s: Track; moved: boolean; scaled: boolean };
         // the first and last key of a sequence are always kept
         if (f === first || f === last) { rec.t.frames.push(at); rec.t.values.push(tr); rec.r.frames.push(at); rec.r.values.push(q); }
         else { key(rec.t, at, tr); key(rec.r, at, q); }
         if (Math.hypot(...tr) > 0.01 || Math.abs(Math.abs(q[3] as number) - 1) > 1e-5) rec.moved = true;
+        if (opts.scaling) {
+          const sc = scaleOf(d);
+          if (f === first || f === last) { rec.s.frames.push(at); rec.s.values.push(sc); } else key(rec.s, at, sc);
+          if (sc.some((v) => Math.abs(v - 1) > 1e-3)) rec.scaled = true;
+        }
       }
       // vertex animation: a copy of the node's geosets in this frame's pose, visible for its frames only
       if ((f - first) % M.MORPH_FRAME_STEP === 0) {
@@ -444,10 +472,24 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
     sequences.unshift({ name: 'Stand', start: time, end: time + 1000, extent });
   }
   for (const [b, rec] of tracks) {
-    if (!rec.moved) continue;
     const bone = bones[b] as Bone;
+    if (rec.scaled) bone.scaling = rec.s;
+    if (!rec.moved) continue;
     bone.translation = rec.t;
     bone.rotation = rec.r;
+  }
+  // texture sequences: frame k of a layer's sequence over the k-th part of every sequence
+  for (const fl of flips) {
+    const layer = (materials[fl.material] as Material).layers[0] as Material['layers'][number];
+    const track: Track = { frames: [], values: [], interpolation: 0 };
+    for (const sq of [...sequences].sort((a, b) => a.start - b.start)) {
+      for (let k = 0; k < fl.count; k++) {
+        const at = sq.start + Math.floor((k * (sq.end - sq.start)) / fl.count);
+        if (track.frames.length && at <= (track.frames[track.frames.length - 1] as number)) continue;
+        track.frames.push(at); track.values.push([fl.first + k]);
+      }
+    }
+    layer.textureIds = track;
   }
   // Frame copies are visible from their frame to the next sampled one (or the end of their sequence).
   // The game evaluates a track inside the interval of the playing sequence only and draws a geoset
@@ -464,6 +506,19 @@ function xbfToMdx(name: string, scene: XbfScene, anims: Map<string, AnimationRan
   }
   // with frame copies, the bind-pose geosets of morphing nodes are never shown
   if (morphGeosets) for (const m of morphs) for (const id of m.staticGeosets) geosetAnimations.push({ geosetId: id, staticAlpha: 0 });
+  if (opts.fade) {
+    // TODO(models): how an Emperor effect fades is in its FXData block, which is not read; this fade
+    // is an approximation. Risk: effects end differently from the original.
+    const fade = opts.fade;
+    const animated = new Set(geosetAnimations.map((g) => g.geosetId));
+    const keys: Track = { frames: [], values: [] };
+    for (const s of [...sequences].sort((a, b) => a.start - b.start)) {
+      if (s.nonLooping) { keys.frames.push(s.start, s.start + Math.round((s.end - s.start) * fade.from), s.end); keys.values.push([1], [1], [0]); }
+      else { keys.frames.push(s.start, s.end); keys.values.push([0], [0]); }
+    }
+    geosets.forEach((_, id) => { if (!animated.has(id)) geosetAnimations.push({ geosetId: id, alpha: keys }); });
+    for (const mat of materials) for (const l of mat.layers) l.alpha = fade.layerAlpha;
+  }
   for (const g of geosets) g.sequenceExtents = sequences.map(() => g.extent);
   // attachment points the game puts effects on: origin at the ground, chest half way up, overhead
   // above the top, weapon at the first fire point of the model ("#fire" / ">>0#fire" nodes)

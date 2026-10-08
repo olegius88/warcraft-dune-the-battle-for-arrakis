@@ -15,6 +15,7 @@ function EmpStart takes nothing returns nothing
     call EmpSpInit()
     call EmpUiInit()
     call EmpPortInit()
+    call EmpFxInit()
     call EmpReinfData()
 {{pickScript}}{{#if hasBriefingSpeech}}
     call EmpBriefingSpeech(){{/if}}

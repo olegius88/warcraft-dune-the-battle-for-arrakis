@@ -6,6 +6,8 @@ import { loadTokenTable } from './tok.ts';
 import { loadContext } from './context.ts';
 import { loadRules } from './rules.ts';
 import { loadArtIni } from './artini.ts';
+import { effectUse, buildEffects } from './effects.ts';
+import { EFFECT_PLAYED } from '../config/models.ts';
 import { buildIcons } from './icons.ts';
 import { buildModels } from './models.ts';
 import { loadAiRules } from './ai-rules.ts';
@@ -45,7 +47,10 @@ function loadAll({ models = false }: { models?: boolean } = {}): EmperorData {
   const art = fs.existsSync(artIni) ? loadArtIni(artIni) : undefined;
   const icons = art ? buildIcons(rules.objects.keys(), art) : undefined;
   const modelSet = art && models ? buildModels(rules.objects.keys(), art) : undefined;
-  const units = buildUnitData(rules, (n) => tooltipName.get(n.toLowerCase()) || n, icons, modelSet);
+  // effects (explosions, muzzle flashes): few and small, converted always (src/emperor/effects.ts)
+  const fxUse = effectUse(rules);
+  const effects = art && EFFECT_PLAYED.some(Boolean) ? { use: fxUse, set: buildEffects([...fxUse.death.values(), ...fxUse.muzzle.values(), ...fxUse.hit.values()], art) } : undefined;
+  const units = buildUnitData(rules, (n) => tooltipName.get(n.toLowerCase()) || n, icons, modelSet, effects);
   const table = loadTokenTable(GAME_EXE);
   const speech = loadSpeech(GAME_DIR);
   const aiIni = path.join(RAW_DIR, AI_INI_FILE);

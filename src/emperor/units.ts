@@ -18,6 +18,8 @@ import { UNIT_FIELD as F, ABILITY_FIELD, UPGRADE_FIELD as G, ABILITY, UNIT, CUST
 import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
 import { superweaponKind } from './superweapons.ts';
+import type { EffectUse, EffectSet } from './effects.ts';
+import { EFFECT_PLAYED } from '../config/models.ts';
 import { SUBHOUSE_BUILDINGS } from '../config/campaign.ts';
 
 type RaceOrNeutral = Wc3Race | 'neutral';
@@ -77,6 +79,9 @@ export interface UnitData {
   icons: Record<string, Buffer>;
   /** converted Emperor models and their textures: archive path -> MDX / BLP (import once per campaign) */
   models: Record<string, Buffer>;
+  /** WC3 type -> its effect models [when it dies, where it fires, where its bullet hits] ('' none;
+   * src/emperor/effects.ts, mission effects.j) */
+  effects: Map<string, [string, string, string]>;
   /** starport order type -> the unit a frigate delivers for it (mission starport.j) */
   portOrders: Map<string, string>;
 }
@@ -126,7 +131,21 @@ const unreal = (field: string, value: number): ObjectMod => ({ field, type: 'unr
 const real = (field: string, value: number): ObjectMod => ({ field, type: 'real', value });
 
 /** displayName: localised name lookup (falls back to the id). */
-function buildUnitData(rules: Rules, displayName: (name: string) => string = (n) => n, icons?: IconSet, models?: ModelSet): UnitData {
+/** The effect models of every object that has one (Rules.txt names, converted effects only). */
+function effectsOf(rules: Rules, rawcode: Map<string, string>, effects?: { use: EffectUse; set: EffectSet }): Map<string, [string, string, string]> {
+  const out = new Map<string, [string, string, string]>();
+  if (!effects) return out;
+  const path = (m: Map<string, string>, n: string): string => effects.set.model.get((m.get(n) ?? '').toLowerCase()) ?? '';
+  for (const o of rules.objects.values()) {
+    const id = rawcode.get(o.name);
+    const all3 = [path(effects.use.death, o.name), path(effects.use.muzzle, o.name), path(effects.use.hit, o.name)];
+    const fx = all3.map((p, k) => (EFFECT_PLAYED[k] ? p : '')) as [string, string, string];
+    if (id && fx.some(Boolean)) out.set(id, fx);
+  }
+  return out;
+}
+
+function buildUnitData(rules: Rules, displayName: (name: string) => string = (n) => n, icons?: IconSet, models?: ModelSet, effects?: { use: EffectUse; set: EffectSet }): UnitData {
   const nextId = idAllocator();
   const warheads = new Map<string, Warhead>();
   for (const o of rules.objects.values()) for (const t of o.turrets) if (t.bullet && t.bullet.warhead) warheads.set(t.bullet.warhead.name, t.bullet.warhead);
@@ -331,7 +350,9 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   }
   return {
     objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders,
-    models: Object.fromEntries(Object.entries(models?.files ?? {})),
+    // the converted effects only when some are played (config EFFECT_PLAYED)
+    models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
+    effects: effectsOf(rules, rawcode, effects),
     w3u: writeObjects(objects.map(({ base, id, mods }) => ({ base, id, mods }))),
     w3a: writeObjects(abilities, true),
     upgrades,

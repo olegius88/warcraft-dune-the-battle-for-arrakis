@@ -61,7 +61,14 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
     }
     set.model.set(obj, field);
   }
-  // textures: TGA -> BLP (power-of-two sides, at most MAX_TEXTURE_SIZE, mipmaps, alpha when used)
+  Object.assign(set.files, convertTextures(archive, textureFiles));
+  return set;
+}
+
+/** Textures/<file>.tga of the archive (names in lower case) -> BLP (power-of-two sides, at most
+ * MAX_TEXTURE_SIZE, mipmaps, alpha when used), by archive path. */
+function convertTextures(archive: string, textureFiles: Set<string>): Record<string, Buffer> {
+  const files: Record<string, Buffer> = {};
   for (const f of readArchive(archive, (n) => /^textures\//i.test(n) && textureFiles.has(baseName(n).toLowerCase()))) {
     const img = readTga(f.data);
     const side = (n: number): number => Math.min(MAX_TEXTURE_SIZE, pow2Ceil(n));
@@ -72,9 +79,9 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
       alpha = true;
     }
     for (let i = 3; i < img.rgba.length && !alpha; i += 4) if ((img.rgba[i] as number) < 250) alpha = true;
-    set.files[MODEL_PATH.texture(baseName(f.name))] = writeBlpImage(resize(img, side(img.width), side(img.height)), { alpha });
+    files[MODEL_PATH.texture(baseName(f.name))] = writeBlpImage(resize(img, side(img.width), side(img.height)), { alpha });
   }
-  return set;
+  return files;
 }
 
-export { buildModels };
+export { buildModels, convertTextures };

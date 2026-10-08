@@ -52,6 +52,30 @@ export const MODEL_PATH = {
   texture: (file: string): string => `Emperor\\Textures\\${file.replace(/\.tga$/i, '').replace(/[^A-Za-z0-9_]/g, '_')}.blp`,
 } as const;
 
+/** Effects (src/emperor/effects.ts): their one animation plays as Death, once, when the runtime
+ * destroys the effect it has just made (DestroyEffect(AddSpecialEffect(...))). */
+export const EFFECT_SEQUENCES: ReadonlyArray<readonly [string, string, boolean]> = [['Stationary', 'Death', false]];
+/** Effect textures: flag ! or @ = a glow, drawn additive and self-lit; % = one frame of a sequence
+ * (Textures/!%boom0..10.tga), played over the animation (KMTF). */
+export const EFFECT_ADDITIVE = (name: string): boolean => /^[!@]/.test(name);
+export const EFFECT_FLIPBOOK = /^(.*%.*?)(\d+)\.tga$/i;
+/** Effect nodes not drawn: helper boxes (#, the points FXData particles come from) and the shadow plane;
+ * the effect's meshes are ? nodes (Explosion/explosion.xbf ?firesphere, Muzzle1 ?bigflash1). */
+export const EFFECT_HIDDEN_NODE = (name: string): boolean => name.includes('#') || name.includes('^^');
+/** Effects fade out from this share of their animation, layers drawn at this alpha (an approximation:
+ * the fade is in the unread FXData; additive glows of overlapping two-sided shells burnt white). */
+export const EFFECT_FADE = { from: 0.3, layerAlpha: 0.55 } as const;
+/** Which effects the runtime plays: [death explosion, muzzle flash, hit]; with none, the converted
+ * effects are not imported either.
+ * TODO(models): none is played yet. Converted, they are far larger than units: explosion shells of
+ * 840..2800 WC3 units (bind pose; BigExplosion 2812), muzzle flashes that scale x30..x250 within
+ * 0.2 s (Muzzle1 4 -> 725 units, its key frames: x1, x29.6, ..x145); drawn as converted they covered
+ * the screen white and stalled the game (fx grid probe, 1.31.1, 2026-10-08). Their size, fade and
+ * the hits' particles are in the XBF FXData block, which is not decoded (xanlib keeps it opaque).
+ * Needs: decode FXData, compare with Emperor in game. Risk: no explosions or muzzle flashes. */
+export const EFFECT_PLAYED: readonly [boolean, boolean, boolean] = [false, false, false];
+/** Archive folders of the effect models ArtIni.txt names. */
+export const EFFECT_FOLDERS: readonly string[] = ['explosion/', 'bullets/'];
 /** Converted textures are at most this many pixels a side (Emperor's are up to 256). */
 export const MAX_TEXTURE_SIZE = 256;
 

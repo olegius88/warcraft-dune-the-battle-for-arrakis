@@ -246,6 +246,63 @@ endfunction`,
     set b = null
 endfunction`,
   } : {}),
+  // --fx: effects of Emperor (mission effects.j): trikes blow up one by one, a tank fires at infantry
+  ...(flag('--fx') ? {
+    extraStart: 'FxProbeRun',
+    extraFunctions: `function FxProbeRun takes nothing returns nothing
+    local real x
+    local real y
+    local integer k = 0
+    local unit a
+    local unit array t
+    set EmpNormalConditions = false
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(2.0)
+    set x = EmpEntrX[EmpEntranceFor(0)] * 0.5
+    set y = EmpEntrY[EmpEntranceFor(0)] * 0.5
+    call SetCameraPositionForPlayer(Player(0), x, y)
+    loop
+        exitwhen k >= 3
+        set t[k] = CreateUnit(Player(1), '${trike}', x - 300.0 + k * 300.0, y + 150.0, 270.0)
+        call PauseUnit(t[k], true)
+        set k = k + 1
+    endloop
+    set a = CreateUnit(Player(0), '${all.units.rawcode.get('ATMongoose') ?? trike}', x, y - 350.0, 90.0)
+    call IssueTargetOrder(a, "attack", t[1])
+    call TriggerSleepAction(4.0)
+    set k = 0
+    loop
+        exitwhen k >= 3
+        call KillUnit(t[k])
+        call TriggerSleepAction(1.5)
+        set k = k + 1
+    endloop
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload("fx trike death=" + LoadStr(EmpFxTab, '${trike}', 0) + " muzzle=" + LoadStr(EmpFxTab, '${trike}', 1))
+    call PreloadGenEnd("DuneSmoke\\\\fx.pld")
+    set a = null
+endfunction`,
+  } : {}),
+  // --fxgrid: every converted effect on a grid before the camera, played again every 0.7 s
+  ...(flag('--fxgrid') ? {
+    extraStart: 'FxGridRun',
+    extraFunctions: `function FxGridTick takes nothing returns nothing
+    local real x = EmpEntrX[EmpEntranceFor(0)] * 0.5
+    local real y = EmpEntrY[EmpEntranceFor(0)] * 0.5
+${[...new Set([...all.units.effects.values()].flatMap((fx) => fx.filter(Boolean)))].map((model, i) => `    call DestroyEffect(AddSpecialEffect(${JSON.stringify(model).replace(/\\\\/g, '\\\\')}, x + ${(i % 5) * 500 - 1000}.0, y + ${Math.floor(i / 5) * 450 - 700}.0))`).join('\n')}
+endfunction
+
+function FxGridRun takes nothing returns nothing
+    set EmpNormalConditions = false
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    call SetCameraPositionForPlayer(Player(0), EmpEntrX[EmpEntranceFor(0)] * 0.5, EmpEntrY[EmpEntranceFor(0)] * 0.5)
+    call TimerStart(CreateTimer(), 1.5, true, function FxGridTick)
+endfunction`,
+  } : {}),
   // --mounds: spice mounds and fields at 5 s and after the first bursts (Size + Cost ticks = 60 s)
   ...(flag('--mounds') ? {
     extraStart: 'MoundProbeRun',
