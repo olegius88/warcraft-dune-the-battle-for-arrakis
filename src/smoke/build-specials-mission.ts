@@ -22,7 +22,7 @@ const crushable = sp.crushable.find((n) => all.units.rawcode.has(n) && n.startsW
 const deviate = sp.deviateTicks / TICKS_PER_SECOND;
 const fn = `function SpmLog takes string s returns nothing
     local integer i = 0
-    set EmpAiLogLine[EmpAiLogCount] = s
+    set EmpAiLogLine[EmpAiLogCount] = s + " [sp ticks " + I2S(EmpSpTicks) + ", game s " + I2S(EmpTick / 25) + "]"
     set EmpAiLogCount = EmpAiLogCount + 1
     call PreloadGenClear()
     call PreloadGenStart()
@@ -61,14 +61,47 @@ function SpmClear takes nothing returns nothing
     set g = null
 endfunction
 
+// the scan of EmpSpTick, counted: units in the playable area, repairers, crushers
+function SpmScan takes string label returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local integer n = 0
+    local integer r = 0
+    local integer c = 0
+    local integer p0 = 0
+    call GroupEnumUnitsInRect(g, bj_mapInitialPlayableArea, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        set n = n + 1
+        if GetOwningPlayer(u) == Player(0) then
+            set p0 = p0 + 1
+        endif
+        if LoadInteger(EmpSpTab, GetUnitTypeId(u), 0) == 6 then
+            set r = r + 1
+        endif
+        if LoadBoolean(EmpSpTab, GetUnitTypeId(u), 9) then
+            set c = c + 1
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    call SpmLog(label + ": units=" + I2S(n) + " p0=" + I2S(p0) + " repairers=" + I2S(r) + " crushers=" + I2S(c) + " | EmpSpTick last scanned=" + I2S(EmpSpScanned))
+endfunction
+
 function SpMissionRun takes nothing returns nothing
     local real x = (EmpMapMinX + EmpMapMaxX) / 2.0
     local real y = (EmpMapMinY + EmpMapMaxY) / 2.0 - 2500.0
     local unit a
     local unit t
     local real hp
+    local integer k
     call TriggerSleepAction(6.0)
+    // no win when the other sides are gone: the victory screen paused the game at 28 s
+    set EmpNormalConditions = false
     call SpmClear()
+    call SpmLog("sp ticks in=" + I2S(EmpSpTicks) + " out=" + I2S(EmpSpTicksDone))
     // Deviator: the tank fights for player 0, then goes back (the deviator leaves after its hit, or it
     // would take the tank again)
     set a = CreateUnit(Player(0), ${id('ORDeviator')}, x, y, 0.0)
@@ -93,7 +126,7 @@ function SpMissionRun takes nothing returns nothing
     set t = CreateUnit(Player(1), ${id('ATMinotaurus')}, x + 400.0, y, 180.0)
     call PauseUnit(t, true)
     call IssueTargetOrder(a, "attack", t)
-    call TriggerSleepAction(3.0)
+    call TriggerSleepAction(6.0)
     call IssueImmediateOrder(a, "stop")
     call RemoveUnit(a)
     set hp = GetWidgetLife(t)
@@ -104,14 +137,18 @@ function SpMissionRun takes nothing returns nothing
     set y = y + 900.0
     set t = CreateUnit(Player(1), ${id('ATBarracks')}, x + 600.0, y, 270.0)
     set a = CreateUnit(Player(0), ${id('HKEngineer')}, x, y, 0.0)
-    call IssuePointOrder(a, "move", x + 600.0, y)
-    call TriggerSleepAction(8.0)
-    call SpmLog("engineer: barracks owner=" + SpmOwner(t) + " engineer=" + SpmOwner(a))
+    call IssuePointOrder(a, "move", GetUnitX(t), GetUnitY(t))
+    call TriggerSleepAction(2.0)
+    call SpmLog("engineer after 2 s: at " + I2S(R2I(GetUnitX(a) - x)) + "," + I2S(R2I(GetUnitY(a) - y)) + " order=" + I2S(GetUnitCurrentOrder(a)) + " barracks at " + I2S(R2I(GetUnitX(t) - x)) + "," + I2S(R2I(GetUnitY(t) - y)) + " paused=" + I2S(IntegerTertiaryOp(IsUnitPaused(a), 1, 0)) + " speed=" + R2S(GetUnitMoveSpeed(a)))
+    call TriggerSleepAction(6.0)
+    call SpmLog("engineer: barracks owner=" + SpmOwner(t) + " engineer=" + SpmOwner(a) + " kind=" + I2S(LoadInteger(EmpSpTab, GetUnitTypeId(a), 0)) + " engineerable=" + I2S(IntegerTertiaryOp(LoadBoolean(EmpSpTab, GetUnitTypeId(t), 8), 1, 0)) + " centre distance=" + I2S(R2I(SquareRoot((GetUnitX(a) - GetUnitX(t)) * (GetUnitX(a) - GetUnitX(t)) + (GetUnitY(a) - GetUnitY(t)) * (GetUnitY(a) - GetUnitY(t))))) + " in range 48=" + I2S(IntegerTertiaryOp(IsUnitInRange(a, t, 48.0), 1, 0)) + " 160=" + I2S(IntegerTertiaryOp(IsUnitInRange(a, t, 160.0), 1, 0)))
+    call EmpSpTick()
+    call SpmLog("engineer after a direct EmpSpTick: barracks owner=" + SpmOwner(t) + " engineer=" + SpmOwner(a))
     // Saboteur: blows the windtrap up
     set y = y + 900.0
     set t = CreateUnit(Player(1), ${id('ATSmWindtrap')}, x + 600.0, y, 270.0)
     set a = CreateUnit(Player(0), ${id('ORSaboteur')}, x, y, 0.0)
-    call IssuePointOrder(a, "move", x + 600.0, y)
+    call IssuePointOrder(a, "move", GetUnitX(t), GetUnitY(t))
     call TriggerSleepAction(8.0)
     call SpmLog("saboteur: windtrap=" + SpmOwner(t) + " saboteur=" + SpmOwner(a))
     // Crushing: ${crusher} drives over ${crushable}
@@ -120,8 +157,15 @@ function SpMissionRun takes nothing returns nothing
     call PauseUnit(t, true)
     set a = CreateUnit(Player(0), ${id(crusher)}, x, y, 0.0)
     call IssuePointOrder(a, "move", x + 700.0, y)
-    call TriggerSleepAction(6.0)
-    call SpmLog("crush: infantry=" + SpmOwner(t))
+    set hp = 100000.0
+    set k = 0
+    loop
+        exitwhen k >= 60
+        call TriggerSleepAction(0.1)
+        set hp = RMinBJ(hp, SquareRoot((GetUnitX(a) - GetUnitX(t)) * (GetUnitX(a) - GetUnitX(t)) + (GetUnitY(a) - GetUnitY(t)) * (GetUnitY(a) - GetUnitY(t))))
+        set k = k + 1
+    endloop
+    call SpmLog("crush: infantry=" + SpmOwner(t) + " closest centre distance=" + I2S(R2I(hp)) + " crusher listed=" + I2S(IntegerTertiaryOp(IsUnitInGroup(a, EmpSpCrushers), 1, 0)))
     // Repair vehicle: a damaged tank of its side within range regains health
     set y = y + 900.0
     set t = CreateUnit(Player(0), ${id('ATMinotaurus')}, x + 300.0, y, 180.0)
@@ -129,7 +173,11 @@ function SpMissionRun takes nothing returns nothing
     set hp = GetWidgetLife(t)
     set a = CreateUnit(Player(0), ${id('ATRepairUnit')}, x, y, 0.0)
     call TriggerSleepAction(4.0)
-    call SpmLog("repair: tank health " + I2S(R2I(hp)) + " -> " + I2S(R2I(GetWidgetLife(t))))
+    call SpmScan("scan with the repairer")
+    call SpmLog("repair: tank health " + I2S(R2I(hp)) + " -> " + I2S(R2I(GetWidgetLife(t))) + " repairer kind=" + I2S(LoadInteger(EmpSpTab, GetUnitTypeId(a), 0)) + " heal/s=" + R2S(LoadReal(EmpSpTab, GetUnitTypeId(a), 1)) + " range=" + R2S(LoadReal(EmpSpTab, GetUnitTypeId(a), 2)))
+    call EmpSpRepair(a, 100.0, 1000.0)
+    call SpmLog("repair after a direct EmpSpRepair(100): " + I2S(R2I(GetWidgetLife(t))))
+    call SpmLog("sp ticks in=" + I2S(EmpSpTicks) + " out=" + I2S(EmpSpTicksDone))
     call SpmLog("done")
     set a = null
     set t = null

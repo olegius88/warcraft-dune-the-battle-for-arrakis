@@ -7,6 +7,7 @@ function EmpSpData takes nothing returns nothing
     set EmpSpTab = InitHashtable()
     set EmpSpLeeched = CreateGroup()
     set EmpSpCrushers = CreateGroup()
+    set EmpSpCrushNear = CreateGroup()
 {{spLines}}
 endfunction
 
@@ -132,77 +133,82 @@ function EmpSpRepair takes unit r, real heal, real range returns nothing
     set best = null
 endfunction
 
-// engineers take buildings over, saboteurs blow them up, moving crushers run over infantry,
-// repair vehicles mend
-function EmpSpTick takes nothing returns nothing
-    local group g = CreateGroup()
-    local unit u
+// one unit of the scan: engineers take buildings over, saboteurs blow them up, repair vehicles
+// mend, crushers are listed for EmpSpCrushTick
+function EmpSpTickEnum takes nothing returns nothing
+    local unit u = GetEnumUnit()
+    local integer t = GetUnitTypeId(u)
+    local integer k = LoadInteger(EmpSpTab, t, 0)
     local unit b
-    local integer k
-    local integer t
-    call ForGroup(EmpSpLeeched, function EmpSpLeechEnum)
-    call GroupEnumUnitsInRect(g, bj_mapInitialPlayableArea, null)
-    loop
-        set u = FirstOfGroup(g)
-        exitwhen u == null
-        call GroupRemoveUnit(g, u)
-        set t = GetUnitTypeId(u)
-        set k = LoadInteger(EmpSpTab, t, 0)
-        if EmpAlive(u) and k == 4 then
-            set b = EmpSpBuildingAt(u, true)
-            if b != null then
-                call SetUnitOwner(b, GetOwningPlayer(u), true)
-                call RemoveUnit(u)
-            endif
-        elseif EmpAlive(u) and k == 5 then
-            set b = EmpSpBuildingAt(u, false)
-            if b != null then
-                call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.bomb.id}}', {{ART_ABILITY.bomb.type}}, 0), GetUnitX(b), GetUnitY(b)))
-                call EmpSwDamage(GetOwningPlayer(u), GetUnitX(b), GetUnitY(b), LoadReal(EmpSpTab, t, 4), LoadReal(EmpSpTab, t, 3), true)
-                call KillUnit(u)
-            endif
-        elseif EmpAlive(u) and k == 6 then
-            call EmpSpRepair(u, LoadReal(EmpSpTab, t, 1) * {{real RT.SP_TICK}}, LoadReal(EmpSpTab, t, 2))
+    set EmpSpScanned = EmpSpScanned + 1
+    if not EmpAlive(u) then
+        set u = null
+        return
+    endif
+    if k == 4 then
+        set b = EmpSpBuildingAt(u, true)
+        if b != null then
+            call SetUnitOwner(b, GetOwningPlayer(u), true)
+            call RemoveUnit(u)
         endif
-        // crushers: checked by the faster EmpSpCrushTick (a 0.5 s scan missed the moment they touch)
-        if EmpAlive(u) and LoadBoolean(EmpSpTab, t, 9) then
-            call GroupAddUnit(EmpSpCrushers, u)
+    elseif k == 5 then
+        set b = EmpSpBuildingAt(u, false)
+        if b != null then
+            call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.bomb.id}}', {{ART_ABILITY.bomb.type}}, 0), GetUnitX(b), GetUnitY(b)))
+            call EmpSwDamage(GetOwningPlayer(u), GetUnitX(b), GetUnitY(b), LoadReal(EmpSpTab, t, 4), LoadReal(EmpSpTab, t, 3), true)
+            call KillUnit(u)
         endif
-    endloop
-    call DestroyGroup(g)
-    set g = null
+    elseif k == 6 then
+        call EmpSpRepair(u, LoadReal(EmpSpTab, t, 1) * {{real RT.SP_TICK}}, LoadReal(EmpSpTab, t, 2))
+    endif
+    if LoadBoolean(EmpSpTab, t, 9) and EmpAlive(u) then
+        call GroupAddUnit(EmpSpCrushers, u)
+    endif
+    set u = null
     set b = null
 endfunction
 
-// a moving crusher runs over enemy infantry it touches (Crushes / Crushable)
-function EmpSpCrushTick takes nothing returns nothing
+// The scan walks the group with ForGroup, which also passes members removed meanwhile (a FirstOfGroup
+// loop ends at the first one).
+function EmpSpTick takes nothing returns nothing
     local group g = CreateGroup()
-    local group near = CreateGroup()
-    local unit u
-    local unit v
-    call GroupAddGroup(EmpSpCrushers, g)
-    loop
-        set u = FirstOfGroup(g)
-        exitwhen u == null
-        call GroupRemoveUnit(g, u)
-        if not EmpAlive(u) then
-            call GroupRemoveUnit(EmpSpCrushers, u)
-        elseif GetUnitCurrentOrder(u) != 0 then
-            call GroupEnumUnitsInRange(near, GetUnitX(u), GetUnitY(u), {{real RT.SP_REACH}}, null)
-            loop
-                set v = FirstOfGroup(near)
-                exitwhen v == null
-                call GroupRemoveUnit(near, v)
-                if EmpAlive(v) and LoadBoolean(EmpSpTab, GetUnitTypeId(v), 10) and IsUnitEnemy(v, GetOwningPlayer(u)) and IsUnitInRange(u, v, {{real RT.SP_CRUSH}}) then
-                    call KillUnit(v)
-                endif
-            endloop
-        endif
-    endloop
+    // counted in and out for unattended checks (debug-report.j)
+    set EmpSpTicks = EmpSpTicks + 1
+    call ForGroup(EmpSpLeeched, function EmpSpLeechEnum)
+    call GroupEnumUnitsInRect(g, bj_mapInitialPlayableArea, null)
+    set EmpSpScanned = 0
+    call ForGroup(g, function EmpSpTickEnum)
     call DestroyGroup(g)
-    call DestroyGroup(near)
     set g = null
-    set near = null
+    set EmpSpTicksDone = EmpSpTicksDone + 1
+endfunction
+
+// infantry the crusher EmpSpCrusher touches (EmpSpCrushNear)
+function EmpSpCrushVictim takes nothing returns nothing
+    local unit v = GetEnumUnit()
+    if EmpAlive(v) and LoadBoolean(EmpSpTab, GetUnitTypeId(v), 10) and IsUnitEnemy(v, GetOwningPlayer(EmpSpCrusher)) and IsUnitInRange(EmpSpCrusher, v, {{real RT.SP_CRUSH}}) then
+        call KillUnit(v)
+    endif
+    set v = null
+endfunction
+
+function EmpSpCrushEnum takes nothing returns nothing
+    local unit u = GetEnumUnit()
+    if not EmpAlive(u) then
+        call GroupRemoveUnit(EmpSpCrushers, u)
+    elseif GetUnitCurrentOrder(u) != 0 then
+        set EmpSpCrusher = u
+        call GroupClear(EmpSpCrushNear)
+        call GroupEnumUnitsInRange(EmpSpCrushNear, GetUnitX(u), GetUnitY(u), {{real RT.SP_REACH}}, null)
+        call ForGroup(EmpSpCrushNear, function EmpSpCrushVictim)
+    endif
+    set u = null
+endfunction
+
+// a moving crusher runs over enemy infantry it touches (Crushes / Crushable); ForGroup, since the
+// list keeps crushers that were removed
+function EmpSpCrushTick takes nothing returns nothing
+    call ForGroup(EmpSpCrushers, function EmpSpCrushEnum)
 endfunction
 
 function EmpSpInit takes nothing returns nothing

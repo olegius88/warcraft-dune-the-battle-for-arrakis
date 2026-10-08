@@ -126,8 +126,9 @@ export const SW_FLEE_PERIOD = 0.5;
 export const SP_TICK = 0.5;
 export const SP_REACH = 400;
 export const SP_TOUCH = 48;
-export const SP_CRUSH = 32;
-/** Crushers are checked this often (s): at 0.5 s they passed infantry between two checks. */
+export const SP_CRUSH = 64;
+/** Crushers are checked this often (s): at 0.5 s they passed infantry between two checks. WC3 pathing
+ * keeps units apart (a crusher passed a scout 108 apart, centre to centre), hence SP_CRUSH 64. */
 export const SP_CRUSH_TICK = 0.1;
 
 /** Special crates: bomb damage and radius, stealth duration and radius around the taker. */

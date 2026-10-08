@@ -57,6 +57,11 @@
     hashtable EmpSpTab = null
     group EmpSpLeeched = null
     group EmpSpCrushers = null
+    integer EmpSpTicks = 0
+    integer EmpSpTicksDone = 0
+    integer EmpSpScanned = 0
+    group EmpSpCrushNear = null
+    unit EmpSpCrusher = null
     // construction yards that gave their builders (battle economy.j)
     group EmpYardsServed = null
     real EmpTmpX = 0.0
