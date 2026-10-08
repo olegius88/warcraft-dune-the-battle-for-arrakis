@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Added
+- 2026-10-08 Стартовый сценарий ИИ из ai.ini `[StartScript]` по `Game.exe` 1.09 ([ai.j](src/jass/battle/ai.j)
+  `EmpAiStartStep`): ИИ сначала строит группы по порядку (Resource, Manufacturing, Core, Manufacturing,
+  Resource) в темпе десятой доли `BuildingDelay`. Сценарий не запускается, если стоящая база
+  покрывает все его шаги (`0x430930`). Шаг без доступного здания ждёт до 60 ходов, а нехватка денег
+  заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
+
 ### Changed
 - 2026-10-08 Строитель базы ИИ по фазам `Game.exe` 1.09 ([ai.j](src/jass/battle/ai.j) `EmpAiBuild`,
   [forces.j](src/jass/battle/forces.j), `AI_MAINTAIN_SHORT`):

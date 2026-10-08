@@ -163,6 +163,9 @@ export const AI_RUN_SIDE = 1;
  * AiManufacturing building and no refinery under credits; without one see ai.j. Then it retreats or
  * attacks all out by ChanceOfRetreating (0x43f4b0). */
 export const AI_LOSING = { fromTicks: 15000, yardUnits: 40, lowCredits: 2000, credits: 4000, poorCredits: 1200, fewUnits: 20, fewBuildings: 7, fewBuildingsOneFactory: 6 } as const;
+/** A [StartScript] step with no building to pick waits this many builder turns, then is skipped
+ * (Game.exe 1.09 0x42f29c). */
+export const AI_START_WAITS = 60;
 /** The base builder's maintenance builds a category only when its share of all buildings is short of
  * its ratio share by over this (Game.exe 1.09 0x42fd35: the double at 0x5d0928, -0.15). */
 export const AI_MAINTAIN_SHORT = -0.15;

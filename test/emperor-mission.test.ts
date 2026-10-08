@@ -1094,9 +1094,27 @@ test('the AI base builder: ratio phase to NumBuildings, then maintenance every M
   const build = body('EmpAiBuild');
   assert.ok(build.includes('EmpAiCount(0) + EmpAiCount(1) + EmpAiCount(2) + EmpAiCount(3) >= EmpAiTBuildings[EmpAiT()]'), 'NumBuildings counts every building but walls');
   assert.ok(build.includes('GetRandomInt(0, 1) != 0') && build.includes('-0.15'), 'maintenance: coin flip, short by over 0.15');
-  assert.ok(body('EmpEnemyBuildTurn').includes('call TimerStart(EmpAiBuildTimer, EmpAiTMaintDelay[EmpAiT()], true, function EmpEnemyBuildTurn)'), 'MaintenanceDelay pace');
+  assert.ok(body('EmpEnemyBuildTurn').includes('set d = EmpAiTMaintDelay[EmpAiT()]') && body('EmpEnemyBuildTurn').includes('call TimerStart(EmpAiBuildTimer, d, true, function EmpEnemyBuildTurn)'), 'MaintenanceDelay pace');
   assert.ok(m.script.includes(`    set EmpAiTMaintDelay[1] = `), 'maintenance delay data');
   assert.ok(body('EmpAiBehave').includes('set EmpAiTMaintTicks[l] = EmpAiPct(EmpAiTMaintTicks[l], -25)'), 'STRONG: MaintenanceDelay -25 %');
+});
+
+// ai.ini [StartScript] (Next=Resource, Manufacturing, Core, Manufacturing, Resource): Game.exe 1.09
+// builds these groups in order first (builder states 0 / 1, 0x42ef30 / 0x42f230) at a tenth of
+// BuildingDelay (0x430ec3), unless the buildings standing already cover every step ("Disabling start
+// script as detected pre built base", 0x430930); a step with no building to pick waits up to 60 turns,
+// one it cannot afford ends the script ("Finished Start Script"). Ours had no start script.
+test('the AI start script: ai.ini [StartScript] steps first, unless the base covers them (Game.exe)', opts, () => {
+  const all = loadAll();
+  assert.deepStrictEqual(all.ai?.startScript, ['resource', 'manufacturing', 'core', 'manufacturing', 'resource']);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(m.script.includes('    set EmpAiStartCat[0] = 3') && m.script.includes('    set EmpAiStartCat[2] = 0') && m.script.includes('    set EmpAiStartCount = 5'), 'steps by category');
+  const step = body('EmpAiStartStep');
+  assert.ok(step.includes('EmpAiStartWait >= 60') && step.includes('call EmpAiLog("start script ends: cannot afford")'), 'waits, ends when unaffordable');
+  assert.ok(body('EmpAiStartCovered').includes('LoadInteger') || body('EmpAiStartCovered').includes('EmpAiCount'), 'covered test');
+  assert.ok(body('EmpEnemyBuildTurn').includes('set d = EmpAiTBuildDelay[EmpAiT()] / 10'), 'a tenth of BuildingDelay');
 });
 
 // ChanceOfRetreating: Game.exe 1.09 reads it once (key 27: only 0x43f51d), when the AI is losing

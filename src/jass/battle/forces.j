@@ -116,6 +116,7 @@ endfunction
 // were missing from EmpCostTab, rebuilds were free until 2026-10-08), or else the base builder's turn
 // (ai.j).
 function EmpEnemyBuildTurn takes nothing returns nothing
+    local real d
     local integer c
     local integer k
     local integer b = EmpBaseOfSide(1)
@@ -144,9 +145,18 @@ function EmpEnemyBuildTurn takes nothing returns nothing
     endloop
     // the template stands: the base builder grows the base (ai.j); once it maintains, at the
     // MaintenanceDelay pace (Game.exe 1.09 0x430e95)
+    // pace by builder state (Game.exe 0x430e95): start script a tenth of BuildingDelay, maintenance
+    // MaintenanceDelay, else BuildingDelay
     call EmpAiBuild()
-    if EmpAiMaintaining and TimerGetTimeout(EmpAiBuildTimer) != EmpAiTMaintDelay[EmpAiT()] then
-        call TimerStart(EmpAiBuildTimer, EmpAiTMaintDelay[EmpAiT()], true, function EmpEnemyBuildTurn)
+    if EmpAiStartState == 1 then
+        set d = EmpAiTBuildDelay[EmpAiT()] / 10
+    elseif EmpAiMaintaining then
+        set d = EmpAiTMaintDelay[EmpAiT()]
+    else
+        set d = EmpAiTBuildDelay[EmpAiT()]
+    endif
+    if TimerGetTimeout(EmpAiBuildTimer) != d then
+        call TimerStart(EmpAiBuildTimer, d, true, function EmpEnemyBuildTurn)
     endif
 endfunction
 

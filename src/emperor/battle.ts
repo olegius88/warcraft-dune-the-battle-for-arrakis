@@ -20,13 +20,14 @@
 // category short of its share by over AI_MAINTAIN_SHORT). In its maintenance state Game.exe builds by
 // ratio instead when rand % 70 < the AI skill (0x42f3d0); the skill starts at -1 (0x4310aa) and only a
 // personality sets it, so a campaign AI without SideAIBehaviourAggressive / Defensive never does.
-// TODO(ai): still simplified against Game.exe: the start base is a fixed template rebuilt first, where
-// Game.exe runs the ai.ini StartScript (builder states 0 / 1, at a tenth of BuildingDelay) unless the
-// map placed a base; sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings
-// do not turn); maintenance does not try a sub-house building first (0x42fcb3); builder state 3
-// (0x430c90) and the skill rolls of AIs given a personality are not reproduced; a windtrap goes first
-// when short of power (not traced in Game.exe). Risk: the AI's base grows in another order than
-// Emperor's.
+// Before them the ai.ini [StartScript] runs (builder states 0 / 1, a tenth of BuildingDelay) unless the
+// base covers its steps (ai.j EmpAiStartStep).
+// TODO(ai): still simplified against Game.exe: a territory battle's enemy starts from a fixed base
+// template whose lost buildings are rebuilt first (BASE_TEMPLATE; Emperor's campaign start base is not
+// traced); sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not
+// turn); maintenance does not try a sub-house building first (0x42fcb3); builder state 3 (0x430c90)
+// and the skill rolls of AIs given a personality are not reproduced; a windtrap goes first when short
+// of power (not traced in Game.exe). Risk: the AI's base grows in another order than Emperor's.
 
 import { real, str } from '../wc3/jass.ts';
 import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS } from '../config/campaign.ts';
@@ -330,6 +331,10 @@ endfunction`;
       `    set EmpAiTBuildTicks[${lvl}] = ${t.buildingDelay}`, `    set EmpAiTGapTicks[${lvl}] = ${t.gapBetweenScripts}`,
       `    set EmpAiTMaintTicks[${lvl}] = ${t.maintenanceDelay}`, `    set EmpAiTMaintDelay[${lvl}] = ${real(Math.max(1, t.maintenanceDelay) / TICKS_PER_SECOND)}`);
   });
+  // ai.ini [StartScript]: the categories built first (ai.j EmpAiStartStep)
+  const steps = ai.startScript.filter((g): g is keyof typeof category => g in category);
+  steps.forEach((g, i) => aiLines.push(`    set EmpAiStartCat[${i}] = ${category[g]}`));
+  aiLines.push(`    set EmpAiStartCount = ${steps.length}`);
   // the losing test (ai.j EmpAiLosingCase): Rules.txt AiManufacturing types and the MCV's price
   for (const r of o.rules?.objects.values() ?? []) {
     const id = rc(r.name);

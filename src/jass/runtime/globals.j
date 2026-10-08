@@ -224,6 +224,13 @@
     integer array EmpAiTMaintTicks
     real array EmpAiTMaintDelay
     boolean EmpAiMaintaining = false
+    // ai.ini [StartScript] (battle ai.j EmpAiStartStep): categories, steps, done, a step's waits;
+    // EmpAiStartState 0 not decided, 1 running, 2 over
+    integer array EmpAiStartCat
+    integer EmpAiStartCount = 0
+    integer EmpAiStartAt = 0
+    integer EmpAiStartWait = 0
+    integer EmpAiStartState = 0
     integer EmpAiDefPct = 0
     integer EmpAiWander = 0
     boolean EmpAiBuildsDef = false

@@ -381,6 +381,68 @@ function EmpAiUpgrade takes nothing returns boolean
 endfunction
 
 // the base builder's turn (EmpEnemyProduce, when no template building was rebuilt)
+// Game.exe 1.09 (0x430930): the buildings standing cover every [StartScript] step (a building of its
+// category each), the start script is then off ("detected pre built base")
+function EmpAiStartCovered takes nothing returns boolean
+    local integer array need
+    local integer i = 0
+    loop
+        exitwhen i > 3
+        set need[i] = 0
+        set i = i + 1
+    endloop
+    set i = 0
+    loop
+        exitwhen i >= EmpAiStartCount
+        set need[EmpAiStartCat[i]] = need[EmpAiStartCat[i]] + 1
+        set i = i + 1
+    endloop
+    set i = 0
+    loop
+        exitwhen i > 3
+        if need[i] > EmpAiCount(i) then
+            return false
+        endif
+        set i = i + 1
+    endloop
+    return true
+endfunction
+
+// one [StartScript] step (Game.exe 0x42f230): a building of the step's category; with none to pick the
+// step waits (AI_START_WAITS turns at most) and is then skipped; one it cannot afford ends the script
+function EmpAiStartStep takes nothing returns nothing
+    local integer t
+    if EmpAiStartAt >= EmpAiStartCount then
+        set EmpAiStartState = 2
+        call EmpAiLog("start script complete")
+        return
+    endif
+    set t = EmpAiPick(EmpAiStartCat[EmpAiStartAt])
+    if t == 0 then
+        set EmpAiStartWait = EmpAiStartWait + 1
+        if EmpAiStartWait >= {{C.AI_START_WAITS}} then
+            call EmpAiLog("start script step " + I2S(EmpAiStartAt) + " skipped")
+            set EmpAiStartWait = 0
+            set EmpAiStartAt = EmpAiStartAt + 1
+        endif
+        return
+    endif
+    set EmpAiStartWait = 0
+    if EmpEnemyGold() < LoadInteger(EmpCostTab, t, 0) then
+        set EmpAiStartState = 2
+        call EmpAiLog("start script ends: cannot afford")
+        return
+    endif
+    if not EmpAiPlace(t) then
+        call EmpAiWait(5, "no free site for " + GetObjectName(t))
+        return
+    endif
+    set EmpAiStartAt = EmpAiStartAt + 1
+    set EmpAiWhy = 0
+    call EmpAiLog("start script step " + I2S(EmpAiStartAt) + ": " + GetObjectName(t))
+    call EmpAiStart(t, EmpAiX, EmpAiY)
+endfunction
+
 function EmpAiBuild takes nothing returns nothing
     local integer c
     local integer best
@@ -400,6 +462,19 @@ function EmpAiBuild takes nothing returns nothing
     endif
     if not EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
         call EmpAiWait(1, "no construction yard")
+        return
+    endif
+    // Game.exe's builder states 0 / 1 (0x42ef30): the [StartScript] first, unless the base covers it
+    if EmpAiStartState == 0 then
+        if EmpAiStartCount == 0 or EmpAiStartCovered() then
+            set EmpAiStartState = 2
+            call EmpAiLog("start script off: the base covers it")
+        else
+            set EmpAiStartState = 1
+        endif
+    endif
+    if EmpAiStartState == 1 then
+        call EmpAiStartStep()
         return
     endif
     if EmpEnemyGold() < {{ai.minMoneyToBuild}} then
