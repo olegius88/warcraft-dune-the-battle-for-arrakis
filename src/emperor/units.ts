@@ -117,6 +117,27 @@ export interface UnitData {
   vetRange: VetRangeType[];
   /** deployable types, their deployed copies, buttons and morphs */
   deploy: DeployType[];
+  /** types that blow themselves up (Devastator, Infiltrator, EITS) and their buttons */
+  detonators: Detonator[];
+}
+
+/** A type that blows itself up on its deploy command (Game.exe 1.09 classes 0x1c Devastator, 0x1b
+ * Infiltrator, 9 EyeInTheSky; mission detonate.j): its button, the Resource bomb (damage, BlastRadius in
+ * WC3 units, warhead), the wait before (Lifespan ticks, Infiltrator), how many bombs (EITS 10), the
+ * reveal pulse (Infiltrator: its own BlastRadius tiles, Damage ticks) and the unit it leaves (EITS:
+ * an ORSaboteur, hard-coded 0x62f254). */
+export interface Detonator {
+  type: string;
+  button: string;
+  kind: 'devastator' | 'infiltrator' | 'eits';
+  damage: number;
+  radius: number;
+  warhead: string;
+  delaySeconds: number;
+  bombs: number;
+  pulseRadius: number;
+  pulseTicks: number;
+  leaves: string;
 }
 
 /** A deployable type (Rules.txt DeployInf / Kobra), its deployed copy armed with the turret it fires
@@ -457,7 +478,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     const abil = mods.filter((m) => m.field === F.abilities).map((m) => String(m.value)).at(-1) ?? '';
     return [...mods.filter((m) => m.field !== F.abilities), str(F.abilities, [...abil.split(',').filter(Boolean), ability].join(','))];
   };
-  const button = (id: string, name: string, tip: string, icon: string | undefined): ObjectDef => ({ base: ABILITY.channel, id, mods: [
+  const channelButton = (id: string, name: string, tip: string, icon: string | undefined): ObjectDef => ({ base: ABILITY.channel, id, mods: [
     { field: ABILITY_FIELD.name, type: 'string', value: name },
     { field: ABILITY_FIELD.hero, type: 'int', value: 0 }, { field: ABILITY_FIELD.levels, type: 'int', value: 1 },
     { field: ABILITY_FIELD.requires, type: 'string', value: '' },
@@ -494,10 +515,36 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     if (!auto) {
       obj.mods = withAbility(obj.mods, d.deploy);
       const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
-      abilities.push(button(d.deploy, U.DEPLOY.deployName, U.DEPLOY.deployTooltip, icon), button(d.undeploy, U.DEPLOY.undeployName, U.DEPLOY.undeployTooltip, icon));
+      abilities.push(channelButton(d.deploy, U.DEPLOY.deployName, U.DEPLOY.deployTooltip, icon), channelButton(d.undeploy, U.DEPLOY.undeployName, U.DEPLOY.undeployTooltip, icon));
     }
     abilities.push(morph(d.toDeployed, d.deployed), morph(d.toNormal, d.type));
     deploy.push(d);
+  }
+  // Detonating types: a Channel button; the bomb is their Resource bullet (mission detonate.j)
+  const detonators: Detonator[] = [];
+  const flag = (o: RulesObject, k: string): boolean => /^true$/i.test((o.raw[k] ?? '').split('//')[0]?.trim() ?? '');
+  const raw = (name: string): Record<string, string> => Object.fromEntries((rules.sections.get(name.toLowerCase())?.entries ?? []).map(([k, v]) => [k, v.split('//')[0]?.trim() ?? '']));
+  for (const obj of objects.filter((x) => x.emperor && ['Devastator', 'Infiltrator', 'EyeInTheSky'].some((k) => flag(x.emperor as RulesObject, k)))) {
+    const o = obj.emperor as RulesObject;
+    const kind = flag(o, 'Devastator') ? 'devastator' : flag(o, 'Infiltrator') ? 'infiltrator' : 'eits';
+    const bomb = raw((o.raw.Resource ?? '').split(',')[0]?.split('//')[0]?.trim() ?? '');
+    if (!bomb.Damage) continue;
+    const button = nextId(CUSTOM_ID.deployPrefix);
+    const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
+    abilities.push({ ...channelButton(button, U.DETONATE.name, U.DETONATE.tooltip, icon), mods: [...channelButton(button, U.DETONATE.name, U.DETONATE.tooltip, icon).mods.filter((m) => m.field !== ABILITY_FIELD.buttonX && m.field !== ABILITY_FIELD.buttonY),
+      { field: ABILITY_FIELD.buttonX, type: 'int', value: U.DETONATE.button[0] }, { field: ABILITY_FIELD.buttonY, type: 'int', value: U.DETONATE.button[1] }] });
+    obj.mods = withAbility(obj.mods, button);
+    detonators.push({
+      type: obj.id, button, kind,
+      damage: Math.max(1, Number(bomb.Damage) / S.DAMAGE_DIVISOR),
+      radius: (Number(bomb.BlastRadius) || 0) / S.EMPEROR_TILE * S.WC3_UNITS_PER_TILE,
+      warhead: bomb.Warhead ?? '',
+      delaySeconds: kind === 'infiltrator' ? (Number(o.raw.Lifespan) || 0) / S.TICKS_PER_SECOND : 0,
+      bombs: kind === 'eits' ? U.EITS_BOMBS : 1,
+      pulseRadius: kind === 'infiltrator' ? (Number(o.raw.BlastRadius) || 0) * S.WC3_UNITS_PER_TILE : 0,
+      pulseTicks: kind === 'infiltrator' ? Number(o.raw.Damage) || 0 : 0,
+      leaves: kind === 'eits' ? rawcode.get('ORSaboteur') ?? '' : '',
+    });
   }
   // Command card cells of the train / research buttons: without them a type keeps its stock base's
   // cell and types of the same base hide each other. Buildings with the most buttons first; each
@@ -526,7 +573,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),

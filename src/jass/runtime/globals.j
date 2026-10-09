@@ -49,6 +49,8 @@
     // APC passengers (mission apc.j)
     hashtable EmpApcTab = null
     group EmpApcAll = null
+    // units that blow themselves up (mission detonate.j)
+    hashtable EmpBoomTab = null
     // carryalls at work, their harvesters, a destination (battle carryall.j)
     hashtable EmpCarryTab = null
     group EmpCarryBusy = null

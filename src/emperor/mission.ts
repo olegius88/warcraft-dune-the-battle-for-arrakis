@@ -275,6 +275,8 @@ function buildMission(p: MissionParams): BuiltMission {
     if (!id) continue;
     if (o.score !== 1) vetLines.push(`    call SaveInteger(EmpVet, '${id}', 0, ${o.score})`);
     if (o.stealthedWhenStill) vetLines.push(`    call SaveBoolean(EmpVet, '${id}', 2, true)`);
+    // Stealthed: hidden moving or not (stealth.j)
+    if (o.stealthed) vetLines.push(`    call SaveBoolean(EmpVet, '${id}', 5, true)`);
     // UnstealthRange: this type reveals stealthed enemies within it (WC3 units)
     if (o.unstealthRange > 0) vetLines.push(`    call SaveReal(EmpVet, '${id}', 3, ${real(o.unstealthRange * WC3_UNITS_PER_TILE)})`);
     if (o.aiThreat > 0) vetLines.push(`    call SaveInteger(EmpThreat, '${id}', 0, ${o.aiThreat})`);
@@ -332,6 +334,13 @@ function buildMission(p: MissionParams): BuiltMission {
     deployLines.push(`    call EmpDeployRegister('${d.type}', '${d.deployed}', ${code(d.deploy)}, ${code(d.undeploy)}, '${d.toDeployed}', '${d.toNormal}', ${real(Math.max(1, d.weapon.bullet?.range ?? 1) * RANGE_PER_TILE)}, ${real(d.deploySeconds)}, ${real(d.undeploySeconds)})`);
     // a form the game switches itself (the ADV Sardaukar's knife): by enemy infantry within range
     if (d.auto > 0) deployLines.push(`    call EmpDeployAuto('${d.type}', ${real(d.auto)})`);
+  }
+  // detonating types (units.ts detonators): their bomb, its warhead % per armour (detonate.j)
+  const boomLines: string[] = [];
+  const BOOM_KIND = { devastator: 1, infiltrator: 2, eits: 3 } as const;
+  for (const d of p.units.detonators ?? []) {
+    boomLines.push(`    call EmpBoomType('${d.type}', ${BOOM_KIND[d.kind]}, ${real(d.damage)}, ${real(d.radius)}, ${real(d.delaySeconds)}, ${d.bombs}, ${real(d.pulseRadius)}, ${d.pulseTicks}, ${d.leaves ? `'${d.leaves}'` : 0}, '${d.button}')`);
+    if (d.warhead) boomLines.push(...pctLines(d.type, RT.BOOM_PCT_KEY, d.warhead));
   }
   // the infantry types (Rules.txt Infantry): what a knife form goes for
   if ((p.units.deploy ?? []).some((d) => d.auto > 0)) {
@@ -491,12 +500,12 @@ function buildMission(p: MissionParams): BuiltMission {
 
   // values of the src/jass/mission files
   const scope = {
-    CACHE_FILE, CAT, K, RT, UI: RT.UI, ITEM, EFFECT, ICON, ART_ABILITY, FACING, ARMOR_REDUCTION, TICK_SECONDS, HOUSE_ID, OTHER_ENEMY_COLOR,
+    CACHE_FILE, CAT, K, RT, UI: RT.UI, WC3_UNITS_PER_TILE, ITEM, EFFECT, ICON, ART_ABILITY, FACING, ARMOR_REDUCTION, TICK_SECONDS, HOUSE_ID, OTHER_ENEMY_COLOR,
     SHUFFLE_BATTLE_MUSIC, START_MISSION_PHASE, START_MISSION_TECH,
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -518,6 +527,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('superweapon'),
     jass('damage'),
     jass('deploy'),
+    jass('detonate'),
     jass('apc'),
     jass('subhouse'),
     jass('specials'),

@@ -44,6 +44,7 @@ const atRefinery = all.units.rawcode.get('ATRefinery') as string;
 const atHelipad = all.units.rawcode.get('ATHelipad') as string;
 const atOrni = all.units.rawcode.get('ATOrni') as string;
 const hkYard = all.units.rawcode.get('HKConYard') as string;
+const [hkDev, ixInf, orEits, orSab, atScout] = ['HKDevastator', 'IXInfiltrator', 'OREITS', 'ORSaboteur', 'ATScout'].map((n) => all.units.rawcode.get(n) as string);
 // --mcvai: a factory of each house
 const factoryOf = { AT: all.units.rawcode.get('ATFactory') as string, HK: all.units.rawcode.get('HKFactory') as string, OR: all.units.rawcode.get('ORFactory') as string };
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
@@ -548,6 +549,49 @@ endfunction`,
         set i = i + 1
     endloop
     call PreloadGenEnd("DuneSmoke\\\\orni.pld")
+endfunction`,
+  } : {}),
+  // --boom: a Devastator, an Infiltrator (an enemy scout hidden by it) and an EITS blow up by their
+  // button, each by a paused enemy trike
+  ...(flag('--boom') ? {
+    extraStart: 'BoomRun',
+    extraFunctions: `function BoomOne takes integer t, real x, real y returns string
+    local unit u = CreateUnit(Player(0), t, x, y, 0.0)
+    local unit v = CreateUnit(Player(1), '${trike}', x + 200.0, y, 0.0)
+    local unit s = CreateUnit(Player(1), '${atScout}', x + 600.0, y, 0.0)
+    local real life = GetWidgetLife(v)
+    local boolean cast
+    local string r
+    call PauseUnit(v, true)
+    call UnitAddAbility(s, 'Apiv')
+    call TriggerSleepAction(0.5)
+    set cast = IssueImmediateOrder(u, "channel")
+    call TriggerSleepAction(1.5)
+    set r = GetObjectName(t) + ": cast " + I2S(IntegerTertiaryOp(cast, 1, 0)) + " alive " + I2S(IntegerTertiaryOp(EmpAlive(u), 1, 0)) + " trike lost " + R2S(life - GetWidgetLife(v)) + " scout invisible " + I2S(GetUnitAbilityLevel(s, 'Apiv')) + " revealed for " + I2S(LoadInteger(EmpVetUnit, GetHandleId(s), 18) - EmpTick) + " saboteurs " + I2S(EmpCount(0, '${orSab}'))
+    set u = null
+    set v = null
+    set s = null
+    return r
+endfunction
+
+function BoomRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local string s1
+    local string s2
+    local string s3
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    set s1 = BoomOne('${hkDev}', x, y)
+    set s2 = BoomOne('${ixInf}', x, y + 1500.0)
+    set s3 = BoomOne('${orEits}', x, y - 1500.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload(s3)
+    call PreloadGenEnd("DuneSmoke\\\\boom.pld")
 endfunction`,
   } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,

@@ -6,7 +6,8 @@
 // 6 = stealthed when still (veterancy), 7..8 = last x/y, 10 = still since (tick), 9 = last shot (tick),
 // 11 = ExtraDamage % the veterancy set, 12..13 = speed / regeneration it set (all put back after a
 // morph), 14 = ExtraRange % the unit has, 15 = its WC3 type before a morph, 16 = the elite
-// effect, 17 = the WC3 type whose base damage child 2 holds (a deployed form has another, deploy.j).
+// effect, 17 = the WC3 type whose base damage child 2 holds (a deployed form has another, deploy.j),
+// 18 = the tick until which a reveal pulse shows it (detonate.j, stealth.j).
 // ExtraRange: a level with it turns the unit into the veteran copy of its type (EmpVetRangeType,
 // child RT.VET_MORPH_KEY + % = the Chaos ability). The unit stays the same one, but the morph resets
 // damage, speed, regeneration and added abilities (src/smoke/build-morph-probe.ts, 2026-10-08):

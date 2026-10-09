@@ -42,6 +42,15 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 Подрыв Devastator, Infiltrator и EITS ([detonate.j](src/jass/mission/detonate.j), `detonators` в
+  [units.ts](src/emperor/units.ts)). Раньше они не умели взрываться. Кнопка «Взорвать» и скриптовый
+  `ObjectDeploy` делают как Game.exe: Devastator — сразу DeathHandBomb (`0x568b20`); Infiltrator — через
+  Lifespan тиков SaboteurBomb и импульс, снимающий невидимость в радиусе 10 клеток на 100 тиков
+  (`0x56cf2c`, `0x4c1a90`), а также при подходе к зданию врага; EITS — 10 бомб EITSBomb_B и саботёр
+  Ордосов на месте (`0x56916a`). Урон по процентам боеголовки для брони. Пробник `--boom`.
+- 2026-10-09 Постоянная невидимость (Rules.txt `Stealthed`: фримены, ADV Fremen, Infiltrator;
+  [stealth.j](src/jass/mission/stealth.j)). Раньше они были видны всегда. В Game.exe они рождаются
+  невидимыми (`0x4c0640`); стрельба и детекторы раскрывают их по тем же правилам, что и невидимость стоя.
 - 2026-10-09 Боезапас и перезарядка орнитоптеров ([orni.j](src/jass/battle/orni.j), `ORNI` в
   [config/battle.ts](src/config/battle.ts)). Раньше ATOrni и HKGunship стреляли бесконечно, а вертолётные площадки,
   которые ИИ строит по «критической нужде», ничего не делали. Как в Game.exe (класс 5): у турели

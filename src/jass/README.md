@@ -48,6 +48,7 @@
 | `mission/start.j` | `src/emperor/mission.ts` | `EmpStart`: порядок запуска, триггеры, таймеры, музыка, цвета игроков |
 | `battle/tech-limits.j` | `src/emperor/battle.ts` | запрет построек и юнитов выше текущего тех-уровня (`{{limitLines}}` из данных юнитов) |
 | `mission/deploy.j` | `src/emperor/mission.ts` | развёртывание Kindjal / Mortar / Kobra (кнопки, смена типа через Chaos, ожидание анимации) и нож ADV Sardaukar (`{{deployLines}}`) |
+| `mission/detonate.j` | `src/emperor/mission.ts` | подрыв Devastator / Infiltrator / EITS: бомбы, импульс раскрытия, саботёр EITS |
 | `mission/apc.j` | `src/emperor/mission.ts` | APC: учёт пассажиров, гибель пассажиров вместе с APC |
 | `battle/spice-fields.j` | `src/emperor/battle.ts` | поля спайса по кластерам карты; спайс, сохранённый территорией с прошлой битвы |
 | `battle/carryall.j` | `src/emperor/battle.ts` | карриалы возят харвестеры к полю и к НПЗ; гибель груза со сбитым карриалом |

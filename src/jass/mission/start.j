@@ -14,6 +14,7 @@ function EmpStart takes nothing returns nothing
     call EmpDmgInit()
     call EmpDeployInit()
     call EmpApcInit()
+    call EmpBoomInit()
     call EmpSubhouseLimits()
     call EmpSpInit()
     call EmpUiInit()

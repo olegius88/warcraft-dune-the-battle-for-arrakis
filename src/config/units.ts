@@ -126,3 +126,11 @@ export const DEPLOY = {
  * only infantry boards (0x55e8a0): an infantry type takes infantrySize of the hold, every other unit
  * otherSize, more than the hold (units.ts, WC3 Transported Size). */
 export const APC = { capacity: 5, infantrySize: 1, otherSize: 6 } as const;
+/** The detonate button of Devastator / Infiltrator / EITS (units.ts detonators, mission detonate.j). */
+export const DETONATE = {
+  name: 'Взорвать',
+  tooltip: 'Подорвать машину: взрыв поражает всех вокруг, сама машина гибнет.',
+  button: [1, 2] as const,
+} as const;
+/** EITS: bombs it drops when it blows up (Game.exe 0x56916a: ten EITSBomb_B). */
+export const EITS_BOMBS = 10;

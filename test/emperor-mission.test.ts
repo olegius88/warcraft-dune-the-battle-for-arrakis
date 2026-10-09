@@ -464,7 +464,8 @@ test('special abilities: data from Rules.txt and their runtime', opts, () => {
   assert.deepStrictEqual(sp.leeches.find((l) => l.name === 'TLLeech'), { name: 'TLLeech', infantry: false, damagePerTick: 2, damage: 100 });
   assert.deepStrictEqual(sp.leeches.find((l) => l.name === 'TLContaminator'), { name: 'TLContaminator', infantry: true, damagePerTick: 10000, damage: 10 });
   assert.deepStrictEqual([...sp.engineers].sort(), ['ATEngineer', 'HKEngineer', 'OREngineer']);
-  assert.deepStrictEqual(sp.saboteurs, [{ name: 'ORSaboteur', damage: 3000, radiusTiles: 3 }]);
+  // the Infiltrator goes off at a target by the saboteur's own code (Game.exe 0x565cc0), with its bomb
+  assert.deepStrictEqual(sp.saboteurs, [{ name: 'ORSaboteur', damage: 3000, radiusTiles: 3 }, { name: 'IXInfiltrator', damage: 3000, radiusTiles: 3 }]);
   assert.ok(sp.notDeviatable.length === 43 && sp.engineerable.length >= 39 && sp.crushers.length === 17 && sp.crushable.length === 36);
   // repair vehicle (Repair = true): [General] RepairTileRange, RepairRate per 10 ticks
   assert.deepStrictEqual(sp.repair, { units: ['ATRepairUnit'], rangeTiles: 10, perTenTicks: 12 });
@@ -1738,6 +1739,44 @@ test('carryalls carry harvesters, and the AI builds them', opts, () => {
   const want = body('EmpAiCarryallWanted');
   assert.ok(want.includes('harv > 2 * carry') && want.includes('EmpEnemyGold() <= 2000') && want.includes('EmpCount(1, 1) <= 10'), 'Game.exe 0x467b00: none unless over 2000 credits and 10 units');
   assert.ok(body('EmpEnemyProduce').includes('EmpAiCarryallWanted()'), 'the AI builds them');
+});
+
+// HKDevastator, IXInfiltrator and OREITS could not blow themselves up (their deploy command). Game.exe
+// 1.09: Devastator at once its DeathHandBomb (0x568b20); Infiltrator Lifespan ticks later its
+// SaboteurBomb and a reveal pulse within its BlastRadius tiles for Damage ticks (0x56cf2c, 0x4c1a90),
+// also on reaching a target (the saboteur's code); EITS ten EITSBomb_B and an ORSaboteur left behind
+// (0x56916a). Guaranteed now: a detonate button and ObjectDeploy do the same (mission detonate.j).
+test('Devastator, Infiltrator and EITS detonate as Game.exe does', opts, () => {
+  const all = loadAll();
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const d = (n: string) => all.units.detonators.find((x) => x.type === id(n));
+  assert.deepStrictEqual([d('HKDevastator')?.damage, d('HKDevastator')?.radius, d('HKDevastator')?.warhead, d('HKDevastator')?.delaySeconds], [2500, 384, 'Death_W', 0]);
+  assert.deepStrictEqual([d('IXInfiltrator')?.damage, d('IXInfiltrator')?.delaySeconds, d('IXInfiltrator')?.pulseRadius, d('IXInfiltrator')?.pulseTicks], [1500, 0.2, 1280, 100]);
+  assert.deepStrictEqual([d('OREITS')?.bombs, d('OREITS')?.damage, d('OREITS')?.leaves], [10, 200, id('ORSaboteur')]);
+  const field = (i: string, f: string): string => all.units.objects.find((o) => o.id === i)?.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  assert.ok(field(id('HKDevastator'), 'uabi').split(',').includes(d('HKDevastator')?.button as string), 'the button');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'boom', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call EmpBoomType('${id('HKDevastator')}', 1, 2500.0, 384.0, 0.0, 1, 0.0, 0, 0, '${d('HKDevastator')?.button}')`));
+  assert.ok(m.script.includes(`call SaveInteger(EmpSwTab, '${id('HKDevastator')}', ${RT.BOOM_PCT_KEY + 1}, `), 'Death_W % per armour');
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EF_ObjectDeploy').includes('EmpBoomTab'), 'ObjectDeploy blows them up too');
+});
+
+// Units with Rules.txt Stealthed = TRUE (FRFremen, FRADVFremen, IXInfiltrator) were always visible: only
+// StealthedWhenStill was ported. Game.exe 1.09 starts them stealthed (0x4c0640 sets the stealth bit from
+// the type's +0x3c7) and the same reveal rules apply (firing, UnstealthRange). Guaranteed now: such a
+// type is hidden standing or moving, shown after it fires, near a detector or by a reveal pulse.
+test('Stealthed units are hidden whether they move or not', opts, () => {
+  const all = loadAll();
+  assert.strictEqual(all.rules.objects.get('FRFremen')?.stealthed, true);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'stealthed', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  for (const n of ['FRFremen', 'FRADVFremen', 'IXInfiltrator']) assert.ok(m.script.includes(`call SaveBoolean(EmpVet, '${all.units.rawcode.get(n)}', 5, true)`), n);
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const still = body('EmpStillEnum');
+  assert.ok(still.includes('LoadBoolean(EmpVet, EmpType(u), 5)'), 'stealthed types');
+  assert.ok(still.includes('LoadInteger(EmpVetUnit, h, 18)'), 'a reveal pulse shows it for a while');
 });
 
 // Regression: a weapon whose bullet has AntiAircraft = TRUE could hit aircraft only (WC3 targets "air"),

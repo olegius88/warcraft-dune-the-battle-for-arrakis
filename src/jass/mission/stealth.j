@@ -1,3 +1,6 @@
+// Stealthed (Rules.txt: FRFremen, FRADVFremen, IXInfiltrator) hide moving or not, under the same reveal
+// rules; TODO(units): Game.exe 0x55fca0 also compares the unit's health with its maximum before it
+// hides one (constant 0x5d4404, not read); risk: a badly hurt stealthed unit may stay hidden here.
 // StealthedWhenStill (Rules.txt: scouts by type, ATSniper at veterancy level 3): the unit turns
 // invisible StealthDelay ticks after it stopped and StealthDelayAfterFiring ticks after its last shot
 // (EmpOnAttacked records the shot), and visible again when it moves or fires. Units made invisible
@@ -29,13 +32,18 @@ function EmpStillEnum takes nothing returns boolean
     local real x = GetUnitX(u)
     local real y = GetUnitY(u)
     local boolean hide
-    if EmpAlive(u) and (LoadBoolean(EmpVet, EmpType(u), 2) or LoadBoolean(EmpVetUnit, h, 6)) and not IsUnitInGroup(u, EmpStealthGroup) then
+    if EmpAlive(u) and (LoadBoolean(EmpVet, EmpType(u), 2) or LoadBoolean(EmpVet, EmpType(u), 5) or LoadBoolean(EmpVetUnit, h, 6)) and not IsUnitInGroup(u, EmpStealthGroup) then
         if not HaveSavedReal(EmpVetUnit, h, 7) or (x - LoadReal(EmpVetUnit, h, 7)) * (x - LoadReal(EmpVetUnit, h, 7)) + (y - LoadReal(EmpVetUnit, h, 8)) * (y - LoadReal(EmpVetUnit, h, 8)) > 4.0 then
             call SaveReal(EmpVetUnit, h, 7, x)
             call SaveReal(EmpVetUnit, h, 8, y)
             call SaveInteger(EmpVetUnit, h, 10, EmpTick)
         endif
-        set hide = EmpTick - LoadInteger(EmpVetUnit, h, 10) >= {{stealth.delay}}
+        // Stealthed types (EmpVet child 5) hide moving or not (Game.exe 0x4c0640)
+        set hide = LoadBoolean(EmpVet, EmpType(u), 5) or EmpTick - LoadInteger(EmpVetUnit, h, 10) >= {{stealth.delay}}
+        // a reveal pulse (the Infiltrator's, detonate.j) shows it until EmpVetUnit child 18
+        if EmpTick < LoadInteger(EmpVetUnit, h, 18) then
+            set hide = false
+        endif
         if HaveSavedInteger(EmpVetUnit, h, 9) and EmpTick - LoadInteger(EmpVetUnit, h, 9) < {{stealth.afterFiring}} then
             set hide = false
         endif

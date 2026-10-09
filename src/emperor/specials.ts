@@ -57,7 +57,7 @@ function specialAbilities(rules: Rules): SpecialAbilities {
     deviators: objects.filter((o) => bulletOf(o.name).some((b) => isTrue(b.Deviate))).map((o) => o.name),
     leeches: objects.flatMap((o) => bulletOf(o.name).filter((b) => isTrue(b.Leech)).map((b) => ({ name: o.name, infantry: isTrue(b.Infantry), damagePerTick: num(b.ShieldHealth), damage: num(b.Damage) }))),
     engineers: objects.filter((o) => isTrue(o.raw.Engineer)).map((o) => o.name),
-    saboteurs: objects.filter((o) => isTrue(o.raw.Saboteur)).map((o) => ({ name: o.name, damage: num(bomb.Damage), radiusTiles: num(bomb.BlastRadius) / EMPEROR_TILE })),
+    saboteurs: objects.filter((o) => isTrue(o.raw.Saboteur) || isTrue(o.raw.Infiltrator)).map((o) => ({ name: o.name, damage: num(bomb.Damage), radiusTiles: num(bomb.BlastRadius) / EMPEROR_TILE })),
     crushers: objects.filter((o) => isTrue(o.raw.Crushes)).map((o) => o.name),
     crushable: objects.filter((o) => isTrue(o.raw.Crushable)).map((o) => o.name),
     notDeviatable: objects.filter((o) => isFalse(o.raw.CanBeDeviated)).map((o) => o.name),

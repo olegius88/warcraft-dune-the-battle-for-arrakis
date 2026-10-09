@@ -149,6 +149,11 @@ endfunction
 
 // runtime helpers.j EmpDeploySet (the AI, the scripts' ObjectDeploy / ObjectUndeploy)
 function EmpDeployArgs takes nothing returns nothing
+    // a unit that blows itself up does so on its deploy command (detonate.j)
+    if EmpDeployArgOn and HaveSavedInteger(EmpBoomTab, EmpType(EmpDeployArgUnit), 0) then
+        call ExecuteFunc("EmpBoomArgs")
+        return
+    endif
     call EmpDeployMorph(EmpDeployArgUnit, EmpDeployArgOn)
 endfunction
 
