@@ -42,6 +42,11 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 ADV-карриалы переносят машины ([carryall.j](src/jass/battle/carryall.j) `EmpAdv*`, `ADV_CARRY` в
+  [config/units.ts](src/config/units.ts)). Раньше ничего не переносили. Как в Game.exe (класс 8, `0x566b90` /
+  `0x566c00`): кнопка «Подобрать» на любую машину (не пехота, не летун, не червь) любой стороны — над вражеской
+  карриал висит `AdvCarryallPickupEnemyDelay` (60 тиков), обе стоят; «Высадить» — в точке; сбитый карриал
+  губит груз. Пробник `--advcarry`.
 - 2026-10-09 Резервы игрока: «стопки» армий на карте Арракиса ([hub/functions.j](src/jass/hub/functions.j) `EmpStack*`,
   [forces.j](src/jass/battle/forces.j) `EmpReserveArrive`, `RESERVE` в [config/campaign.ts](src/config/campaign.ts)).
   Раньше резервов не было. Как в Game.exe:

@@ -370,3 +370,5 @@ export const AI_SCRIPT = {
 export const AI_TAB_SCRIPT = 20;
 export const AI_TAB_SCRIPT_TEAM = 21;
 export const AI_TAB_SCRIPT_ORDER = 22;
+/** [General] AdvCarryallPickupEnemyDelay (ticks) when Rules.txt has none (its shipped value). */
+export const FALLBACK_ADV_ENEMY_DELAY = 60;

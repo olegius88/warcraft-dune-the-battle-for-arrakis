@@ -225,6 +225,15 @@ endfunction
 function EmpCarryDeath takes nothing returns nothing
     local unit c = GetTriggerUnit()
     local unit h = LoadUnitHandle(EmpCarryTab, GetHandleId(c), 0)
+    local unit v = LoadUnitHandle(EmpCarryTab, GetHandleId(c), 33)
+    // an ADV carryall's cargo too
+    if v != null and EmpAlive(v) and LoadInteger(EmpCarryTab, GetHandleId(c), 34) == 2 then
+        call ShowUnit(v, true)
+        call KillUnit(v)
+    elseif v != null and EmpAlive(v) then
+        call BlzPauseUnitEx(v, false)
+    endif
+    set v = null
     if h != null and LoadInteger(EmpCarryTab, GetHandleId(c), 1) == 2 then
         call ShowUnit(h, true)
         call KillUnit(h)
@@ -245,12 +254,111 @@ function EmpCarryOrder takes nothing returns nothing
     set h = null
 endfunction
 
+// ---- ADV carryalls (Rules.txt AdvancedCarryall; Game.exe 1.09 class 8, 0x566b90 / 0x566c00) ----
+// Its pick button on a carriable unit of any side (EmpCarryTab[type] 32; not infantry, not flying, not
+// a worm) flies it there (the button's short cast range) and lifts it: an enemy only after
+// [General] AdvCarryallPickupEnemyDelay ticks hovering low, both held meanwhile (0x566b90 -> state 0x18).
+// It hovers loaded until its drop button on a point sets the cargo down there (command 0x2f, state
+// 0x22). Shot down, the cargo dies with it. EmpCarryTab[button] 31: 1 pick, 2 drop; [ADV carryall] 33 its
+// cargo, 34 = 2 carrying, 1 lifting; EmpCarryAdv: the ADV carryalls with a cargo.
+// TODO(units): the AI's air lift (AirLift tactic 0x453ed0, CAiUnitCarryall 0x463f00) is not ported;
+// the UI's pickup button on a selected vehicle (0x4bce79, the nearest idle ADV carryall) neither. Risk:
+// the AI's ADV carryalls stand idle.
+function EmpAdvData takes nothing returns nothing
+{{advLines}}
+endfunction
+
+function EmpAdvLift takes nothing returns nothing
+    local timer tm = GetExpiredTimer()
+    local unit c = LoadUnitHandle(EmpCarryTab, GetHandleId(tm), 35)
+    local unit v = LoadUnitHandle(EmpCarryTab, GetHandleId(c), 33)
+    call FlushChildHashtable(EmpCarryTab, GetHandleId(tm))
+    call DestroyTimer(tm)
+    if EmpAlive(c) then
+        call BlzPauseUnitEx(c, false)
+    endif
+    if EmpAlive(c) and EmpAlive(v) then
+        call BlzPauseUnitEx(v, false)
+        call ShowUnit(v, false)
+        call SaveInteger(EmpCarryTab, GetHandleId(c), 34, 2)
+    else
+        call RemoveSavedHandle(EmpCarryTab, GetHandleId(c), 33)
+        call RemoveSavedInteger(EmpCarryTab, GetHandleId(c), 34)
+        call GroupRemoveUnit(EmpCarryAdv, c)
+        if EmpAlive(v) then
+            call BlzPauseUnitEx(v, false)
+        endif
+    endif
+    set tm = null
+    set c = null
+    set v = null
+endfunction
+
+function EmpAdvCast takes nothing returns nothing
+    local unit c = GetTriggerUnit()
+    local unit v = GetSpellTargetUnit()
+    local integer k = LoadInteger(EmpCarryTab, GetSpellAbilityId(), 31)
+    local unit cargo = LoadUnitHandle(EmpCarryTab, GetHandleId(c), 33)
+    local timer tm
+    if k == 1 and cargo == null and EmpAlive(v) and LoadBoolean(EmpCarryTab, EmpType(v), 32) and not IsUnitHidden(v) then
+        call SaveUnitHandle(EmpCarryTab, GetHandleId(c), 33, v)
+        call GroupAddUnit(EmpCarryAdv, c)
+        if IsUnitEnemy(v, GetOwningPlayer(c)) then
+            // an enemy: held low a while first
+            call SaveInteger(EmpCarryTab, GetHandleId(c), 34, 1)
+            call BlzPauseUnitEx(c, true)
+            call BlzPauseUnitEx(v, true)
+            set tm = CreateTimer()
+            call SaveUnitHandle(EmpCarryTab, GetHandleId(tm), 35, c)
+            call TimerStart(tm, {{real advEnemyDelay}}, false, function EmpAdvLift)
+            set tm = null
+        else
+            call SaveInteger(EmpCarryTab, GetHandleId(c), 34, 2)
+            call ShowUnit(v, false)
+        endif
+    elseif k == 2 and cargo != null and LoadInteger(EmpCarryTab, GetHandleId(c), 34) == 2 then
+        call SetUnitPosition(cargo, GetSpellTargetX(), GetSpellTargetY())
+        call ShowUnit(cargo, true)
+        call RemoveSavedHandle(EmpCarryTab, GetHandleId(c), 33)
+        call RemoveSavedInteger(EmpCarryTab, GetHandleId(c), 34)
+        call GroupRemoveUnit(EmpCarryAdv, c)
+    endif
+    set c = null
+    set v = null
+    set cargo = null
+endfunction
+
+// the cargo goes along; a carryall gone takes it along (EmpCarryDeath)
+function EmpAdvTick takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit c
+    local unit v
+    call GroupAddGroup(EmpCarryAdv, g)
+    loop
+        set c = FirstOfGroup(g)
+        exitwhen c == null
+        call GroupRemoveUnit(g, c)
+        set v = LoadUnitHandle(EmpCarryTab, GetHandleId(c), 33)
+        if not EmpAlive(c) or not EmpAlive(v) then
+            call GroupRemoveUnit(EmpCarryAdv, c)
+        elseif LoadInteger(EmpCarryTab, GetHandleId(c), 34) == 2 then
+            call SetUnitX(v, GetUnitX(c))
+            call SetUnitY(v, GetUnitY(c))
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    set v = null
+endfunction
+
 function EmpCarryInit takes nothing returns nothing
     local trigger tr = CreateTrigger()
     local trigger ord = CreateTrigger()
     local integer i = 0
     set EmpCarryTab = InitHashtable()
     set EmpCarryBusy = CreateGroup()
+    set EmpCarryAdv = CreateGroup()
+    call EmpAdvData()
     loop
         exitwhen i >= bj_MAX_PLAYER_SLOTS
         call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_DEATH, null)
@@ -259,6 +367,15 @@ function EmpCarryInit takes nothing returns nothing
     endloop
     call TriggerAddAction(tr, function EmpCarryDeath)
     call TriggerAddAction(ord, function EmpCarryOrder)
+    set ord = CreateTrigger()
+    set i = 0
+    loop
+        exitwhen i >= bj_MAX_PLAYER_SLOTS
+        call TriggerRegisterPlayerUnitEvent(ord, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null)
+        set i = i + 1
+    endloop
+    call TriggerAddAction(ord, function EmpAdvCast)
+    call TimerStart(CreateTimer(), {{real C.CARRYALL.tick}} / 2.0, true, function EmpAdvTick)
     set ord = null
     call TimerStart(CreateTimer(), {{real C.CARRYALL.tick}}, true, function EmpCarryTick)
     set tr = null

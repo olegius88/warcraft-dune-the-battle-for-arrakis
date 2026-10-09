@@ -161,3 +161,15 @@ export const PROJECTION = {
 /** A reserve stack on the Arrakis hub (hub functions.j): invulnerable, unarmed, the house's colour. */
 export const STACK_MARKER_NAME = 'Резерв';
 export const STACK_MARKER_SCALE = 0.9;
+/** The ADV carryall's buttons (units.ts advCarryalls, battle carryall.j): pick a vehicle up (a unit
+ * target, flown to: a short cast range), set it down (a point). */
+export const ADV_CARRY = {
+  pickName: 'Подобрать',
+  pickTooltip: 'Подхватить машину (свою или вражескую). Вражескую поднимает не сразу.',
+  dropName: 'Высадить',
+  dropTooltip: 'Опустить машину в выбранной точке.',
+  pickButton: [0, 2] as const,
+  dropButton: [1, 2] as const,
+  pickRange: 150,
+  dropRange: 100,
+} as const;

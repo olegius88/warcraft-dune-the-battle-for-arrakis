@@ -265,3 +265,6 @@ export const FALLBACK_REPLICA_DAMAGE = 100;
  * on the same unit has (two abilities with one order id clash); an order no ability of ours uses
  * (WurstStdlib2 objediting/presets/OrderStringFactory.wurst lists it). */
 export const PROJECTION_ORDER = 'absorb';
+/** Base order of the ADV carryall's drop button (its pick button has "channel"; one order a unit):
+ * WurstStdlib2 objediting/presets/OrderStringFactory.wurst. */
+export const ADV_DROP_ORDER = 'acidbomb';

@@ -48,6 +48,7 @@ const dustScout = all.units.rawcode.get('ORDustScout') as string;
 const orAdp = all.units.rawcode.get('ORADP') as string;
 const niab = all.units.rawcode.get('GUNIABTank') as string;
 const projector = all.units.rawcode.get('IXProjector') as string;
+const atAdv = all.units.rawcode.get('ATADVCarryall') as string;
 // --scripts: an army of the AI's house (Harkonnen here) of the kinds the scripts' teams name
 const scriptArmy = ([['HKBuzzsaw', 6], ['HKAssault', 6], ['HKInfantry', 6], ['HKTrooper', 4], ['HKFlame', 3], ['HKMissile', 2]] as const).map(([n, k]) => [all.units.rawcode.get(n) ?? '', k] as const).filter(([id]) => id);
 const advFremen = all.units.rawcode.get('FRADVFremen') as string;
@@ -858,6 +859,48 @@ endfunction`,
     call PreloadGenStart()
     call Preload("units before " + I2S(before) + " after " + I2S(EmpCount(0, 1)) + " at veterancy 2: " + I2S(lv2))
     call PreloadGenEnd("DuneSmoke\\\\reserves.pld")
+endfunction`,
+  } : {}),
+  // --advcarry: an ADV carryall picks its own trike up and sets it down 1500 off, picks an enemy trike
+  // up (after the delay) and is shot down: the trike goes with it
+  ...(flag('--advcarry') ? {
+    extraStart: 'AdvRun',
+    extraFunctions: `function AdvRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit c
+    local unit a
+    local unit e
+    local boolean ok
+    local string s1
+    local string s2
+    local string s3
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    set c = CreateUnit(Player(0), '${atAdv}', x, y, 0.0)
+    set a = CreateUnit(Player(0), '${trike}', x + 500.0, y, 0.0)
+    set e = CreateUnit(Player(1), '${trike}', x + 500.0, y + 800.0, 0.0)
+    call PauseUnit(e, true)
+    call TriggerSleepAction(0.5)
+    set ok = IssueTargetOrder(c, "channel", a)
+    call TriggerSleepAction(3.0)
+    set s1 = "own pick " + I2S(IntegerTertiaryOp(ok, 1, 0)) + " hidden " + I2S(IntegerTertiaryOp(IsUnitHidden(a), 1, 0))
+    set ok = IssuePointOrder(c, "acidbomb", x, y - 1500.0)
+    call TriggerSleepAction(6.0)
+    set s2 = "drop " + I2S(IntegerTertiaryOp(ok, 1, 0)) + " shown " + I2S(IntegerTertiaryOp(not IsUnitHidden(a), 1, 0)) + " moved " + R2S(y - GetUnitY(a))
+    set ok = IssueTargetOrder(c, "channel", e)
+    call TriggerSleepAction(10.0)
+    set s3 = "enemy pick " + I2S(IntegerTertiaryOp(ok, 1, 0)) + " hidden " + I2S(IntegerTertiaryOp(IsUnitHidden(e), 1, 0)) + " state " + I2S(LoadInteger(EmpCarryTab, GetHandleId(c), 34)) + " cargo " + I2S(IntegerTertiaryOp(LoadUnitHandle(EmpCarryTab, GetHandleId(c), 33) == e, 1, 0)) + " to it " + R2S(SquareRoot((GetUnitX(c) - GetUnitX(e)) * (GetUnitX(c) - GetUnitX(e)) + (GetUnitY(c) - GetUnitY(e)) * (GetUnitY(c) - GetUnitY(e)))) + " order " + OrderId2String(GetUnitCurrentOrder(c))
+    call KillUnit(c)
+    call TriggerSleepAction(0.5)
+    set s3 = s3 + ", carryall shot down: enemy trike alive " + I2S(IntegerTertiaryOp(EmpAlive(e), 1, 0))
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload(s3)
+    call PreloadGenEnd("DuneSmoke\\\\advcarry.pld")
 endfunction`,
   } : {}),
   // --tele: a NIAB tank teleports 3000 units off (explored: the fog is off), sleeps, acts again

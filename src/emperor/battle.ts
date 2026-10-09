@@ -255,7 +255,13 @@ function battleSetup(o: BattleOptions): BattleSetup {
 
   // ---- carryalls carry harvesters (Rules.txt Carryall, [General] MinCarryTileDist; carryall.j) ----
   const carryalls = [...(o.rules?.objects.values() ?? [])].filter((x) => /^true$/i.test((x.raw.Carryall ?? '').trim())).map((x) => rc(x.name)).filter(isId);
+  // ADV carryalls (carryall.j EmpAdv*): their buttons, the carriable types, the delay over an enemy
+  const advLines = [
+    ...(o.units.advCarryalls ?? []).flatMap((a) => [`    call SaveInteger(EmpCarryTab, '${a.pick}', 31, 1)`, `    call SaveInteger(EmpCarryTab, '${a.drop}', 31, 2)`]),
+    ...(o.units.carriable ?? []).map((id) => `    call SaveBoolean(EmpCarryTab, '${id}', 32, true)`),
+  ];
   fns.push(jass('carryall', {
+    advLines: advLines.join('\n'), advEnemyDelay: (Number(o.rules?.general.AdvCarryallPickupEnemyDelay ?? 0) || C.FALLBACK_ADV_ENEMY_DELAY) / TICKS_PER_SECOND,
     harvester, WC3_UNITS_PER_TILE, spiceField: o.units.ids.spiceField,
     isRefinery: refineries.filter(isId).map((r) => `t == '${r}'`).join(' or ') || 'false',
     isCarryall: carryalls.map((c) => `t == '${c}'`).join(' or ') || 'false',

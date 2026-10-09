@@ -17,7 +17,7 @@ import type { Wc3Race } from '../config/houses.ts';
 import { UNIT_FIELD as F, ABILITY_FIELD, UPGRADE_FIELD as G, ABILITY, UNIT, CUSTOM_ID } from '../config/wc3.ts';
 import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
-import { DEPLOY_BUTTON_ORDER as RT_DEPLOY_ORDER, PROJECTION_ORDER as RT_PROJECTION_ORDER } from '../config/runtime.ts';
+import { DEPLOY_BUTTON_ORDER as RT_DEPLOY_ORDER, PROJECTION_ORDER as RT_PROJECTION_ORDER, ADV_DROP_ORDER as RT_ADV_DROP_ORDER } from '../config/runtime.ts';
 import { superweaponKind } from './superweapons.ts';
 import type { EffectUse, EffectSet } from './effects.ts';
 import { EFFECT_PLAYED, EFFECT_MAX_RADIUS, EFFECT_MIN_SCALE, MUZZLE_FALLBACK } from '../config/models.ts';
@@ -123,6 +123,9 @@ export interface UnitData {
   detonators: Detonator[];
   /** ADV Fremen: the worm call button, the WormRider it becomes (Resource) */
   wormCallers: { type: string; button: string; rider: string }[];
+  /** ADV carryalls (Rules.txt AdvancedCarryall): their pick and drop buttons; the types they can carry */
+  advCarryalls: { type: string; pick: string; drop: string }[];
+  carriable: string[];
   /** projectors: the projection button their deployed copy has, the replicas' lifespan (s) */
   projectors: { type: string; deployed: string; button: string; lifespan: number }[];
   /** NIAB tanks: the teleport button, seconds before the jump (deploy + Enter Portal) and after it
@@ -600,6 +603,30 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     copy.mods = withAbility(copy.mods, button);
     projectors.push({ type: d.type, deployed: d.deployed, button, lifespan: (Number(o.raw.Lifespan) || 0) / S.TICKS_PER_SECOND });
   }
+  // ADV carryalls (Rules.txt AdvancedCarryall; Game.exe class 8): a unit-target pick button and a
+  // point-target drop button (battle carryall.j). Carriable (0x55ead0): a unit not infantry, not flying,
+  // not a worm or a worm rider.
+  const advCarryalls: { type: string; pick: string; drop: string }[] = [];
+  for (const obj of objects.filter((x) => x.emperor && flag(x.emperor as RulesObject, 'AdvancedCarryall'))) {
+    const pick = nextId(CUSTOM_ID.deployPrefix);
+    const drop = nextId(CUSTOM_ID.deployPrefix);
+    const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
+    const own = (id: string, name: string, tip: string, target: number, order: string, range: number, cell: readonly [number, number]): ObjectDef => {
+      const b = channelButton(id, name, tip, icon);
+      return { ...b, mods: [...b.mods.filter((m) => !([ABILITY_FIELD.buttonX, ABILITY_FIELD.buttonY, ABILITY_FIELD.channelTarget, ABILITY_FIELD.channelOrder] as string[]).includes(m.field)),
+        { field: ABILITY_FIELD.buttonX, type: 'int', value: cell[0] }, { field: ABILITY_FIELD.buttonY, type: 'int', value: cell[1] },
+        { field: ABILITY_FIELD.channelTarget, type: 'int', value: target, level: 1, column: 2 },
+        { field: ABILITY_FIELD.channelOrder, type: 'string', value: order, level: 1, column: 6 },
+        { field: ABILITY_FIELD.castRange, type: 'unreal', value: range, level: 1 }] };
+    };
+    // Targettype UNIT = 1, POINT = 2 (ChannelAbilityPreset.wurst)
+    abilities.push(own(pick, U.ADV_CARRY.pickName, U.ADV_CARRY.pickTooltip, 1, RT_DEPLOY_ORDER, U.ADV_CARRY.pickRange, U.ADV_CARRY.pickButton),
+      own(drop, U.ADV_CARRY.dropName, U.ADV_CARRY.dropTooltip, 2, RT_ADV_DROP_ORDER, U.ADV_CARRY.dropRange, U.ADV_CARRY.dropButton));
+    obj.mods = withAbility(withAbility(obj.mods, pick), drop);
+    advCarryalls.push({ type: obj.id, pick, drop });
+  }
+  const carriable = objects.filter((x) => x.emperor?.category === 'Unit' && !x.emperor.infantry && !x.emperor.canFly
+    && !['WormRider', 'Worm', 'BigWorm'].some((k) => flag(x.emperor as RulesObject, k)) && !/worm/i.test(x.emperor.name)).map((x) => x.id);
   // NIAB tanks (Rules.txt NiabTank): a point-target teleport button (mission teleport.j)
   const teleporters: { type: string; button: string; before: number; after: number }[] = [];
   for (const obj of objects.filter((x) => x.emperor && flag(x.emperor as RulesObject, 'NiabTank'))) {
@@ -645,7 +672,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers, teleporters, projectors,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers, teleporters, projectors, advCarryalls, carriable,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),

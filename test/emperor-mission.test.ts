@@ -1722,6 +1722,24 @@ test('APCs carry five infantry who die with them', opts, () => {
   assert.ok(body('EmpApcLoaded').includes('GetTransportUnit()'));
 });
 
+// The ADV carryalls could not carry anything. Game.exe 1.09 class 8: any carriable unit (not infantry,
+// not flying, not a worm; any side) on a pick order, an enemy only after AdvCarryallPickupEnemyDelay
+// (60 ticks), set down where ordered (0x566b90, 0x566c00); shot down, the cargo dies with it.
+// Guaranteed now: pick and drop buttons and the same rules (battle carryall.j EmpAdv*).
+test('ADV carryalls pick up vehicles of any side and set them down', opts, () => {
+  const all = loadAll();
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const a = all.units.advCarryalls.find((x) => x.type === id('ATADVCarryall'));
+  assert.ok(a, 'buttons');
+  assert.ok(all.units.carriable.includes(id('ATTrike')) && !all.units.carriable.includes(id('ATInfantry')) && !all.units.carriable.includes(id('ATOrni')), 'carriable: no infantry, no aircraft');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'adv', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(m.script.includes(`call SaveInteger(EmpCarryTab, '${a.pick}', 31, 1)`) && m.script.includes(`call SaveInteger(EmpCarryTab, '${a.drop}', 31, 2)`));
+  assert.ok(body('EmpAdvCast').includes('call TimerStart(tm, 2.4, false, function EmpAdvLift)'), 'AdvCarryallPickupEnemyDelay 60 ticks over an enemy');
+  assert.ok(body('EmpCarryDeath').includes('call KillUnit(v)'), 'the cargo dies with it');
+});
+
 // Carryalls (Rules.txt Carryall) were plain flying units: no harvester was ever carried. Game.exe 1.09
 // class 7: a harvester whose refinery / field is over MinCarryTileDist (10) tiles away asks; the nearest
 // idle carryall of its owner flies it there (0x53c040, 0x442aa0, 0x567f40); a carryall shot down takes
