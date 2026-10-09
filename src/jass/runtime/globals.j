@@ -270,6 +270,12 @@
     real EmpAiKnownX = 0.0
     real EmpAiKnownY = 0.0
     real EmpAiStageX = 0.0
+    // the AI's MCV looking for room (ai.j EmpAiMcvTick): the MCV, the ring searched, the point found
+    unit EmpAiMcvUnit = null
+    integer EmpAiMcvRing = 0
+    boolean EmpAiMcvFound = false
+    real EmpAiMcvX = 0.0
+    real EmpAiMcvY = 0.0
     real EmpAiStageY = 0.0
     boolean EmpAiForming = false
     integer EmpAiFormStart = 0

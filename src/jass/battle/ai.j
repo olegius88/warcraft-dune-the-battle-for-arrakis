@@ -638,7 +638,7 @@ function EmpAiRole takes unit u returns integer
 endfunction
 
 function EmpAiHomeUnit takes unit u returns boolean
-    return EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and EmpType(u) != '{{harvester}}' and EmpAiRole(u) == 0
+    return EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) and EmpType(u) != '{{harvester}}' and EmpType(u) != EmpAiMcv and EmpAiRole(u) == 0
 endfunction
 
 // a random point of the map
@@ -862,6 +862,151 @@ function EmpAiResTeam takes unit u returns integer
     set EmpAiResN[t] = EmpAiResN[t] + 1
     call SaveInteger(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_TEAM}}, t)
     return t
+endfunction
+
+// ---- the AI's MCV (C.AI_MCV; Game.exe 1.09 tactics manager 0x45a600 case 3) ----
+// a construction yard fits at (x, y) for the MCV m (0x5999e0 with the MCV left out): no other unit
+// within AI_MCV.freeTiles, buildable ground
+function EmpAiMcvFree takes real x, real y, unit m returns boolean
+    local group g
+    local unit u
+    local boolean free = true
+    local real r = {{real C.AI_MCV.freeTiles}} * {{real WC3_UNITS_PER_TILE}}
+    if x < EmpMapMinX + r or x > EmpMapMaxX - r or y < EmpMapMinY + r or y > EmpMapMaxY - r then
+        return false
+    endif
+    if IsTerrainPathable(x, y, PATHING_TYPE_BUILDABILITY) or IsTerrainPathable(x + r * 0.5, y + r * 0.5, PATHING_TYPE_BUILDABILITY) or IsTerrainPathable(x - r * 0.5, y - r * 0.5, PATHING_TYPE_BUILDABILITY) then
+        return false
+    endif
+    set g = CreateGroup()
+    call GroupEnumUnitsInRange(g, x, y, r, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if u != m and EmpAlive(u) then
+            set free = false
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return free
+endfunction
+
+// the MCV turns into the house's construction yard where it stands
+function EmpAiMcvDeploy takes unit m returns nothing
+    local unit y = CreateUnit(Player(1), EmpAiYardType[EmpEnemyHouse], GetUnitX(m), GetUnitY(m), {{FACING}})
+    call RemoveUnit(m)
+    set EmpAiYard = y
+    set EmpAiMapUnit = y
+    call ExecuteFunc("EmpAiMapAdd")
+    call EmpAiLog("MCV deployed: " + GetUnitName(y))
+    set y = null
+endfunction
+
+// one ring of the square spiral round EmpAiMcvUnit (0x45bd80), in its own thread
+function EmpAiMcvRingRun takes nothing returns nothing
+    local real d = EmpAiMcvRing * {{C.AI_MCV.ringStep}} * {{real WC3_UNITS_PER_TILE}}
+    local real step = {{C.AI_MCV.ringStep}} * {{real WC3_UNITS_PER_TILE}}
+    local real x0 = GetUnitX(EmpAiMcvUnit)
+    local real y0 = GetUnitY(EmpAiMcvUnit)
+    local real k = -d
+    loop
+        exitwhen k > d or EmpAiMcvFound
+        if EmpAiMcvFree(x0 + k, y0 - d, EmpAiMcvUnit) then
+            set EmpAiMcvFound = true
+            set EmpAiMcvX = x0 + k
+            set EmpAiMcvY = y0 - d
+        elseif EmpAiMcvFree(x0 + k, y0 + d, EmpAiMcvUnit) then
+            set EmpAiMcvFound = true
+            set EmpAiMcvX = x0 + k
+            set EmpAiMcvY = y0 + d
+        elseif EmpAiMcvFree(x0 - d, y0 + k, EmpAiMcvUnit) then
+            set EmpAiMcvFound = true
+            set EmpAiMcvX = x0 - d
+            set EmpAiMcvY = y0 + k
+        elseif EmpAiMcvFree(x0 + d, y0 + k, EmpAiMcvUnit) then
+            set EmpAiMcvFound = true
+            set EmpAiMcvX = x0 + d
+            set EmpAiMcvY = y0 + k
+        endif
+        set k = k + step
+    endloop
+endfunction
+
+// a base position with no building within MCV_CONSUME_RADIUS
+function EmpAiBaseUnused takes integer b returns boolean
+    local group g = CreateGroup()
+    local unit u
+    local boolean free = true
+    call GroupEnumUnitsInRange(g, EmpBaseX[b], EmpBaseY[b], {{real C.MCV_CONSUME_RADIUS}}, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+            set free = false
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return free
+endfunction
+
+// every tactics pass: deploy where the yard fits (no wait, as 0x45a74d); an idle MCV drives to the
+// nearest unused base position, else to the first spot that fits on the spiral
+function EmpAiMcvTick takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local integer b
+    local integer best
+    local real d
+    local real bd
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAiMcv != 0 and EmpAlive(u) and EmpType(u) == EmpAiMcv then
+            if EmpAiMcvFree(GetUnitX(u), GetUnitY(u), u) then
+                call EmpAiMcvDeploy(u)
+            elseif GetUnitCurrentOrder(u) == 0 then
+                set best = -1
+                set bd = 0.0
+                set b = 0
+                loop
+                    exitwhen b >= EmpBaseCount
+                    set d = (EmpBaseX[b] - GetUnitX(u)) * (EmpBaseX[b] - GetUnitX(u)) + (EmpBaseY[b] - GetUnitY(u)) * (EmpBaseY[b] - GetUnitY(u))
+                    if (best < 0 or d < bd) and EmpAiBaseUnused(b) and d > {{real C.AI_MCV.freeTiles}} * {{real WC3_UNITS_PER_TILE}} * {{real C.AI_MCV.freeTiles}} * {{real WC3_UNITS_PER_TILE}} then
+                        set best = b
+                        set bd = d
+                    endif
+                    set b = b + 1
+                endloop
+                if best >= 0 then
+                    call IssuePointOrder(u, "move", EmpBaseX[best], EmpBaseY[best])
+                else
+                    call EmpAiLog("ERROR: Ai cannot get unused base position - looking for rock instead")
+                    set EmpAiMcvUnit = u
+                    set EmpAiMcvFound = false
+                    set EmpAiMcvRing = 1
+                    loop
+                        exitwhen EmpAiMcvFound or EmpAiMcvRing > {{C.AI_MCV.rings}}
+                        call ExecuteFunc("EmpAiMcvRingRun")
+                        set EmpAiMcvRing = EmpAiMcvRing + 1
+                    endloop
+                    if EmpAiMcvFound then
+                        call IssuePointOrder(u, "move", EmpAiMcvX, EmpAiMcvY)
+                    else
+                        call EmpAiLog("Could not find anywhere on map to deploy mcv")
+                    endif
+                    set EmpAiMcvUnit = null
+                endif
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
 endfunction
 
 // an enemy of side 1 (the player) it sees within r of u
@@ -1111,6 +1256,7 @@ function EmpAiTactics takes nothing returns nothing
         set g = null
     endif
     call EmpAiDeployTick()
+    call EmpAiMcvTick()
     set harv = null
     set threat = null
     set best = null

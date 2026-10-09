@@ -128,11 +128,48 @@ function EmpEnemyProduce takes nothing returns nothing
     endif
 endfunction
 
+// Game.exe 1.09 0x42d6e0, the builder's first critical need: without a construction yard it orders an
+// MCV ("Emergency building an MCV") unless the side has one (0x464920 / 0x464950), at a factory that can
+// build it (0x464fd0), else "Warning: Cannot build a required MCV!"; nothing else is built then. The
+// MCV is a unit: paid from the units' share (all of it without a yard, AI_MONEY); it deploys in ai.j
+// EmpAiMcvTick.
+function EmpAiEmergencyMcv takes nothing returns nothing
+    local group g
+    local unit u
+    local unit at = null
+    local integer t
+    if EmpAiMcv == 0 or EmpCount(1, EmpAiMcv) > 0 then
+        return
+    endif
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        set t = EmpType(u)
+        if EmpAlive(u) and ({{isFactory}}) then
+            set at = u
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    if at != null and EmpAiUnitMoney() >= EmpAiMcvCost then
+        call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, EmpEnemyGold() - EmpAiMcvCost)
+        call CreateUnit(Player(1), EmpAiMcv, GetUnitX(at), GetUnitY(at) - {{real C.PRODUCED_VEHICLE_OFFSET}}, {{FACING}})
+        call EmpAiLog("Emergency building an MCV")
+    else
+        call EmpAiLog("Warning: Cannot build a required MCV!")
+    endif
+    set at = null
+endfunction
+
 // Every BuildingDelay (ai_difficulty.ini): the base builder's turn (ai.j) while its construction yard
-// stands; lost buildings come back only by its choices, as in Game.exe
+// stands, else the emergency MCV; lost buildings come back only by its choices, as in Game.exe
 function EmpEnemyBuildTurn takes nothing returns nothing
     local real d
     if not EmpAiYardAlive() then
+        call EmpAiEmergencyMcv()
         return
     endif
     // pace by builder state (Game.exe 0x430e95): start script a tenth of BuildingDelay, maintenance

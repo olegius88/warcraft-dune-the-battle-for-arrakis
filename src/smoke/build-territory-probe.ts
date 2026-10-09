@@ -33,6 +33,8 @@ const kindjal = all.units.rawcode.get('ATKindjal') as string;
 const kindjalDeploy = all.units.deploy.find((d) => d.type === kindjal);
 const kindjalDeployed = kindjalDeploy?.deployed ?? '';
 const kindjalToggle = kindjalDeploy?.deploy ?? '';
+// --mcvai: a factory of each house
+const factoryOf = { AT: all.units.rawcode.get('ATFactory') as string, HK: all.units.rawcode.get('HKFactory') as string, OR: all.units.rawcode.get('ORFactory') as string };
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
 const fxShown = [...new Map([...all.units.effects.values()].flatMap((fx) => fx.map((m, k) => [m, k] as const)).filter(([m, k]) => m && (!flag('--fxhits') || k === 2))).entries()];
 const meta = readMeta(path.join(ensureMap(territoryMapPrefix(n))[0] as string, 'test.xbf'));
@@ -215,6 +217,45 @@ function DeployProbeRun takes nothing returns nothing
         set i = i + 1
     endloop
     call PreloadGenEnd("DuneSmoke\\\\deploy.pld")
+endfunction`,
+  } : {}),
+  // --mcvai: the AI loses its construction yard; with a factory and credits its builder turn orders an
+  // emergency MCV, which deploys where a yard fits
+  ...(flag('--mcvai') ? {
+    extraStart: 'McvAiRun',
+    extraFunctions: `function McvAiLine takes string at returns string
+    return at + " yards " + I2S(EmpCount(1, EmpAiYardType[EmpEnemyHouse])) + " mcvs " + I2S(EmpCount(1, EmpAiMcv)) + " yard alive " + I2S(IntegerTertiaryOp(EmpAiYardAlive(), 1, 0)) + " gold " + I2S(EmpEnemyGold())
+endfunction
+
+function McvAiRun takes nothing returns nothing
+    local integer k = EmpBaseOfSide(1)
+    local string s1
+    local string s2
+    local string s3
+    local string s4
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(3.0)
+    call CreateUnit(Player(1), '${factoryOf.AT}', EmpBaseX[k] + 1200.0, EmpBaseY[k] - 600.0, 270.0)
+    call CreateUnit(Player(1), '${factoryOf.HK}', EmpBaseX[k] + 1200.0, EmpBaseY[k] + 600.0, 270.0)
+    call CreateUnit(Player(1), '${factoryOf.OR}', EmpBaseX[k] - 1200.0, EmpBaseY[k] + 600.0, 270.0)
+    call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 6000)
+    call KillUnit(EmpAiYard)
+    call TriggerSleepAction(1.0)
+    set s1 = McvAiLine("yard killed")
+    call EmpEnemyBuildTurn()
+    set s2 = McvAiLine("builder turn")
+    call TriggerSleepAction(6.0)
+    set s3 = McvAiLine("6 s")
+    call TriggerSleepAction(10.0)
+    set s4 = McvAiLine("16 s")
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload(s3)
+    call Preload(s4)
+    call PreloadGenEnd("DuneSmoke\\\\mcvai.pld")
 endfunction`,
   } : {}),
   // --deployai: two Kindjals of the AI by its base: one with a paused player trike 10 tiles off (in

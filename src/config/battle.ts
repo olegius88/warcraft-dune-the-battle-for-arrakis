@@ -327,3 +327,11 @@ export const STORY_AI_EXTRA_UNITS = 100;
  * standing still for ai.ini NumTicksStandingStillUntilDeploy it deploys (0x465bf1). EmpWaveTab
  * children of the unit: last x / y and the ticks it has stood still (ai.j EmpAiDeployTick). */
 export const AI_DEPLOY = { keyX: 11, keyY: 12, keyStill: 13 } as const;
+/** Game.exe 1.09 MCV of the AI (tactics manager 0x45a600 case 3, CanDeploy 0x56e460): it deploys where
+ * it stands when a construction yard fits there (0x5999e0, the MCV itself left out); else, idle, it
+ * drives to the nearest unused base position (0x4b46b0), else to the first spot that fits on a square
+ * spiral round it (0x45bd80, radius up to 0x100). Here: no other unit within `freeTiles` and buildable
+ * ground fit; a base position is used while a building stands within MCV_CONSUME_RADIUS (Game.exe
+ * compares with an array of positions, [+0x34], not identified); the spiral goes `rings` rings of
+ * `ringStep` tiles, one thread per ring (op limit). */
+export const AI_MCV = { freeTiles: 3, ringStep: 2, rings: 40 } as const;

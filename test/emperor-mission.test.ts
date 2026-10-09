@@ -1587,6 +1587,28 @@ test('tactics start as in Game.exe: scout route, harvester and yard guards, no c
   assert.ok(!tac.includes('crate run'), 'no crate runs in the campaign');
 });
 
+// A battle AI that lost its construction yard stopped building for good ("no construction yard"), and
+// it had no MCV logic at all. Game.exe 1.09: the builder's first critical need orders an MCV at a
+// factory ("Emergency building an MCV", 0x42d6e0) unless the side has one, and the tactics manager
+// deploys an MCV where a yard fits, else drives it to the nearest unused base position, else spirals
+// for a spot (0x45a600 case 3, 0x56e460, 0x4b46b0, 0x45bd80). Guaranteed now: both are in the battle AI.
+test('the AI builds an emergency MCV and deploys its MCVs as Game.exe does', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'mcv ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const turn = body('EmpEnemyBuildTurn');
+  assert.ok(turn.indexOf('call EmpAiEmergencyMcv()') > 0 && turn.indexOf('call EmpAiEmergencyMcv()') < turn.indexOf('call EmpAiBuild()'), 'no yard: the emergency MCV');
+  const em = body('EmpAiEmergencyMcv');
+  assert.ok(em.includes('EmpCount(1, EmpAiMcv) > 0') && em.includes('Emergency building an MCV') && em.includes('Cannot build a required MCV'));
+  assert.ok(m.script.includes(`set EmpAiMcv = '${all.units.rawcode.get('MCV')}'`));
+  assert.ok(body('EmpAiTactics').includes('call EmpAiMcvTick()'));
+  const tick = body('EmpAiMcvTick');
+  assert.ok(tick.indexOf('EmpAiMcvFree(GetUnitX(u), GetUnitY(u), u)') < tick.indexOf('GetUnitCurrentOrder(u) == 0'), 'deploys where it fits before it moves');
+  assert.ok(tick.includes('EmpAiBaseUnused(b)') && tick.includes('ExecuteFunc("EmpAiMcvRingRun")'), 'unused base position, then the spiral');
+  assert.ok(body('EmpAiHomeUnit').includes('EmpType(u) != EmpAiMcv'), 'the MCV is no home guard');
+});
+
 // The AI never deployed its Kindjals, Mortars and Kobras (no deploy at all before). Game.exe 1.09 gives
 // the "Deployable" object set (objectsets.txt) a behaviour (0x465860, update 0x465a80): deploy when the
 // deployed weapon reaches a target, undeploy in an attack when it does not, deploy after standing still

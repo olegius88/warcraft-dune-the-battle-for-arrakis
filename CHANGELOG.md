@@ -42,6 +42,16 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 Экстренный MCV и развёртывание MCV компьютером (`AI_MCV` в [config/battle.ts](src/config/battle.ts),
+  [forces.j](src/jass/battle/forces.j) `EmpAiEmergencyMcv`, [ai.j](src/jass/battle/ai.j) `EmpAiMcvTick`). Раньше ИИ,
+  потерявший стройплощадку, больше ничего не строил.
+  - Без стройплощадки ход строителя заказывает MCV на фабрике, если его ещё нет (`0x42d6e0`, «Emergency
+    building an MCV»), иначе пишет «Cannot build a required MCV».
+  - MCV разворачивается там, где помещается стройплощадка (`0x45a600` case 3, `0x56e460`). Если не
+    помещается — едет к ближайшей свободной базовой позиции, иначе ищет место по спирали.
+  - MCV не входит в домашнюю охрану.
+  - Тест «the AI builds an emergency MCV…», пробник `--mcvai`: стройплощадка убита, MCV построен и
+    развернулся за 5 с.
 - 2026-10-09 Развёртывание Kindjal, Mortar и Kobra (Rules.txt `DeployInf` / `Kobra`, флаги турелей
   `TurretDisableIfUnitDeployed/Undeployed`; [units.ts](src/emperor/units.ts) `deploy`,
   [deploy.j](src/jass/mission/deploy.j), `DEPLOY` в [config/units.ts](src/config/units.ts)). Раньше эти юниты
