@@ -84,6 +84,8 @@ export interface AiTech {
   maintenanceDelay: number;
   firstAttackDelay: number;
   gapBetweenScripts: number;
+  /** MaxScriptsToRunAtOnce: pro-active scripts at once (battle ai-scripts.j) */
+  maxScripts: number;
   unitDelay: number;
   minDefence: number;
   maxDefence: number;
@@ -107,7 +109,7 @@ function parseAiDifficulty(text: string): AiTech[] {
     const l = Math.max(1, i);
     return {
       maxUnits: get(l, 'MaxAiUnits'), numBuildings: get(l, 'NumBuildings'), buildingDelay: get(l, 'BuildingDelay'), maintenanceDelay: get(l, 'MaintenanceDelay'),
-      firstAttackDelay: get(l, 'FirstAttackDelay'), gapBetweenScripts: get(l, 'GapBetweenNewScripts'), unitDelay: get(l, 'UnitDelay'),
+      firstAttackDelay: get(l, 'FirstAttackDelay'), gapBetweenScripts: get(l, 'GapBetweenNewScripts'), maxScripts: get(l, 'MaxScriptsToRunAtOnce'), unitDelay: get(l, 'UnitDelay'),
       minDefence: get(l, 'MinimumUnitsForDefence'), maxDefence: get(l, 'MaximumUnitsForDefence'), maxTurrets: get(l, 'MaxTurretsAllowed'),
     };
   });

@@ -74,10 +74,11 @@ import { real, str } from '../wc3/jass.ts';
 import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS } from '../config/campaign.ts';
 import { renderFile } from '../wc3/template.ts';
 import type { Scope } from '../wc3/template.ts';
-import { jassFile } from '../config/paths.ts';
+import { jassFile, RAW_DIR } from '../config/paths.ts';
 import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
 import { EMPEROR_TILE, TICKS_PER_SECOND, TICK_SECONDS, WC3_UNITS_PER_TILE, HP_DIVISOR, moveSpeed } from '../config/scale.ts';
 import { aiMapRuns, occupyCells } from './ai-map.ts';
+import { loadAiScripts, encodeStrategy } from './ai-scripts.ts';
 import { REFINERY_PAD } from '../config/units.ts';
 import { TERRAIN, UNIT_FIELD, ART_ABILITY, EFFECT, ABILITY } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
@@ -420,7 +421,8 @@ endfunction`;
     if (lvl < 1) return;
     aiLines.push(`    set EmpAiTMax[${lvl}] = ${t.maxUnits}`, `    set EmpAiTBuildings[${lvl}] = ${t.numBuildings}`,
       `    set EmpAiTBuildDelay[${lvl}] = ${real(Math.max(1, t.buildingDelay) / TICKS_PER_SECOND)}`, `    set EmpAiTUnitDelay[${lvl}] = ${real(Math.max(1, t.unitDelay) / TICKS_PER_SECOND)}`,
-      `    set EmpAiTGap[${lvl}] = ${real((Math.max(1, t.gapBetweenScripts) / TICKS_PER_SECOND) * (100 / Math.max(1, ai.largeAttackModifier)))}`,
+      // GapBetweenNewScripts (LargeAttackModifier sets only the LARGE attack's roll in Game.exe, not ported)
+      `    set EmpAiTGap[${lvl}] = ${real(Math.max(1, t.gapBetweenScripts) / TICKS_PER_SECOND)}`, `    set EmpAiTScripts[${lvl}] = ${t.maxScripts}`,
       `    set EmpAiTFirst[${lvl}] = ${t.firstAttackDelay}`, `    set EmpAiTMinDef[${lvl}] = ${t.minDefence}`, `    set EmpAiTMaxDef[${lvl}] = ${t.maxDefence}`, `    set EmpAiTTurrets[${lvl}] = ${t.maxTurrets}`,
       `    set EmpAiTBuildTicks[${lvl}] = ${t.buildingDelay}`, `    set EmpAiTGapTicks[${lvl}] = ${t.gapBetweenScripts}`,
       `    set EmpAiTMaintTicks[${lvl}] = ${t.maintenanceDelay}`, `    set EmpAiTMaintDelay[${lvl}] = ${real(Math.max(1, t.maintenanceDelay) / TICKS_PER_SECOND)}`);
@@ -487,8 +489,19 @@ endfunction`;
   const aiMapFunctions = renderFile(jassFile('battle/ai-map'), {
     M: C.AI_MAP, P: C.AI_PLAN, S: C.AI_SITE, C, ai, WC3_UNITS_PER_TILE, planTech: ai.firstCampaignTech + 1, mapData: chunks.join('\n'), mapInit: mapInit.join('\n'),
   });
+  // the AI script tactics (ai-scripts.j): the object sets the strategies name, each pro-active strategy's
+  // numbers (reactive ones are not ported: TODO there)
+  const { sets: objSets, strategies } = o.rules ? loadAiScripts(RAW_DIR) : { sets: [], strategies: [] };
+  const setIdx = new Map(objSets.map((s2, i) => [s2.name.toLowerCase(), i]));
+  const proactive = strategies.filter((s2) => !s2.reactive);
+  const scriptSetLines = objSets.flatMap((s2, i) => s2.objects.map((n) => rc(n)).filter(isId).map((id) => `    call SaveBoolean(EmpScrSetTab, ${i}, '${id}', true)`));
+  const scriptLines = proactive.flatMap((s2, i) => [`    call SaveStr(EmpScrSetTab, -1, ${i}, ${str(s2.name)})`,
+    `    call EmpScrAdd("${encodeStrategy(s2, (n) => setIdx.get(n) ?? -1, { houseId: (h) => ({ atreides: 0, harkonnen: 1, ordos: 2 } as Record<string, number>)[h] ?? -1, builtinTeam: C.AI_SCRIPT.builtinTeam,
+      target: { base: C.AI_SCRIPT.targetBase, threat: C.AI_SCRIPT.targetThreat, any: C.AI_SCRIPT.targetAny, harvester: C.AI_SCRIPT.targetHarvester, set: C.AI_SCRIPT.targetSet },
+      sides: C.AI_SCRIPT.sides, tiles: C.AI_SCRIPT.tiles }).join(',')}")`]);
+  const aiScriptFunctions = renderFile(jassFile('battle/ai-scripts'), { C, ai, harvester, WC3_UNITS_PER_TILE, scriptSetLines: scriptSetLines.join('\n'), scriptLines: scriptLines.join('\n') });
   const aiFunctions = renderFile(jassFile('battle/ai'), {
-    aiMapFunctions, minBaseLines, attackBattle: o.territoryBattle && !o.defend,
+    aiMapFunctions, aiScriptFunctions, minBaseLines, attackBattle: o.territoryBattle && !o.defend,
     C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND, TICK_SECONDS, ABILITY,
     // AI_HARV_FLIGHT: the tech level the harvester flight waits past (FirstCampaignGameTechLevel + 1)
     harvFlightTech: ai.firstCampaignTech + 1,
@@ -533,7 +546,7 @@ endfunction`;
     aggressiveTech: tuneLines(BP.aggressive, true, '            '), defensiveTech: tuneLines(BP.defensive, true, '            '),
     aggressiveSide: [tuneLines(BP.aggressive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.aggressive)].join('\n'),
     defensiveSide: [tuneLines(BP.defensive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.defensive)].join('\n'),
-    gapFactor: 100 / Math.max(1, ai.largeAttackModifier), TPS: TICKS_PER_SECOND,
+    TPS: TICKS_PER_SECOND,
     aiFunctions, storyAi: storyHouse >= 0, storyHouse,
     harvester, playerBase, mcv: mcv ?? '', territoryBattle: o.territoryBattle,
     // the yard of the minimal base: MIN_BASE.yardShift tiles (left, up)

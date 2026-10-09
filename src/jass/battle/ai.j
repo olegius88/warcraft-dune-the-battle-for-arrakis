@@ -864,6 +864,8 @@ function EmpAiResTeam takes unit u returns integer
     return t
 endfunction
 
+{{aiScriptFunctions}}
+
 // ---- the AI's MCV (C.AI_MCV; Game.exe 1.09 tactics manager 0x45a600 case 3) ----
 // a construction yard fits at (x, y) for the MCV m (0x5999e0 with the MCV left out): no other unit
 // within AI_MCV.freeTiles, buildable ground
@@ -1050,11 +1052,9 @@ function EmpAiDeployTick takes nothing returns nothing
             if EmpDeployed(u) then
                 if not near and GetUnitCurrentOrder(u) != 0 then
                     call EmpDeploySet(u, false)
-                    if EmpAiRole(u) != 3 then
-                    elseif EmpAiForming then
-                        call IssuePointOrder(u, "move", EmpAiStageX, EmpAiStageY)
-                    else
-                        call IssuePointOrder(u, "attack", EmpAiKnownX, EmpAiKnownY)
+                    // a script's unit goes on with its order (ai-scripts.j)
+                    if HaveSavedInteger(EmpWaveTab, h, {{C.AI_TAB_SCRIPT_ORDER}}) then
+                        call EmpScrOrder(u, LoadInteger(EmpWaveTab, h, {{C.AI_TAB_SCRIPT_ORDER}}), LoadReal(EmpWaveTab, h, {{C.AI_TAB_SCRIPT_ORDER}} + 1), LoadReal(EmpWaveTab, h, {{C.AI_TAB_SCRIPT_ORDER}} + 2))
                     endif
                 endif
                 call SaveInteger(EmpWaveTab, h, {{C.AI_DEPLOY.keyStill}}, 0)
@@ -1242,23 +1242,9 @@ function EmpAiTactics takes nothing returns nothing
         call DestroyGroup(g)
         set g = null
     endif
-    // the forming wave attacks when formed, or after TicksUntilAbandonForming
-    if EmpAiForming and (waveUnits == 0 or formed or EmpTick - EmpAiFormStart >= {{ai.ticksAbandonForming}}) then
-        set EmpAiForming = false
-        call EmpAiLog("wave attacks, units " + I2S(waveUnits) + " formed " + I2S(IntegerTertiaryOp(formed, 1, 0)))
-        set g = CreateGroup()
-        call GroupEnumUnitsOfPlayer(g, Player(1), null)
-        loop
-            set u = FirstOfGroup(g)
-            exitwhen u == null
-            call GroupRemoveUnit(g, u)
-            if EmpAlive(u) and EmpAiRole(u) == 3 then
-                call IssuePointOrder(u, "attack", EmpAiKnownX, EmpAiKnownY)
-            endif
-        endloop
-        call DestroyGroup(g)
-        set g = null
-    endif
+    // the running script tactics' steps (ai-scripts.j)
+    set EmpAiThreat = threat
+    call EmpScrTick()
     call EmpAiDeployTick()
     call EmpAiMcvTick()
     set harv = null
@@ -1267,60 +1253,10 @@ function EmpAiTactics takes nothing returns nothing
     set yard = null
 endfunction
 
-// an attack wave: the home units but the defence share gather at the staging point (a share of the
-// way to the target); needs a known target (scouted, or the shroud time passed)
+// every GapBetweenNewScripts: Game.exe's pro-active script picker (ai-scripts.j EmpScrPick); the port's
+// invented wave of all home units (to a staging point a share of the way, then the player's base) is gone
 function EmpAiWave takes nothing returns nothing
-    local group g
-    local unit u
-    local integer b = EmpBaseOfSide(1)
-    // a wave fights on at the target: Game.exe reads ChanceOfRetreating only when the AI is losing
-    // (EmpAiLosingCheck), never per wave
-    local boolean stay = true
-    local integer n = 0
-    local integer home = 0
-    local integer send
-    if not EmpAiKnown or EmpAiForming then
-        return
-    endif
-    // ai_difficulty.ini FirstAttackDelay (ticks)
-    if EmpTick < EmpAiTFirst[EmpAiT()] then
-        return
-    endif
-    set EmpAiStageX = EmpBaseX[b] + (EmpAiKnownX - EmpBaseX[b]) * {{real C.AI_STAGING_SHARE}}
-    set EmpAiStageY = EmpBaseY[b] + (EmpAiKnownY - EmpBaseY[b]) * {{real C.AI_STAGING_SHARE}}
-    set g = CreateGroup()
-    call GroupEnumUnitsOfPlayer(g, Player(1), null)
-    loop
-        set u = FirstOfGroup(g)
-        exitwhen u == null
-        call GroupRemoveUnit(g, u)
-        if EmpAiHomeUnit(u) then
-            set home = home + 1
-        endif
-    endloop
-    // PercentageOfUnitsForDefence stay home, within Minimum / MaximumUnitsForDefence (ai_difficulty.ini)
-    set send = home - IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])
-    call GroupEnumUnitsOfPlayer(g, Player(1), null)
-    loop
-        set u = FirstOfGroup(g)
-        exitwhen u == null
-        call GroupRemoveUnit(g, u)
-        if EmpAiHomeUnit(u) and n < send then
-            call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 3)
-            call SaveBoolean(EmpWaveTab, GetHandleId(u), 0, stay)
-            // a deployed unit cannot move (Game.exe 0x55eea1): it undeploys first (EmpAiDeployTick)
-            call EmpDeploySet(u, false)
-            call IssuePointOrder(u, "move", EmpAiStageX, EmpAiStageY)
-            set n = n + 1
-        endif
-    endloop
-    call DestroyGroup(g)
-    set g = null
-    if n > 0 then
-        set EmpAiForming = true
-        set EmpAiFormStart = EmpTick
-        call EmpAiLog("wave forms, units " + I2S(n) + " stay " + I2S(IntegerTertiaryOp(stay, 1, 0)))
-    endif
+    call EmpScrPick()
 endfunction
 
 // a harvester of side 1 is hit (EmpAiHarvTick)
@@ -1446,6 +1382,10 @@ endfunction
 function EmpAiInit takes nothing returns nothing
     local trigger tr
     call EmpAiData()
+    set EmpScrTab = InitHashtable()
+    set EmpScrPool = CreateGroup()
+    set EmpScrUnits = CreateGroup()
+    call EmpScrData()
     call EmpAiMapInit()
 {{#if attackBattle}}    call EmpAiMinimalBase()
 {{/if}}    set EmpAiHarvHitTrig = CreateTrigger()

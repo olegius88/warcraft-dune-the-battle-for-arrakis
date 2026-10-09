@@ -245,7 +245,7 @@ test('enemy AI pace from ai_difficulty.ini by tech level', opts, () => {
   assert.ok(m.script.includes('call TimerStart(CreateTimer(), EmpAiTUnitDelay[EmpAiT()], true, function EmpEnemyProduce)'), 'unit delay');
   assert.ok(m.script.includes('call TimerStart(EmpAiBuildTimer, EmpAiTBuildDelay[EmpAiT()], true, function EmpEnemyBuildTurn)'), 'building delay (kept: SideAIBehaviour* re-times it)');
   assert.ok(m.script.includes('if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()] then'), 'MaxAiUnits');
-  assert.ok(m.script.includes('if EmpTick < EmpAiTFirst[EmpAiT()] then'), 'FirstAttackDelay');
+  assert.ok(m.script.includes('EmpTick < EmpAiTFirst[EmpAiT()]'), 'FirstAttackDelay');
   assert.ok(m.script.includes('EmpAiCount(-1) < EmpAiTTurrets[EmpAiT()]'), 'MaxTurretsAllowed');
   assert.ok(m.script.includes('>= EmpAiTBuildings[EmpAiT()]'), 'NumBuildings');
   assert.ok(!m.script.includes('function EmpEnemyWave'), 'no invented wave period');
@@ -1131,7 +1131,7 @@ test('territory battle AI: ai.ini unit mix, defence share, no template rebuild, 
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes('local boolean veh = GetRandomInt(1, 20 + 80) > 20'), 'Foot / Tank mix');
-  assert.ok(m.script.includes('set send = home - IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])') && m.script.includes('    set EmpAiDefPct = 24'), 'defence share stays home (within ai_difficulty.ini bounds)');
+  assert.ok(m.script.includes('set keep = IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])') && m.script.includes('    set EmpAiDefPct = 24'), 'defence share stays home (within ai_difficulty.ini bounds)');
   assert.ok(m.script.includes('GetRandomInt(0, 100 / 50 - 1) != 0'), 'retreat chance (when losing)');
   assert.ok(!m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'no template rebuild (Game.exe rebuilds by the builder only)');
   const yard = all.units.rawcode.get('HKConYard');
@@ -1239,7 +1239,7 @@ test('SideAIBehaviour* re-tunes the AI that runs side 1 like Game.exe, compoundi
   ]) assert.ok(behave.includes(line), line);
   assert.ok(behave.includes('call TimerStart(EmpAiWaveTimer, EmpAiTGap[EmpAiT()], true, function EmpAiWave)'), 'wave pace follows');
   // the tactics read the tuned values
-  assert.ok(m.script.includes('set send = home - IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])'), 'defence share');
+  assert.ok(m.script.includes('set keep = IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])'), 'defence share');
   assert.ok(m.script.includes('scouts < EmpAiScoutTeams'), 'scout teams');
   assert.ok(m.script.includes('    set EmpAiDefPct = 24') && m.script.includes('    set EmpAiTGapTicks[1] = '), 'ai.ini values');
   // the script functions: side 1 with the AI running goes to EmpAiBehave; other sides keep the
@@ -1887,6 +1887,30 @@ test('ornithopters run out of rounds and rearm at helipads', opts, () => {
   assert.ok(m.script.includes('call TimerStart(CreateTimer(), 2.0, true, function EmpOrniRearmTick)'), 'RearmRate 50 ticks');
 });
 
+// The port's attacks were invented waves (every home unit beyond the defence share, to a staging point a
+// share of the way, then the player's base), on GapBetweenNewScripts scaled by LargeAttackModifier.
+// Game.exe 1.09 runs script tactics (0x44e410 -> 0x45b5f0 -> 0x458b60) from 217 STRATEGY files: a
+// priority roll 51 / 30 / 15 / 4 %, strategies of the AI's house and tech whose teams fill from the home
+// units by object set, SEND / WAIT / GOTO steps to targets and staging points, the end rules.
+// Guaranteed now: the pro-active part of that (ai-scripts.j; reactive and build on demand are TODO).
+test('AI script tactics replace the invented waves', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'scripts', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpAiWave').includes('call EmpScrPick()') && !m.script.includes('EmpAiStageX ='), 'no invented wave');
+  const pick = body('EmpScrPick');
+  assert.ok(pick.includes('if roll < 51 then') && pick.includes('elseif roll < 81 then') && pick.includes('elseif roll < 96 then'), 'frequency 1..4 at 51 / 30 / 15 / 4 %');
+  assert.ok(pick.includes('EmpScrCount() >= EmpAiTScripts[EmpAiT()]') && m.script.includes('set EmpAiTScripts[4] = 3'), 'MaxScriptsToRunAtOnce');
+  // WavesT4 (4/Gen_Waves.txt): frequency 4, tech 4..4, all houses, losses 90; two teams of T2Tanks / T3Tanks
+  // 5..10, the enemy base, two front stagings (medium, far), three steps (stage, attack, home)
+  assert.ok(m.script.includes('call SaveStr(EmpScrSetTab, -1, ') && m.script.includes(', "WavesT4")'), 'its name');
+  assert.ok(/call EmpScrAdd\("4,4,4,-1,90,2,\d+,5,10,\d+,5,10,1,0,0,2,0,0,20,0,0,30,3,2,1,0,1,0,1,1,1,1,1,1,/.test(m.script), 'its numbers');
+  assert.ok(m.script.includes(`call SaveBoolean(EmpScrSetTab, `) && m.script.includes(`'${all.units.rawcode.get('ATMongoose')}', true)`), 'object sets');
+  assert.ok(body('EmpAiTactics').includes('call EmpScrTick()'), 'the steps run every tactics tick');
+  assert.ok(!m.script.includes('EmpAiTGap[1] = ') || /set EmpAiTGap\[1\] = 52\.0/.test(m.script), 'GapBetweenNewScripts unscaled (1300 ticks)');
+});
+
 // In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an
 // invention) with nothing to build with: once it was beaten the battle was won. Game.exe 1.09 0x47f170
 // gives the side that attacks (and kept no base) an MCV at its start position (0x47f255) besides its
@@ -1919,7 +1943,7 @@ test('the AI deploys its deployable units as Game.exe does', opts, () => {
   const tick = body('EmpAiDeployTick');
   assert.ok(tick.includes('EmpAiEnemyNear(u, LoadReal(EmpDeployTab, EmpType(u), 4))'), 'target within the deployed range');
   assert.ok(tick.includes('>= 160'), 'NumTicksStandingStillUntilDeploy');
-  assert.ok(body('EmpAiWave').includes('call EmpDeploySet(u, false)'), 'a wave unit undeploys before it moves');
+  assert.ok(body('EmpScrFill').includes('call EmpDeploySet(u, false)'), 'a unit a script takes undeploys before it moves');
   assert.ok(body('EmpDeployArgs').includes('EmpDeployMorph(EmpDeployArgUnit, EmpDeployArgOn)'));
   // Regression: only wave units (role 3) undeployed. A home unit deployed by standing still and then
   // sent after a threat, an escort or a yard guard kept its order with speed 0 for good. Game.exe's

@@ -299,16 +299,12 @@
     boolean EmpAiKnown = false
     real EmpAiKnownX = 0.0
     real EmpAiKnownY = 0.0
-    real EmpAiStageX = 0.0
     // the AI's MCV looking for room (ai.j EmpAiMcvTick): the MCV, the ring searched, the point found
     unit EmpAiMcvUnit = null
     integer EmpAiMcvRing = 0
     boolean EmpAiMcvFound = false
     real EmpAiMcvX = 0.0
     real EmpAiMcvY = 0.0
-    real EmpAiStageY = 0.0
-    boolean EmpAiForming = false
-    integer EmpAiFormStart = 0
     integer EmpAiProduced = 0
     integer EmpAiWhy = -1
     // the AI's shares of its credits for units / buildings (battle ai.j EmpAiShares)
@@ -374,6 +370,26 @@
     boolean EmpAiLost = false
     boolean EmpAiGone = false
     timer EmpAiWaveTimer = null
+    // AI script tactics (battle ai-scripts.j)
+    integer array EmpScrD
+    integer array EmpScrOff
+    integer EmpScrN = 0
+    integer EmpScrTop = 0
+    string EmpScrStr = ""
+    hashtable EmpScrSetTab = null
+    hashtable EmpScrTab = null
+    group EmpScrPool = null
+    group EmpScrUnits = null
+    real EmpScrPtX = 0.0
+    real EmpScrPtY = 0.0
+    boolean array EmpScrSlotOn
+    integer array EmpScrSlotScript
+    integer array EmpScrSlotStep
+    integer array EmpScrSlotStepAt
+    integer array EmpScrSlotStart
+    integer array EmpScrSlotUnits
+    integer array EmpAiTScripts
+    unit EmpAiThreat = null
     timer EmpAiBuildTimer = null
     string array EmpAiLogLine
     integer EmpAiLogCount = 0

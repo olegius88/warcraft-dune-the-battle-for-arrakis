@@ -63,6 +63,7 @@
 | `battle/worms.j` | `src/emperor/battle.ts` | песчаные черви: всплытие, охота, удар снизу |
 | `battle/ai-map.j` | `src/emperor/battle.ts` (через `battle/ai.j`) | карта тайлов ИИ, кластеры зданий, дороги к рампам, контур и план обороны (стены, турели у дорог) — Game.exe AiMap |
 | `battle/pads.j` | `src/emperor/battle.ts` | площадки НПЗ: заказ НПЗ, два слота, +здоровье, харвестер; счёт площадок для ИИ |
+| `battle/ai-scripts.j` | `src/emperor/battle.ts` (через `battle/ai.j`) | сценарии атак ИИ Game.exe: выбор, команды, шаги SEND/WAIT/GOTO, конец |
 | `battle/forces.j` | `src/emperor/battle.ts` | стартовые силы, база врага, производство и волны, оборонительные битвы (атакующий ИИ с MCV), база, сохранённая территорией, экстренный MCV |
 | `battle/init.j` | `src/emperor/battle.ts` | `EmpBattleInit`: триггеры и таймеры битвы за территорию |
 | `preview/init.j` | `src/emperor/preview-map.ts` | превью рельефа: отряд на базе, маркеры точек GameElements, камера |

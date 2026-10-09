@@ -353,3 +353,20 @@ export const AI_CARRYALL = { perCarryall: 2, credits: 2000, units: 10 } as const
  * (WC3 units). The round a turret every [General] RearmRate ticks (FALLBACK_REARM_TICKS without one). */
 export const ORNI = { tick: 0.5, land: 192, evict: 320 } as const;
 export const FALLBACK_REARM_TICKS = 50;
+/** AI script tactics (battle ai-scripts.j; src/emperor/ai-scripts.ts). slots: scripts running at once at
+ * most (MaxScriptsToRunAtOnce is under it); arriveTiles: a sent unit counts as there; noTargetTicks: a
+ * script without a TARGET ends (Game.exe 7500); priority1..3: rand % 100 below these picks frequency
+ * 1 / 2 / 3, else 4 (table 0x44990c: 51 / 30 / 15 / 4 %); the target kinds; the built-in team types
+ * ("all", "strong", "fast": any unit, TODO in ai-scripts.j); staging sides and distances (tiles; Game.exe
+ * 0x44d390 not traced: assumed). */
+export const AI_SCRIPT = {
+  slots: 8, arriveTiles: 6, noTargetTicks: 7500, priority1: 51, priority2: 81, priority3: 96,
+  targetBase: 0, targetThreat: 1, targetAny: 2, targetHarvester: 3, targetSet: 4,
+  builtinTeam: { all: -1, strong: -2, fast: -3 } as Readonly<Record<string, number>>,
+  sides: { front: 0, lflank: 1, rflank: 2, rear: 3 } as Readonly<Record<string, number>>,
+  tiles: { verynear: 6, near: 12, medium: 20, far: 30 } as Readonly<Record<string, number>>,
+} as const;
+/** EmpWaveTab children of a unit in a script: its slot + 1, its team, its last order (kind, x, y). */
+export const AI_TAB_SCRIPT = 20;
+export const AI_TAB_SCRIPT_TEAM = 21;
+export const AI_TAB_SCRIPT_ORDER = 22;

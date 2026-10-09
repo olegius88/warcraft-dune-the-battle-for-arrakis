@@ -365,7 +365,7 @@ function EmpAiTune takes boolean strong, integer m, integer strength returns not
         endif
         set EmpAiTBuildDelay[l] = I2R(IMaxBJ(1, EmpAiTBuildTicks[l])) / {{TPS}}
         set EmpAiTMaintDelay[l] = I2R(IMaxBJ(1, EmpAiTMaintTicks[l])) / {{TPS}}
-        set EmpAiTGap[l] = I2R(IMaxBJ(1, EmpAiTGapTicks[l])) / {{TPS}} * {{real gapFactor}}
+        set EmpAiTGap[l] = I2R(IMaxBJ(1, EmpAiTGapTicks[l])) / {{TPS}}
         set l = l + 1
     endloop
     if m == {{C.AI_BEHAVIOUR.aggressive}} then

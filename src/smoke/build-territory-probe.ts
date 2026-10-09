@@ -48,6 +48,8 @@ const dustScout = all.units.rawcode.get('ORDustScout') as string;
 const orAdp = all.units.rawcode.get('ORADP') as string;
 const niab = all.units.rawcode.get('GUNIABTank') as string;
 const projector = all.units.rawcode.get('IXProjector') as string;
+// --scripts: an army of the AI's house (Harkonnen here) of the kinds the scripts' teams name
+const scriptArmy = ([['HKBuzzsaw', 6], ['HKAssault', 6], ['HKInfantry', 6], ['HKTrooper', 4], ['HKFlame', 3], ['HKMissile', 2]] as const).map(([n, k]) => [all.units.rawcode.get(n) ?? '', k] as const).filter(([id]) => id);
 const advFremen = all.units.rawcode.get('FRADVFremen') as string;
 const wormRider = all.units.rawcode.get('WormRider') as string;
 const wormButton = all.units.wormCallers[0]?.button ?? '';
@@ -791,6 +793,42 @@ function ProjRun takes nothing returns nothing
     call TriggerSleepAction(1.0)
     set s3 = "second one " + I2S(IntegerTertiaryOp(cast, 1, 0)) + ", projector killed: replicas " + I2S(ProjCount())
     call ProjSave(s1, s2, s3)
+endfunction`,
+  } : {}),
+  // --scripts: the AI gets an army by its base and the player's base is known; the script picker runs
+  // every 5 s from 3 s on (FirstAttackDelay off); the AI log tells which scripts start and their steps
+  ...(flag('--scripts') ? {
+    extraStart: 'ScriptsRun',
+    extraFunctions: `function ScriptsArmy takes integer t, integer n returns nothing
+    local integer b = EmpBaseOfSide(1)
+    local integer i = 0
+    loop
+        exitwhen i >= n
+        call CreateUnit(Player(1), t, EmpBaseX[b] + GetRandomReal(-600.0, 600.0), EmpBaseY[b] + GetRandomReal(-600.0, 600.0), 0.0)
+        set i = i + 1
+    endloop
+endfunction
+
+function ScriptsRun takes nothing returns nothing
+    local integer i = 0
+    call TriggerSleepAction(2.0)
+${scriptArmy.map(([id, n]) => `    call ScriptsArmy('${id}', ${n})`).join('\n')}
+    set EmpAiKnown = true
+    set EmpAiKnownX = EmpBaseX[EmpBaseOfSide(0)]
+    set EmpAiKnownY = EmpBaseY[EmpBaseOfSide(0)]
+    loop
+        exitwhen i >= 6
+        set EmpAiTFirst[i + 1] = 0
+        set EmpAiTFirst[i + 3] = 0
+        set i = i + 1
+    endloop
+    set i = 0
+    loop
+        exitwhen i >= 12
+        call TriggerSleepAction(5.0)
+        call EmpScrPick()
+        set i = i + 1
+    endloop
 endfunction`,
   } : {}),
   // --tele: a NIAB tank teleports 3000 units off (explored: the fog is off), sleeps, acts again

@@ -42,6 +42,21 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 Сценарии атак ИИ из Game.exe вместо придуманных волн ([ai-scripts.ts](src/emperor/ai-scripts.ts),
+  [ai-scripts.j](src/jass/battle/ai-scripts.j), `AI_SCRIPT` в [config/battle.ts](src/config/battle.ts)). Раньше ИИ
+  раз в `GapBetweenNewScripts`, умноженный на `LargeAttackModifier`, отправлял всех домашних юнитов сверх
+  оборонной доли на точку сбора, а оттуда на базу игрока; в коде было ошибочно сказано, что файлов
+  сценариев в игре нет. Их 217 (STRATEGY в папках 1–7, SubHouse, CrossTech и objectsets.txt; Game.exe
+  `0x43c420`, `0x445900`).
+  - Как в Game.exe (`0x44e410` → `0x45b5f0` → `0x458b60`): бросок приоритета 51/30/15/4 % на частоту 1–4,
+    стратегии дома и тех-уровня ИИ, команды набираются из домашних юнитов по наборам объектов, не больше
+    `MaxScriptsToRunAtOnce` сразу.
+  - Шаги SEND/WAIT/GOTO к целям (enemybase, threat, any, harvester, набор) и точкам сбора (front, flanks,
+    rear). Конец — по шагам, потерям, без юнитов или через 7500 тиков без цели; юниты возвращаются домой.
+  - Не перенесены (TODO в ai-scripts.j): реактивные сценарии, сборка под сценарий, нечёткий подбор, точная
+    геометрия точек сбора, MONITOR/RUN/TAUNT, LARGE-атака.
+  - Тесты «the AI script tactics…», «AI script tactics replace the invented waves»; пробник `--scripts`:
+    три сценария стартовали и прошли шаги.
 - 2026-10-09 Голограммы проектора Иксианцев ([projector.j](src/jass/mission/projector.j)). Раньше не было. Как в
   Game.exe (класс `0x17`): проектор развёртывается, в развёрнутом виде кнопка «Проекция» на видимый наземный
   юнит любой стороны (кроме `Projectable=FALSE`) создаёт голограмму его типа для владельца проектора
