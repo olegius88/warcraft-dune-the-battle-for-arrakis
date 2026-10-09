@@ -1067,17 +1067,17 @@ test('territory battles have surface and vertical worms with the Rules.txt chanc
   assert.deepStrictEqual([w.surfaceChance, w.verticalChance, w.minLife, w.maxLife, w.disappearHealth, w.minTick, w.attractionRadius], [6000, 5000, 600, 1000, 25, 1000, 32]);
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const battle = buildMission({ scripts: [], meta, ...all, name: 'worms', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
-  assert.match(battle.script, /function EmpRideTick takes nothing returns nothing/);
+  assert.match(battle.script, /function EmpWormTick takes nothing returns nothing/);
   assert.ok(battle.script.includes('GetRandomInt(1, 6000) <= 25'), 'surface worm chance per second from ChanceOfSurfaceWorm');
   assert.ok(battle.script.includes('GetRandomInt(1, 5000) <= 25'), 'vertical worm chance per second from ChanceOfVerticalWorm');
   // per-type WormAttraction weights; TastyToWorms = False and GUMaker (-20) are never eaten
-  const weight = (name: string): RegExpExecArray | null => new RegExp(`call SaveInteger\\(EmpRideTab, '${all.units.rawcode.get(name)}', 0, (-?\\d+)\\)`).exec(battle.script);
+  const weight = (name: string): RegExpExecArray | null => new RegExp(`call SaveInteger\\(EmpWormTab, '${all.units.rawcode.get(name)}', 0, (-?\\d+)\\)`).exec(battle.script);
   assert.strictEqual(all.rules.objects.get('ATGeneral')?.tastyToWorms, false);
   if (all.units.rawcode.has('ATGeneral')) assert.strictEqual(weight('ATGeneral')?.[1], '0');
   assert.strictEqual(weight('GUMaker')?.[1], '-20');
   assert.ok(battle.script.includes('or not EmpOnSand(GetUnitX(EmpWorm), GetUnitY(EmpWorm)))'), 'a worm on rock goes under the sand');
   const story = buildMission({ scripts: [], meta, ...all, name: 'no-worms', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x' });
-  assert.ok(!story.script.includes('EmpRideTick'), 'no worms outside territory battles');
+  assert.ok(!story.script.includes('EmpWormTick'), 'no worms outside territory battles');
 });
 
 // Reinforcements (Rules.txt [General] UnitValue*Reinforcements, TicksBetweenReinforcements and the
