@@ -153,6 +153,9 @@ export interface Detonator {
   pulseRadius: number;
   pulseTicks: number;
   leaves: string;
+  /** the EITS's throw of its bombs (Game.exe 0x56916a, Emperor units and ticks): its bullet's Speed, the
+   * EITS's HeightOffset (its flying height) and [General] BulletGravity (mission detonate.j EmpBoomToss) */
+  toss?: { speed: number; height: number; gravity: number };
 }
 
 /** A deployable type (Rules.txt DeployInf / Kobra), its deployed copy armed with the turret it fires
@@ -566,6 +569,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       pulseRadius: kind === 'infiltrator' ? (Number(o.raw.BlastRadius) || 0) * S.WC3_UNITS_PER_TILE : 0,
       pulseTicks: kind === 'infiltrator' ? Number(o.raw.Damage) || 0 : 0,
       leaves: kind === 'eits' ? rawcode.get('ORSaboteur') ?? '' : '',
+      ...(kind === 'eits' ? { toss: { speed: Number(bomb.Speed) || 0, height: Number(o.raw.HeightOffset?.split('//')[0]) || 0, gravity: Number(rules.general.BulletGravity) || 0 } } : {}),
     });
   }
   // ADV Fremen (Rules.txt AdvancedFremen): a worm call button; it becomes its Resource (mission wormride.j)

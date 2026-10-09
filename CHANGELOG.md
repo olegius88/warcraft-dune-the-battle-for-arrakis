@@ -283,6 +283,15 @@
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
 
 ### Fixed
+- 2026-10-09 Бомбы EITS падали случайно в выдуманном квадрате ±3 клетки. Теперь бросок как в `Game.exe` 1.09
+  (`0x56916a`, [detonate.j](src/jass/mission/detonate.j) `EmpBoomToss`, `EITS_TOSS` в
+  [config/runtime.ts](src/config/runtime.ts)):
+  - бомба i из 10 летит под углом i·2π/10, вверх под 45°;
+  - скорость случайная, от 1 до `Speed` снаряда (`EITSBomb_B`: 8);
+  - каждый тик подъём теряет `[General] BulletGravity` (`0x487a30`), падение с высоты полёта EITS
+    `HeightOffset` (20).
+
+  Бомбы ложатся в 0,15–2,5 клетки от EITS; тест «the EITS throws its bombs as Game.exe does».
 - 2026-10-09 Сильно раненый невидимый юнит оставался скрытым. В `Game.exe` 1.09 проверка «может
   скрыться» (`0x55fca0`, и для `Stealthed`, и для `StealthedWhenStill`) делит здоровье на максимум и
   отказывает при доле ниже 0,33 (`0x5d4404`). Теперь так же ([stealth.j](src/jass/mission/stealth.j),

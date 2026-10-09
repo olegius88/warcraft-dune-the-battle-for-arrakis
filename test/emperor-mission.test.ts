@@ -1856,6 +1856,27 @@ test('Devastator, Infiltrator and EITS detonate as Game.exe does', opts, () => {
   assert.ok(body('EmpBoomMineTick').includes('IsUnitType(e, UNIT_TYPE_FLYING)'), 'aircraft only');
 });
 
+// Regression: the EITS's ten bombs fell at random within a made-up 3 tiles square
+// (RT.BOOM_EITS_SPREAD_TILES, "the spread not read"). Game.exe 1.09 (0x56916a, unitEITS.cpp) throws bomb
+// i of 10 at i * 0x5d8068 (2 pi / 10) round the up axis, 45 degrees up (the vector (0, 1, 1) normalized,
+// 0x5758a0) at a random speed between 1 and its bullet's Speed (0x51cb50; EITSBomb_B 8); a Trajectory
+// bullet loses [General] BulletGravity (1.0) of its rise a tick (0x487a30) and falls from the EITS's
+// HeightOffset (20, the flying height 0x56a0c5). Guaranteed now: the same throw, simulated a tick at a
+// time, lands each bomb 0.15 .. 2.5 tiles off in its own direction.
+test('the EITS throws its bombs as Game.exe does', opts, () => {
+  const all = loadAll();
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const eits = all.units.detonators.find((x) => x.type === id('OREITS'));
+  assert.deepStrictEqual(eits?.toss, { speed: 8, height: 20, gravity: 1 });
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'eits', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call EmpBoomToss('${id('OREITS')}', 8.0, 20.0, 1.0)`), 'the throw of the EITS type');
+  const blast = m.script.slice(m.script.indexOf('function EmpBoomBlast '), m.script.indexOf('endfunction', m.script.indexOf('function EmpBoomBlast ')));
+  assert.ok(!blast.includes('GetRandomReal(-spread'), 'no made-up square');
+  assert.match(blast, /GetRandomReal\(1\.0, LoadReal\(EmpBoomTab, t, 8\)\)/, 'a random speed from 1 to Speed');
+  assert.match(blast, /set rise = rise - LoadReal\(EmpBoomTab, t, 13\)/, 'gravity a tick');
+});
+
 // Units with Rules.txt Stealthed = TRUE (FRFremen, FRADVFremen, IXInfiltrator) were always visible: only
 // StealthedWhenStill was ported. Game.exe 1.09 starts them stealthed (0x4c0640 sets the stealth bit from
 // the type's +0x3c7) and the same reveal rules apply (firing, UnstealthRange). Guaranteed now: such a

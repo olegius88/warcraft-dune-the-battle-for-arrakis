@@ -234,9 +234,13 @@ export const APC_TICK = 0.25;
 /** EmpSwTab child BOOM_PCT_KEY + armour index: the warhead % of a detonating type's bomb (mission
  * detonate.j; above the super weapons' keys). */
 export const BOOM_PCT_KEY = 100;
-/** EITS bombs fall within this many tiles of it (Game.exe 0x56916a: "randomly spread", the spread not
- * read; TODO(units) in detonate.j). */
-export const BOOM_EITS_SPREAD_TILES = 3;
+/** The EITS's throw of its bombs (Game.exe 1.09 0x56916a; mission detonate.j EmpBoomBlast): bomb i flies
+ * at i * angleStep round the up axis (0x5d8068 = 2 pi / 10), starting from Emperor's world +z, which is
+ * the WC3 south (terrain.ts toWorld flips the map's second axis; the ten directions are symmetric about
+ * it, so the turn's sense does not matter); 45 degrees up (the vector (0, 1, 1) normalized: rise = run =
+ * speed * rise); at a random speed from minSpeed to its bullet's Speed (0x51cb50); at most maxTicks of
+ * flight are simulated. */
+export const EITS_TOSS = { angleStep: 0.6283185, firstAngle: -Math.PI / 2, rise: Math.SQRT1_2, minSpeed: 1, maxTicks: 200 } as const;
 /** How often (s) the dust scouts look whether to burrow or come up (mission burrow.j; Game.exe every
  * tick, 0x568d10). */
 export const BURROW_TICK = 0.25;

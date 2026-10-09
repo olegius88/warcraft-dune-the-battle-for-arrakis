@@ -9,12 +9,13 @@
 // MinRange, Lifespan rockets at it, then it is gone (EmpBoomMineTick).
 // EmpBoomTab[type]: 0 kind (1 / 2 / 3), 1 damage, 2 radius, 3 delay, 4 bombs, 5 pulse radius, 6 pulse
 // ticks, 7 the unit left; [button] 10 = 1; [timer] 11 the unit.
-// TODO(units): the EITS bombs' spread is not read (RT.BOOM_EITS_SPREAD_TILES), the Infiltrator goes off
-// on buildings only (Game.exe: any visible ground target within BlastRadius + its Size); the AI's
+// The EITS throws its bombs (EmpBoomToss: children 8 speed, 9 height, 13 gravity; RT.EITS_TOSS): each
+// flies its own way, 45 degrees up at a random speed, a tick at a time under the gravity until it is
+// down from the EITS's height (test "the EITS throws its bombs as Game.exe does").
+// TODO(units): the Infiltrator goes off on buildings only (Game.exe: any visible ground target within BlastRadius + its Size); the AI's
 // EITS (0x466bb0: flies to the enemy building of most value and blows up there) and Infiltrator
 // (and an attack order given to an airborne mine: Game.exe then waits for that very target)
-// (0x468410) are not ported, the port's AI makes neither. Risk: bombs fall nearer or farther than in
-// Emperor; an Infiltrator walks past units.
+// (0x468410) are not ported, the port's AI makes neither. Risk: an Infiltrator walks past units.
 // Feature test: test/emperor-mission.test.ts "detonate".
 function EmpBoomType takes integer t, integer kind, real dmg, real r, real delay, integer bombs, real pulseR, integer pulseTicks, integer leaves, integer button returns nothing
     call SaveInteger(EmpBoomTab, t, 0, kind)
@@ -31,6 +32,13 @@ function EmpBoomType takes integer t, integer kind, real dmg, real r, real delay
 endfunction
 
 // an airborne mine: goes off at an enemy aircraft within r ([type] 8; EmpBoomMineTick)
+// the EITS's throw (Emperor units and ticks)
+function EmpBoomToss takes integer t, real speed, real height, real gravity returns nothing
+    call SaveReal(EmpBoomTab, t, 8, speed)
+    call SaveReal(EmpBoomTab, t, 9, height)
+    call SaveReal(EmpBoomTab, t, 13, gravity)
+endfunction
+
 function EmpBoomMine takes integer t, real r returns nothing
     call SaveReal(EmpBoomTab, t, 8, r)
     set EmpBoomMines = true
@@ -119,12 +127,31 @@ function EmpBoomBlast takes unit u returns nothing
     local real by = y
     local integer i = 0
     local integer n = LoadInteger(EmpBoomTab, t, 4)
-    local real spread = {{real RT.BOOM_EITS_SPREAD_TILES}} * {{real WC3_UNITS_PER_TILE}}
+    local real run
+    local real rise
+    local real h
+    local real d
+    local integer k
     loop
         exitwhen i >= n
-        if n > 1 then
-            set bx = x + GetRandomReal(-spread, spread)
-            set by = y + GetRandomReal(-spread, spread)
+        if HaveSavedReal(EmpBoomTab, t, 8) and LoadReal(EmpBoomTab, t, 13) > 0.0 then
+            // Game.exe 0x56916a: rise = run = speed / sqrt 2; each tick the rise loses the gravity first
+            // (0x487a30), then the bomb moves; down when below the height it was dropped from
+            set run = GetRandomReal({{real RT.EITS_TOSS.minSpeed}}, LoadReal(EmpBoomTab, t, 8)) * {{real RT.EITS_TOSS.rise}}
+            set rise = run
+            set h = LoadReal(EmpBoomTab, t, 9)
+            set d = 0.0
+            set k = 0
+            loop
+                set rise = rise - LoadReal(EmpBoomTab, t, 13)
+                set h = h + rise
+                set d = d + run
+                set k = k + 1
+                exitwhen h <= 0.0 or k >= {{RT.EITS_TOSS.maxTicks}}
+            endloop
+            set d = d * {{real tossScale}}
+            set bx = x + d * Cos({{real RT.EITS_TOSS.firstAngle}} + i * {{real RT.EITS_TOSS.angleStep}})
+            set by = y + d * Sin({{real RT.EITS_TOSS.firstAngle}} + i * {{real RT.EITS_TOSS.angleStep}})
         endif
         call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.bomb.id}}', {{ART_ABILITY.bomb.type}}, 0), bx, by))
         call EmpSwDamage(p, bx, by, LoadReal(EmpBoomTab, t, 2), LoadReal(EmpBoomTab, t, 1), true, t, {{RT.BOOM_PCT_KEY}})
