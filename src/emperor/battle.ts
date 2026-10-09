@@ -34,12 +34,10 @@
 // The defending enemy starts from Game.exe's minimal base (MIN_BASE, 0x42ea80), placed by the site code
 // (ai-map.j EmpAiPlace, 0x42a1e0 / 0x42a680), unless the territory kept its base from the last battle
 // there (forces.j EmpBaseSave / EmpBaseRestore, C.SAVED_BASE); its spice is kept too (spice-fields.j).
-// TODO(campaign): the player's reserves are not ported: Game.exe spawns UnitValueReserves worth of
-// house units, two veterancy levels up, at the entrance for every army stack the player selected on
-// neighbouring territories (0x4809b0, stacks counted by 0x490d60; the AI has none), and moves / removes
-// the stacks after the battle (0x491522). The hub has no army stacks (where they come from is not
-// traced). The player's explored map is kept (explored.j), the AI's and the battle scorch (0x534420 ->
-// 0x495f60, ground marks) are not. Risk: the player fights without reserves. In a defence battle the attacking AI starts with Game.exe's MCV (0x47f255),
+// The player's reserves come from the hub's stacks (forces.j EmpReserveArrive; Game.exe 0x4809b0, stacks
+// in hub functions.j; their TODO there). The player's explored map is kept (explored.j); TODO(campaign):
+// the AI's explored map and the battle scorch (0x534420 -> 0x495f60, ground marks) are not kept. Risk:
+// a second battle on a territory shows no scorch marks. In a defence battle the attacking AI starts with Game.exe's MCV (0x47f255),
 // UnitValueAttacker units and CampaignAttackMoney (forces.j EmpDefendAttacker) and builds its base.
 // Builder state 3 is Game.exe's defence plan (ai-map.j, AI_PLAN / AI_MAP): walls along the contour of
 // a building cluster on the AI's map of tiles, turrets where the walls end at its roads. Of the 17
@@ -71,7 +69,7 @@
 // traced in Game.exe). Risk: the AI's base grows in another order than Emperor's.
 
 import { real, str } from '../wc3/jass.ts';
-import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS } from '../config/campaign.ts';
+import { CACHE_KEY, J_CACHE_CATEGORY, SUBHOUSE_TAGS, RESERVE, RESERVE_ARRIVED } from '../config/campaign.ts';
 import { renderFile } from '../wc3/template.ts';
 import type { Scope } from '../wc3/template.ts';
 import { jassFile, RAW_DIR } from '../config/paths.ts';
@@ -542,6 +540,7 @@ endfunction`;
   const baseYard = PREFIXES.map((h, hi) => branch(hi, rc(`${h}ConYard`) ? `'${rc(`${h}ConYard`)}'` : '0')).join('\n') + '\n    endif';
   fns.push(jass('forces', {
     baseKeep, baseYard, CAT: J_CACHE_CATEGORY, KB: str(CACHE_KEY.basePrefix),
+    RESERVE, RESERVE_ARRIVED, reserveValue: o.rules?.reinforcements.reserves ?? 0,
     strongTech: tuneLines(BP.strong, true, '            '), campaignPhases,
     aggressiveTech: tuneLines(BP.aggressive, true, '            '), defensiveTech: tuneLines(BP.defensive, true, '            '),
     aggressiveSide: [tuneLines(BP.aggressive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.aggressive)].join('\n'),

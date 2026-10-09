@@ -21,6 +21,12 @@ function EmpSave takes nothing returns nothing
         call StoreInteger(EmpCache, {{CAT}}, {{K.ownerPrefix}} + I2S(n), EmpOwner[n])
         set n = n + 1
     endloop
+    set n = 1
+    loop
+        exitwhen n > {{RESERVE.slots}}
+        call StoreInteger(EmpCache, {{CAT}}, {{K.stackPrefix}} + I2S(n), EmpStack[n])
+        set n = n + 1
+    endloop
     call SaveGameCache(EmpCache)
 endfunction
 
@@ -70,6 +76,12 @@ function EmpLoad takes nothing returns nothing
             set EmpOwner[n] = EmpInitOwner[n]
             set n = n + 1
         endloop
+        set n = 1
+        loop
+            exitwhen n > {{RESERVE.slots}}
+            set EmpStack[n] = 0
+            set n = n + 1
+        endloop
         set EmpPhase = {{PHASE.first}}
         set EmpTech = {{START_TECH}}
         set EmpCaptured = 0
@@ -87,6 +99,12 @@ function EmpLoad takes nothing returns nothing
     loop
         exitwhen n > {{TERRITORY_COUNT}}
         set EmpOwner[n] = GetStoredInteger(EmpCache, {{CAT}}, {{K.ownerPrefix}} + I2S(n))
+        set n = n + 1
+    endloop
+    set n = 1
+    loop
+        exitwhen n > {{RESERVE.slots}}
+        set EmpStack[n] = GetStoredInteger(EmpCache, {{CAT}}, {{K.stackPrefix}} + I2S(n))
         set n = n + 1
     endloop
     set EmpPhase = GetStoredInteger(EmpCache, {{CAT}}, {{K.phase}})
@@ -118,6 +136,94 @@ function EmpMyNeighbourOf takes integer n returns integer
         set i = i + 1
     endloop
     return 0
+endfunction
+
+// ---- reserve stacks (Game.exe 1.09, campaign house record +0x554; config RESERVE) ----
+// A stack comes after every jump-to mission, won or not (0x491518: the start and story missions here),
+// on a random territory of the player's with none on it (0x494b80, no adjacency asked). The stacks on
+// the battle territory (a defence) and on the player's neighbours of it, in their order, join a battle
+// (0x490d60 -> 0x491e60, at most RESERVE.join): each brings UnitValueReserves worth of units two
+// veterancy levels up (mission). After the battle the first joined one moves onto the territory if it
+// was won (0x491584), the other joined ones are used up (0x4915be); lost, all joined ones are gone
+// (0x4915cd). The AI houses have none (0x490d60 is for house slot 0 only).
+// TODO(campaign): Game.exe lets the player deselect a stack by clicking it (0x48a620 -> 0x490b50:
+// joined unless deselected), move one a territory a turn (ReserveMoves 0x4923a0 -> 0x490a50) and gets
+// one from a retreat of ten units or more (0x491684 / 0x4916c5; the Retreat order 0x523730 is not
+// ported). Here all of them join and none move. Risk: the player cannot keep a stack back or shift it.
+function EmpStackAt takes integer t returns integer
+    local integer k = 1
+    loop
+        exitwhen k > {{RESERVE.slots}}
+        if EmpStack[k] == t then
+            return k
+        endif
+        set k = k + 1
+    endloop
+    return 0
+endfunction
+
+function EmpStackAdd takes nothing returns nothing
+    local integer n = 1
+    local integer c = 0
+    local integer k
+    local integer array cand
+    loop
+        exitwhen n > {{TERRITORY_COUNT}}
+        if EmpOwner[n] == {{me}} and EmpStackAt(n) == 0 then
+            set cand[c] = n
+            set c = c + 1
+        endif
+        set n = n + 1
+    endloop
+    set k = EmpStackAt(0)
+    if c == 0 or k == 0 then
+        return
+    endif
+    set n = cand[GetRandomInt(0, c - 1)]
+    set EmpStack[k] = n
+    call EmpSay({{str RESERVE_NEW}} + " «" + EmpTName[n] + "»")
+endfunction
+
+// the stacks joining a battle at t (a defence: the one on t first), into EmpPendRes / EmpPendResSlot
+function EmpStackJoin takes integer t, boolean defend returns nothing
+    local integer i = 0
+    local integer m
+    local integer k
+    set EmpPendRes = 0
+    if defend and EmpStackAt(t) > 0 then
+        set EmpPendResSlot[0] = EmpStackAt(t)
+        set EmpPendRes = 1
+    endif
+    loop
+        exitwhen i >= EmpAdjCount[t] or EmpPendRes >= {{RESERVE.join}}
+        set m = EmpAdj[t * {{ADJ_STRIDE}} + i]
+        set k = EmpStackAt(m)
+        if EmpOwner[m] == {{me}} and k > 0 then
+            set EmpPendResSlot[EmpPendRes] = k
+            set EmpPendRes = EmpPendRes + 1
+        endif
+        set i = i + 1
+    endloop
+endfunction
+
+// after a battle at t: the first joined stack onto t if won, the joined ones used up
+function EmpStackAfter takes integer t, boolean won returns nothing
+    local integer n = GetStoredInteger(EmpCache, {{CAT}}, {{K.pendRes}})
+    local integer i = 0
+    local integer k
+    loop
+        exitwhen i >= n
+        set k = GetStoredInteger(EmpCache, {{CAT}}, {{K.pendResPrefix}} + I2S(i))
+        if k > 0 then
+            if won and i == 0 then
+                set EmpStack[k] = t
+            else
+                set EmpStack[k] = 0
+            endif
+        endif
+        set i = i + 1
+    endloop
+    call StoreInteger(EmpCache, {{CAT}}, {{K.pendRes}}, 0)
 endfunction
 
 function EmpCount takes integer house returns integer
@@ -161,6 +267,18 @@ function EmpDraw takes nothing returns nothing
         call SetTextTagVisibility(EmpLabel[n], true)
         set n = n + 1
     endloop
+    set n = 1
+    loop
+        exitwhen n > {{RESERVE.slots}}
+        if EmpStackMarker[n] != null then
+            call RemoveUnit(EmpStackMarker[n])
+            set EmpStackMarker[n] = null
+        endif
+        if EmpStack[n] > 0 then
+            set EmpStackMarker[n] = CreateUnit(Player(0), '{{stackMarkerId}}', EmpTX[EmpStack[n]] + {{real RESERVE.markerDx}}, EmpTY[EmpStack[n]] + {{real RESERVE.markerDy}}, {{real DEFAULT_FACING}})
+        endif
+        set n = n + 1
+    endloop
 endfunction
 
 function EmpStatus takes nothing returns nothing
@@ -168,6 +286,7 @@ function EmpStatus takes nothing returns nothing
 endfunction
 
 function EmpGo takes nothing returns nothing
+    local integer n
     // hand the pending battle to the next map through the cache, then change level
     call StoreInteger(EmpCache, {{CAT}}, {{K.inCampaign}}, 1)
     call StoreInteger(EmpCache, {{CAT}}, {{K.pendingTerritory}}, EmpPendTerr)
@@ -180,6 +299,18 @@ function EmpGo takes nothing returns nothing
         call StoreInteger(EmpCache, {{CAT}}, {{K.pendingFrom}}, EmpMyNeighbourOf(EmpPendTerr))
     endif
     call StoreInteger(EmpCache, {{CAT}}, {{K.result}}, -1)
+    // the reserve stacks joining it (a territory battle)
+    set EmpPendRes = 0
+    if EmpPendKind == {{KIND_ID.attack}} or EmpPendKind == {{KIND_ID.defend}} then
+        call EmpStackJoin(EmpPendTerr, EmpPendKind == {{KIND_ID.defend}})
+    endif
+    call StoreInteger(EmpCache, {{CAT}}, {{K.pendRes}}, EmpPendRes)
+    set n = 0
+    loop
+        exitwhen n >= EmpPendRes
+        call StoreInteger(EmpCache, {{CAT}}, {{K.pendResPrefix}} + I2S(n), EmpPendResSlot[n])
+        set n = n + 1
+    endloop
     call EmpSave()
     call SetNextLevelBJ(EmpNextMap)
     call CustomVictoryBJ(Player(0), false, false)
@@ -322,6 +453,12 @@ function EmpApplyResult takes nothing returns boolean
     if kind == {{KIND_ID.attack}} or kind == {{KIND_ID.defend}} then
         set EmpBattles = EmpBattles + 1
         set EmpNoGain = EmpNoGain + 1
+    endif
+    if kind == {{KIND_ID.attack}} or kind == {{KIND_ID.defend}} then
+        call EmpStackAfter(t, r == 1)
+    elseif kind == {{KIND_ID.story}} or kind == {{KIND_ID.start}} then
+        // a jump-to mission, won or not: a new reserve stack (Game.exe 0x491518)
+        call EmpStackAdd()
     endif
     if kind == {{KIND_ID.attack}} then
         if r == 1 then

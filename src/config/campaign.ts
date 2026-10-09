@@ -113,6 +113,12 @@ export const CACHE_KEY = {
   /** explorePrefix + territory + "_" + row + "_" + chunk: the player's explored tiles there, a bit each
    * (battle explored.j; row -1: the row count) */
   explorePrefix: 'expl',
+  /** stackPrefix + k (1..RESERVE.slots): the territory of the player's reserve stack k, 0 none (hub) */
+  stackPrefix: 'stk',
+  /** reserve stacks joining the battle handed to a mission (hub EmpGo): their count; pendResPrefix + k
+   * their slots, the first one the stack that moves onto a won territory */
+  pendRes: 'pendres',
+  pendResPrefix: 'pendres_',
   /** enemy house of the home-world attack */
   homeAttackEnemy: 'haenemy',
   /** 1 = the last hub visit offered a counter-attack */
@@ -166,3 +172,12 @@ export const CHECK_ALL_MAP = '#U1 AT Start S LOD2';
 export const AUTOTEST_WIN_SECONDS = 15;
 export const AUTOTEST_HUB_DELAY = 6;
 export const AUTOTEST_NAME_PREFIX = 'AAA AutoTest ';
+/** The player's reserve stacks (Game.exe 1.09; hub functions.j, mission reinforcements): 33 slots a
+ * house (campaign +0x554, +4 + i*8); at most `join` neighbours' stacks join a battle (0x490d60 ->
+ * 0x491e60); a stack brings UnitValueReserves worth of house units two veterancy levels up
+ * (0x4809b0, 0x4c18f0 twice). Marker: how far from its territory's marker a stack shows (hub units). */
+export const RESERVE = { slots: 33, join: 10, levels: 2, markerDx: 160, markerDy: -120 } as const;
+/** Hub message when a reserve stack comes (the territory's name follows). */
+export const RESERVE_NEW = 'Новый резерв войск на территории';
+/** Battle message when reserves come (the count of stacks follows). */
+export const RESERVE_ARRIVED = 'Прибыли резервы, отрядов: ';

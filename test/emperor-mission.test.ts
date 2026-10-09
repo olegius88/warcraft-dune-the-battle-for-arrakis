@@ -1911,6 +1911,33 @@ test('AI script tactics replace the invented waves', opts, () => {
   assert.ok(!m.script.includes('EmpAiTGap[1] = ') || /set EmpAiTGap\[1\] = 52\.0/.test(m.script), 'GapBetweenNewScripts unscaled (1300 ticks)');
 });
 
+// The player had no reserves: the hub had no army stacks. Game.exe 1.09: a stack comes after every
+// jump-to mission (0x491518) on a random territory of the player's; the stacks on the player's
+// neighbours of a battle territory (and on it, in a defence) join the battle (0x490d60, at most 10), each
+// bringing UnitValueReserves worth of units two veterancy levels up (0x4809b0); won, the first one moves
+// onto the territory, the other joined ones are used up; lost, all joined ones are gone (0x491522..).
+// Guaranteed now: the same through the hub and the campaign cache.
+test('reserve stacks come after jump-to missions and join battles next to them', opts, async () => {
+  const { buildHub } = await import('../src/emperor/hub.ts');
+  const all = loadAll();
+  const hub = buildHub({
+    house: 'AT', autoTest: false, campaign: loadCampaign(RAW, []), battleMap: () => null, storyMap: { heighliner: 'H.w3x', homeDefence: 'D.w3x', civilWar: 'C.w3x', homeAttack: { HK: 'A.w3x', OR: 'O.w3x' }, end: 'E.w3x' },
+    units: { w3u: Buffer.alloc(0), w3a: Buffer.alloc(0), w3q: Buffer.alloc(0) } as never,
+  });
+  const body = (s: string, name: string): string => s.slice(s.indexOf(`function ${name} `), s.indexOf('endfunction', s.indexOf(`function ${name} `)));
+  const apply = body(hub.script, 'EmpApplyResult');
+  assert.ok(apply.includes('call EmpStackAdd()') && apply.indexOf('kind == 2 or kind == 3') >= 0, 'a stack after a story / start mission');
+  assert.ok(apply.includes('call EmpStackAfter(t, r == 1)'), 'moved or used up after a battle');
+  assert.ok(body(hub.script, 'EmpGo').includes('call EmpStackJoin(EmpPendTerr, EmpPendKind == 1)'), 'joining stacks handed to the battle');
+  assert.ok(body(hub.script, 'EmpStackJoin').includes('EmpPendRes >= 10'), 'at most 10');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'reserves', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const arrive = body(m.script, 'EmpReserveArrive');
+  assert.ok(arrive.includes('call EmpSpawnSet(0, 20, x, y, ') && arrive.includes('set EmpVetArgLevel = 2'), 'UnitValueReserves, two levels up');
+  assert.ok(body(m.script, 'EmpStartForces').includes('call EmpReserveArrive('), 'at the start of an attack');
+  assert.ok(body(m.script, 'EmpCampaignLoad').includes('set EmpReserveStacks = GetStoredInteger(EmpCache, '), 'from the hub');
+});
+
 // In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an
 // invention) with nothing to build with: once it was beaten the battle was won. Game.exe 1.09 0x47f170
 // gives the side that attacks (and kept no base) an MCV at its start position (0x47f255) besides its

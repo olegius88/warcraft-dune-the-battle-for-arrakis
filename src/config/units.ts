@@ -158,3 +158,6 @@ export const PROJECTION = {
   button: [1, 2] as const,
   castRange: 99999,
 } as const;
+/** A reserve stack on the Arrakis hub (hub functions.j): invulnerable, unarmed, the house's colour. */
+export const STACK_MARKER_NAME = 'Резерв';
+export const STACK_MARKER_SCALE = 0.9;

@@ -47,6 +47,8 @@ export interface UnitIds {
   mcvBuilders: Record<string, string>;
   /** territory marker of the Arrakis hub */
   territoryMarker: string;
+  /** reserve stack marker of the Arrakis hub */
+  stackMarker: string;
   /** the APC's cargo hold (config APC) */
   apcCargo: string;
 }
@@ -324,7 +326,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   // ---- economy / construction objects (ids fixed so the runtime can refer to them) ----
   const HARVEST_ABILITY = CUSTOM_ID.harvestAbility; // Ahar with Emperor capacity
   // Territory marker of the Arrakis hub map: invulnerable, unarmed, house-coloured tower.
-  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, spiceMound: CUSTOM_ID.spiceMound, builders: {}, defenceBuilders: {}, allyBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker, apcCargo: CUSTOM_ID.apcCargo };
+  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, spiceMound: CUSTOM_ID.spiceMound, builders: {}, defenceBuilders: {}, allyBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker, stackMarker: CUSTOM_ID.stackMarker, apcCargo: CUSTOM_ID.apcCargo };
   const abilities: ObjectDef[] = [{ base: ABILITY.harvest, id: HARVEST_ABILITY, mods: [
     { field: ABILITY_FIELD.harvestGold, type: 'int', value: U.HARVEST_CAPACITY, level: 1, column: 3 },
     { field: ABILITY_FIELD.harvestLumber, type: 'int', value: 0, level: 1, column: 2 },
@@ -343,6 +345,8 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     int(F.hitPoints, Math.max(S.MIN_HP, rules.spiceMound.health / S.HP_DIVISOR)), real(F.scale, U.SPICE_MOUND_SCALE), real(F.selectionScale, U.SPICE_MOUND_SCALE),
     int(F.tintRed, mR), int(F.tintGreen, mG), int(F.tintBlue, mB)], emperor: null });
 
+  objects.push({ base: UNIT.fallback, id: ids.stackMarker, mods: [str(F.name, U.STACK_MARKER_NAME), str(F.abilities, ABILITY.invulnerable), int(F.attacksEnabled, 0),
+    real(F.scale, U.STACK_MARKER_SCALE), real(F.selectionScale, U.STACK_MARKER_SCALE), str(F.upgrades, ''), str(F.researches, '')], emperor: null });
   objects.push({ base: UNIT.guardTower, id: ids.territoryMarker, mods: [str(F.name, U.TERRITORY_MARKER_NAME), str(F.abilities, ABILITY.invulnerable), int(F.attacksEnabled, 0),
     real(F.scale, U.TERRITORY_MARKER_SCALE), real(F.selectionScale, U.TERRITORY_MARKER_SCALE), str(F.upgrades, ''), str(F.researches, '')], emperor: null });
 

@@ -831,6 +831,35 @@ ${scriptArmy.map(([id, n]) => `    call ScriptsArmy('${id}', ${n})`).join('\n')}
     endloop
 endfunction`,
   } : {}),
+  // --reserves: two reserve stacks arrive by the player's start: their units and veterancy levels
+  ...(flag('--reserves') ? {
+    extraStart: 'ReservesRun',
+    extraFunctions: `function ReservesRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local integer before
+    local group g = CreateGroup()
+    local unit u
+    local integer lv2 = 0
+    call TriggerSleepAction(1.0)
+    set before = EmpCount(0, 1)
+    set EmpReserveStacks = 2
+    call EmpReserveArrive(x, y)
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if LoadInteger(EmpVetUnit, GetHandleId(u), 1) == 2 then
+            set lv2 = lv2 + 1
+        endif
+    endloop
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload("units before " + I2S(before) + " after " + I2S(EmpCount(0, 1)) + " at veterancy 2: " + I2S(lv2))
+    call PreloadGenEnd("DuneSmoke\\\\reserves.pld")
+endfunction`,
+  } : {}),
   // --tele: a NIAB tank teleports 3000 units off (explored: the fog is off), sleeps, acts again
   ...(flag('--tele') ? {
     extraStart: 'TeleRun',

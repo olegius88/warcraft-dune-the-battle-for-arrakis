@@ -68,6 +68,8 @@
     real EmpCarryX = 0.0
     real EmpCarryY = 0.0
     unit EmpAiCarryHangar = null
+    // reserve stacks joining this battle (hub EmpGo -> mission campaign.j; battle forces.j)
+    integer EmpReserveStacks = 0
     // ornithopters' rounds, pads (battle orni.j)
     hashtable EmpOrniTab = null
     group EmpOrniAll = null

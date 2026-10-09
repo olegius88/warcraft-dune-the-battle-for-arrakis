@@ -27,3 +27,9 @@
     integer EmpDialogMode = 0
     boolean EmpBusy = false
     integer EmpEnding = 0
+    // the player's reserve stacks: slot -> territory (0 none), their markers; the stacks joining the
+    // battle being handed over (EmpGo)
+    integer array EmpStack
+    unit array EmpStackMarker
+    integer EmpPendRes = 0
+    integer array EmpPendResSlot

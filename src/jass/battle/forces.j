@@ -135,6 +135,47 @@ function EmpBaseRestore takes integer side returns boolean
     return yard
 endfunction
 
+// ---- the player's reserves (hub reserve stacks; Game.exe 1.09 0x4809b0): at the start every stack
+// joining the battle brings UnitValueReserves worth of the house's units (the reinforcement pick,
+// ReinforcementValue / TechLevel) at the side's start point, each RESERVE.levels veterancy levels up
+// (0x4c18f0 twice); the AI has none.
+function EmpReserveArrive takes real x, real y returns nothing
+    local group before = CreateGroup()
+    local group g = CreateGroup()
+    local unit u
+    local integer i = 0
+    if EmpReserveStacks <= 0 then
+        call DestroyGroup(before)
+        call DestroyGroup(g)
+        set before = null
+        set g = null
+        return
+    endif
+    call GroupEnumUnitsOfPlayer(before, Player(0), null)
+    loop
+        exitwhen i >= EmpReserveStacks
+        call EmpSpawnSet(0, {{reserveValue}}, x, y, {{real C.START_ARMY_SPREAD}})
+        set i = i + 1
+    endloop
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if not IsUnitInGroup(u, before) and not IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+            set EmpVetArgUnit = u
+            set EmpVetArgLevel = {{RESERVE.levels}}
+            call ExecuteFunc("EmpVetSetFromArgs")
+        endif
+    endloop
+    set EmpVetArgUnit = null
+    call DestroyGroup(before)
+    call DestroyGroup(g)
+    set before = null
+    set g = null
+    call EmpShow({{str RESERVE_ARRIVED}} + I2S(EmpReserveStacks))
+endfunction
+
 // ---- starting forces / enemy base (territory battles). Armies are sets of the house's units worth
 // Rules.txt UnitValueAttacker (the side that attacks) / UnitValueDefender (the side that holds the
 // base), credits CampaignAttackMoney / CampaignDefendMoney.
@@ -144,6 +185,7 @@ function EmpStartForces takes nothing returns nothing
     local integer i
 {{supportLines}}
     call EmpSpawnSet(0, {{army.attacker}}, GetLocationX(p), GetLocationY(p), {{real C.START_ARMY_SPREAD}})
+    call EmpReserveArrive(GetLocationX(p), GetLocationY(p))
     call SetCameraPositionLocForPlayer(Player(0), p)
     set EmpCamSet = true
     // the defending side's minimal base (Game.exe 0x47f170 -> 0x42ea80, config MIN_BASE): its yard at the
@@ -498,6 +540,7 @@ function EmpDefendStart takes nothing returns nothing
     endif
     call CreateUnit(Player(0), '{{harvester}}', EmpBaseX[b] + {{real C.BASE_HARVESTER_OFFSET}}, EmpBaseY[b] - {{real C.BASE_HARVESTER_OFFSET}}, {{FACING}})
     call EmpSpawnSet(0, {{army.defender}}, EmpBaseX[b], EmpBaseY[b], {{real C.DEFEND_ARMY_SPREAD}})
+    call EmpReserveArrive(EmpBaseX[b], EmpBaseY[b])
     call SetCameraPositionForPlayer(Player(0), EmpBaseX[b], EmpBaseY[b])
     set EmpCamSet = true
     call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, {{money.defend}})

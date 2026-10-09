@@ -15,6 +15,8 @@ function EmpCampaignLoad takes nothing returns nothing
         set EmpEnemyHouse = GetStoredInteger(EmpCache, {{CAT}}, {{K.pendingEnemy}})
         set EmpTerritory = GetStoredInteger(EmpCache, {{CAT}}, {{K.pendingTerritory}})
         set EmpPlayerTerritory = GetStoredInteger(EmpCache, {{CAT}}, {{K.pendingFrom}})
+        // the reserve stacks joining this battle (hub EmpStackJoin; battle forces.j EmpReserveArrive)
+        set EmpReserveStacks = GetStoredInteger(EmpCache, {{CAT}}, {{K.pendRes}})
         // consumed: a later standalone test run must not think it is inside the campaign
         call StoreInteger(EmpCache, {{CAT}}, {{K.inCampaign}}, 0)
         call SaveGameCache(EmpCache)

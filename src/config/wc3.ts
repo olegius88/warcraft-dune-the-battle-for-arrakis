@@ -201,6 +201,8 @@ export const CUSTOM_ID = {
   spiceField: 'xS00',
   spiceMound: 'xS01',
   territoryMarker: 'xM00',
+  /** a reserve stack on the hub */
+  stackMarker: 'xM01',
   /** builder spawned by a construction yard, per house */
   builder: { AT: 'xBA0', HK: 'xBH0', OR: 'xBO0' },
   /** walls and turrets builder, per house */

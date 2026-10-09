@@ -21,7 +21,7 @@ import type { Campaign, Territory } from './campaign-data.ts';
 import { defendVariant } from './campaign-data.ts';
 import { HOUSE_CODES, HOUSE_RU_BY_ID, HOUSE_COLOR } from '../config/houses.ts';
 import type { HouseCode } from '../config/houses.ts';
-import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, ALLYGAIN_TAGS, allyDebriefKey, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY } from '../config/campaign.ts';
+import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, ALLYGAIN_TAGS, allyDebriefKey, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, TERRITORY_COUNT, ADJ_STRIDE, KIND_ID, PHASE, EMPEROR_PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, COUNTER_ATTACK_ONE_IN, AUTOTEST_HUB_DELAY, RESERVE, RESERVE_NEW } from '../config/campaign.ts';
 import type { PhaseRules } from './phase-rules.ts';
 import { DEFAULT_FACING, TIME_OF_DAY, DEBUG_REPORT_DIR } from '../config/runtime.ts';
 import { CUSTOM_ID, TERRAIN } from '../config/wc3.ts';
@@ -209,7 +209,7 @@ function buildHub(o: HubOptions): { buffer: Buffer; script: string } {
   }).join('\n');
   const functions = renderFile(jassFile('hub/functions'), {
     ADJ_STRIDE, CACHE_FILE, CAT, DEFAULT_FACING, K, KIND_ID, PHASE, START_TECH, NO_GAIN_WARNING, NO_GAIN_LOST, ...phaseJass(o.phaseRules),
-    TERRITORY_COUNT, TIME_OF_DAY, V, foes, markerId, me, musicList, o, story,
+    TERRITORY_COUNT, TIME_OF_DAY, V, foes, markerId, me, musicList, o, story, RESERVE, RESERVE_NEW, stackMarkerId: CUSTOM_ID.stackMarker,
     movieFunctions: movie.movieFunctions, mv: movie.mv, allyDebriefLines,
     autoTestFunctions: o.autoTest ? autoTestFunctions : '',
     dataLines: lines.join('\n'),
