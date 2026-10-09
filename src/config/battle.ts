@@ -317,7 +317,9 @@ export const STORY_AI_EXTRA_UNITS = 100;
 /** Game.exe 1.09 deployable units of the AI (objectsets.txt "Deployable": ATKindjal, ORMortar, ORKobra;
  * behaviour 0x465860, update 0x465a80): in an attack an undeployed unit deploys when its deployed
  * weapon reaches a target (0x465bc2) and a deployed one undeploys when it does not (0x465af9);
- * standing still for ai.ini NumTicksStandingStillUntilDeploy it deploys (0x465bf1). EmpWaveTab
+ * standing still for ai.ini NumTicksStandingStillUntilDeploy it deploys (0x465bf1: an update counter
+ * against NumTicks / 21, 0x46c610, so the behaviour updates are taken as 21 ticks apart: about the
+ * ticks themselves; the cadence is not traced). EmpWaveTab
  * children of the unit: last x / y and the ticks it has stood still (ai.j EmpAiDeployTick). */
 export const AI_DEPLOY = { keyX: 11, keyY: 12, keyStill: 13 } as const;
 /** Game.exe 1.09 MCV of the AI (tactics manager 0x45a600 case 3, CanDeploy 0x56e460): it deploys where

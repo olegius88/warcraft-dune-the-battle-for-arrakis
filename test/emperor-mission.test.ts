@@ -151,7 +151,7 @@ test('veterancy ExtraRange turns the unit into a longer-range copy of its type',
   // every other type lookup goes through EmpType (a comparison with 0 asks whether the unit still
   // exists: the WC3 type itself)
   const raw = m.script.split(/\nfunction /).filter((f) => f.replace(/GetUnitTypeId\([^()]*(\([^()]*\))?\) [!=]= 0/g, '').includes('GetUnitTypeId(')).map((f) => f.split(' ')[0]);
-  assert.deepStrictEqual(raw.filter((f) => !['EmpType', 'EmpAlive', 'EmpVetApply', 'EmpVetMorphed', 'EmpVetRestore', 'EmpDmgHit', 'EmpDeployed'].includes(f as string)), [], 'raw GetUnitTypeId only where the WC3 type itself is meant');
+  assert.deepStrictEqual(raw.filter((f) => !['EmpType', 'EmpAlive', 'EmpVetApply', 'EmpVetMorphed', 'EmpVetRestore', 'EmpDmgHit', 'EmpDeployed', 'EmpDeployApply'].includes(f as string)), [], 'raw GetUnitTypeId only where the WC3 type itself is meant');
 });
 
 // Deployable units (Rules.txt DeployInf: ATKindjal, ORMortar; Kobra: ORKobra) were armed with their
@@ -1669,6 +1669,27 @@ test('the AI deploys its deployable units as Game.exe does', opts, () => {
   assert.ok(tick.includes('>= 160'), 'NumTicksStandingStillUntilDeploy');
   assert.ok(body('EmpAiWave').includes('call EmpDeploySet(u, false)'), 'a wave unit undeploys before it moves');
   assert.ok(body('EmpDeployArgs').includes('EmpDeployMorph(EmpDeployArgUnit, EmpDeployArgOn)'));
+  // Regression: only wave units (role 3) undeployed. A home unit deployed by standing still and then
+  // sent after a threat, an escort or a yard guard kept its order with speed 0 for good. Game.exe's
+  // attack rule undeploys whatever cannot hit its target (0x465af9). Now any deployed unit with an
+  // order and no target in the deployed range undeploys.
+  const undeploy = tick.slice(tick.indexOf('if EmpDeployed(u) then'), tick.indexOf('elseif near then'));
+  assert.ok(undeploy.includes('not near and GetUnitCurrentOrder(u) != 0'), 'any role undeploys');
+});
+
+// Regression: a deploy / knife morph put the veterancy back about a second late (the deployed Kindjal
+// fired with its base damage 250 instead of 375 at first, probe --deploy). veterancy.j EmpVetMorphed
+// restores once the type differs from child 15, the type BEFORE the morph (EmpVetApply saves it so);
+// EmpDeployApply saved the type it turns into, so only the timer's last try restored. Now it saves the
+// current type.
+test('a deploy morph puts the veterancy back at once', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'deploy vet', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const apply = body('EmpDeployApply');
+  assert.ok(apply.includes('call SaveInteger(EmpVetUnit, h, 15, GetUnitTypeId(u))'), 'the type before the morph');
+  assert.ok(body('EmpVetMorphed').includes('GetUnitTypeId(u) != LoadInteger(EmpVetUnit, GetHandleId(u), 15)'));
 });
 
 // The money the base builder saved (EmpAiReserve, ours: units spent only what was above it) was an

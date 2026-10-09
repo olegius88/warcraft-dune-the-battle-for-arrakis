@@ -1030,8 +1030,10 @@ function EmpAiEnemyNear takes unit u, real r returns boolean
 endfunction
 
 // Deployable units (Game.exe 0x465a80, C.AI_DEPLOY): an enemy within the deployed weapon's range
-// deploys the unit; a wave unit with none undeploys and goes on; a unit standing still for
-// NumTicksStandingStillUntilDeploy deploys (mission deploy.j does the morph)
+// deploys the unit; a deployed unit with an order and none undeploys (0x465af9; bug fixed 2026-10-09:
+// only wave units did, a home unit deployed by standing still kept its orders with speed 0 for good),
+// a wave unit then goes on; a unit standing still for NumTicksStandingStillUntilDeploy deploys
+// (mission deploy.j does the morph)
 function EmpAiDeployTick takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
@@ -1046,9 +1048,10 @@ function EmpAiDeployTick takes nothing returns nothing
             set h = GetHandleId(u)
             set near = EmpAiEnemyNear(u, LoadReal(EmpDeployTab, EmpType(u), 4))
             if EmpDeployed(u) then
-                if not near and EmpAiRole(u) == 3 then
+                if not near and GetUnitCurrentOrder(u) != 0 then
                     call EmpDeploySet(u, false)
-                    if EmpAiForming then
+                    if EmpAiRole(u) != 3 then
+                    elseif EmpAiForming then
                         call IssuePointOrder(u, "move", EmpAiStageX, EmpAiStageY)
                     else
                         call IssuePointOrder(u, "attack", EmpAiKnownX, EmpAiKnownY)

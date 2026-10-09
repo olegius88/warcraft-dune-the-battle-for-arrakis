@@ -39,16 +39,17 @@ endfunction
 
 // into the other form: the Chaos morph turns the unit at once; it resets damage, speed and
 // regeneration to the new form's own, so the veterancy is put back once the type changed
-// (veterancy.j EmpVetMorphed, child 15 = the type it waits for)
+// (veterancy.j EmpVetMorphed: child 15 = the type before the morph; bug fixed 2026-10-09: the type it
+// turns into was saved, and the restore came only with the timer's last try, about a second late;
+// test "a deploy morph puts the veterancy back at once")
 function EmpDeployApply takes unit u, boolean on returns nothing
     local integer t = EmpType(u)
     local integer h = GetHandleId(u)
     local timer tm
+    call SaveInteger(EmpVetUnit, h, 15, GetUnitTypeId(u))
     if on then
-        call SaveInteger(EmpVetUnit, h, 15, LoadInteger(EmpDeployTab, t, 1))
         call UnitAddAbility(u, LoadInteger(EmpDeployTab, t, 2))
     else
-        call SaveInteger(EmpVetUnit, h, 15, t)
         call UnitAddAbility(u, LoadInteger(EmpDeployTab, t, 3))
     endif
     set tm = CreateTimer()
