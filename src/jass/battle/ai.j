@@ -80,6 +80,29 @@ function EmpAiCount takes integer c returns integer
     return n
 endfunction
 
+// the AI's construction yard stands: EmpAiYard, else another of its yards takes its place
+function EmpAiYardAlive takes nothing returns boolean
+    local group g
+    local unit u
+    if EmpAlive(EmpAiYard) then
+        return true
+    endif
+    set EmpAiYard = null
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAiYard == null and EmpAlive(u) and LoadBoolean(EmpAiTab, EmpType(u), {{C.AI_TAB_YARD}}) then
+            set EmpAiYard = u
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return EmpAiYard != null
+endfunction
+
 // no unit or building within `tiles` of (x, y), none being built there either, buildable ground
 function EmpAiFree takes real x, real y, real tiles returns boolean
     local group g = CreateGroup()
@@ -126,7 +149,7 @@ function EmpAiFinish takes nothing returns nothing
         endif
         set i = i + 1
     endloop
-    if EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
+    if EmpAiYardAlive() then
         set u = CreateUnit(Player(1), t, x, y, {{FACING}})
         call EmpAiLog("built " + GetUnitName(u))
         set EmpAiMapUnit = u
@@ -192,7 +215,7 @@ endfunction
 // the shares of the credits by builder state (AI_MONEY, Game.exe CAiMoney 0x439620 / 0x42f131)
 function EmpAiShares takes nothing returns nothing
     local integer s = 4
-    if not EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
+    if not EmpAiYardAlive() then
         set s = 5
     elseif EmpAiStartState == 0 then
         set s = 0
@@ -476,7 +499,7 @@ function EmpAiBuild takes nothing returns nothing
     if EmpAiPending > 0 then
         return
     endif
-    if not EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
+    if not EmpAiYardAlive() then
         call EmpAiWait(1, "no construction yard")
         return
     endif
@@ -850,7 +873,7 @@ function EmpAiTactics takes nothing returns nothing
     local integer escorts = 0
     local integer guards = 0
     local integer units = 0
-    local unit yard = EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]
+    local unit yard = null
     local integer k
     local unit harv = null
     local unit threat = null
@@ -860,6 +883,9 @@ function EmpAiTactics takes nothing returns nothing
     local real tile = {{real WC3_UNITS_PER_TILE}}
     local integer team
     local integer i = 1
+    if EmpAiYardAlive() then
+        set yard = EmpAiYard
+    endif
     call EmpAiLosingCheck()
     // a retreating AI no longer leads its units (they leave the map, EmpAIMode 3)
     if EmpAiGone then
@@ -1123,7 +1149,7 @@ function EmpAiCriticalTick takes nothing returns nothing
     if EmpAiStartState == 0 or EmpAiPending > 0 or EmpEnemyGold() < {{ai.minMoneyToBuild}} or GetRandomInt(0, {{C.AI_CRITICAL_TICK.rollMax}}) >= EmpAiSkill then
         return
     endif
-    if not EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
+    if not EmpAiYardAlive() then
         return
     endif
     set t = EmpAiCritical()
@@ -1192,11 +1218,45 @@ function EmpAiHarvTick takes nothing returns nothing
     endloop
 endfunction
 
+// n of type t where the AI's site code puts them, standing at once (Game.exe 0x42ea80 -> 0x598220); a
+// refinery brings its harvester
+function EmpAiMinPlace takes integer t, integer n returns nothing
+    local unit u
+    loop
+        exitwhen n <= 0
+        if EmpAiPlace(t) then
+            set u = CreateUnit(Player(1), t, EmpAiX, EmpAiY, {{FACING}})
+            set EmpAiMapUnit = u
+            call ExecuteFunc("EmpAiMapAdd")
+            if LoadBoolean(EmpAiTab, t, 3) then
+                call CreateUnit(Player(1), '{{harvester}}', EmpAiX + {{real C.BASE_HARVESTER_OFFSET}}, EmpAiY - {{real C.BASE_HARVESTER_OFFSET}}, {{FACING}})
+            endif
+            set u = null
+        else
+            call EmpAiLog("minimal base: no room for " + GetObjectName(t))
+        endif
+        set n = n - 1
+    endloop
+endfunction
+
+// the defending side's minimal base past its yard (config MIN_BASE): barracks, refinery and windtraps of
+// its house (two windtraps and a refinery where the map has spice), placed by the site code
+function EmpAiMinimalBase takes nothing returns nothing
+    local integer t
+    local integer n
+    if not EmpAiYardAlive() then
+        return
+    endif
+{{minBaseLines}}
+    call EmpAiLog("minimal base placed")
+endfunction
+
 function EmpAiInit takes nothing returns nothing
     local trigger tr
     call EmpAiData()
     call EmpAiMapInit()
-    set EmpAiHarvHitTrig = CreateTrigger()
+{{#if attackBattle}}    call EmpAiMinimalBase()
+{{/if}}    set EmpAiHarvHitTrig = CreateTrigger()
     call TriggerRegisterPlayerUnitEvent(EmpAiHarvHitTrig, Player(1), EVENT_PLAYER_UNIT_DAMAGED, null)
     call TriggerAddAction(EmpAiHarvHitTrig, function EmpAiHarvHurt)
     call TimerStart(CreateTimer(), {{real TICK_SECONDS}}, true, function EmpAiHarvTick)

@@ -31,9 +31,13 @@
 // <- 0x47f08b); CreateGame (0x48e990) and SetupMission (0x48f660) set it for the human players from the
 // campaign alliances and clear it for the computer (0x48ef86..0x48ef93, 0x48fa33..0x48fa60): only
 // skirmish lobbies give an AI sub-houses (0x47c1a0 "Changed AI side %d to subhouses %d, %d").
-// TODO(ai): still simplified against Game.exe: a territory battle's enemy starts from a fixed base
-// template whose lost buildings are rebuilt first (BASE_TEMPLATE; Emperor's campaign start base is not
-// traced). Building sites: ai-map.j EmpAiPlace (Game.exe 0x42a1e0 / 0x42a680).
+// The defending enemy starts from Game.exe's minimal base (MIN_BASE, 0x42ea80), placed by the site code
+// (ai-map.j EmpAiPlace, 0x42a1e0 / 0x42a680). TODO(ai): the buildings a territory kept from earlier
+// battles (0x4807e0 <- 0x490bf0, the defender only) and the reserves (0x4809b0, UnitValueReserves per
+// stack of 0x490d60) are not carried between battles; in a defence battle the attacking AI comes in
+// waves (forces.j EmpDefendWave) instead of Game.exe's MCV, UnitValueAttacker units and
+// CampaignAttackMoney (0x47f255), because how its MCV is deployed is not traced. Risk: later fights on a
+// territory start from a fresh base; defence battles end sooner than in Emperor.
 // Builder state 3 is Game.exe's defence plan (ai-map.j, AI_PLAN / AI_MAP): walls along the contour of
 // a building cluster on the AI's map of tiles, turrets where the walls end at its roads. Of the 17
 // skill rolls (0x46c5d0) the
@@ -304,19 +308,19 @@ endfunction`;
   const vehBy = PREFIXES.map((h) => C.ENEMY_VEHICLES.map((s) => rc(h + s)).filter(isId));
   fns.push(pickFn('EmpEnemyInf', infBy));
   fns.push(pickFn('EmpEnemyVeh', vehBy));
-  // enemy base template per house (index = house id) as data, so destroyed buildings can be rebuilt
-  const templateLines: string[] = [];
-  PREFIXES.forEach((h, hi) => {
-    const entries = C.BASE_TEMPLATE.filter(([sfx]) => rc(h + sfx));
-    if (entries.length > C.TEMPLATE_SLOTS) throw new Error(`base template of ${entries.length} > TEMPLATE_SLOTS`);
-    entries.forEach(([sfx, dx, dy], k) => {
-      const i = hi * C.TEMPLATE_SLOTS + k;
-      templateLines.push(`    set EmpTplType[${i}] = '${rc(h + sfx)}'`, `    set EmpTplDx[${i}] = ${dx}`, `    set EmpTplDy[${i}] = ${dy}`);
-    });
-    templateLines.push(`    set EmpTplCount[${hi}] = ${entries.length}`);
-  });
-  // the player's own base for defence battles (own house template at the player's base point)
-  const playerBase = C.BASE_TEMPLATE.map(([sfx, dx, dy]) => (rc(P + sfx) ? `    call CreateUnit(Player(0), '${rc(P + sfx)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), ${FACING})` : '')).filter(Boolean).join('\n');
+  // the defending side's minimal base (MIN_BASE, Game.exe 0x42ea80): with spice on the map or not; the
+  // types in Game.exe's order, down the type list
+  const hasSpice = spiceClusters(o.meta).length > 0;
+  const typeIndex = new Map([...(o.rules?.objects.keys() ?? [])].map((n, i): [string, number] => [n, i]));
+  const minBase = (h: string): Array<[string, number]> => C.MIN_BASE.types
+    .map(([sfx, spice, none]): [string, number] => [h + sfx, hasSpice ? spice : none])
+    .filter(([n, k]) => k > 0 && Boolean(rc(n)))
+    .sort(([x], [y]) => (typeIndex.get(y) ?? 0) - (typeIndex.get(x) ?? 0));
+  const minBaseLines = PREFIXES.map((h, hi) => [`    ${hi === 0 ? 'if' : 'elseif'} EmpEnemyHouse == ${hi} then`,
+    ...minBase(h).flatMap(([n, k]) => [`        set t = '${rc(n)}'`, `        set n = ${k}`, '        call EmpAiMinPlace(t, n)'])].join('\n')).join('\n') + '\n    endif';
+  // the player's minimal base in a defence battle (PLAYER_MIN_BASE): its yard at the base point
+  const playerSet: Array<readonly [string, number, number]> = [[`${P}ConYard`, 0, 0], ...minBase(P).flatMap(([n, k]) => (C.PLAYER_MIN_BASE[n.slice(P.length)] ?? []).slice(0, k).map(([dx, dy]) => [n, dx, dy] as const))];
+  const playerBase = playerSet.map(([n, dx, dy]) => (rc(n) ? `    call CreateUnit(Player(0), '${rc(n)}', EmpBaseX[b] + EmpTiles(${dx}), EmpBaseY[b] - EmpTiles(${dy}), ${FACING})` : '')).filter(Boolean).join('\n');
   const barracksOf = PREFIXES.map((h) => rc(`${h}Barracks`));
   const factoryOf = PREFIXES.map((h) => rc(`${h}Factory`));
   // Rules.txt Cost of every unit the enemy may produce (it pays for them)
@@ -355,6 +359,9 @@ endfunction`;
     const helipad = [...(o.rules?.objects.values() ?? [])].find((r) => r.name.startsWith(h) && /^true$/i.test((r.raw.Helipad ?? '').trim()));
     const pad = helipad ? rc(helipad.name) : undefined;
     aiLines.push(`    set EmpAiRefinery[${hi}] = ${refinery ? `'${refinery}'` : 0}`, `    set EmpAiHelipad[${hi}] = ${pad ? `'${pad}'` : 0}`);
+    // its construction yard (the minimal base, the story AI's yard)
+    const yardOf = rc(`${h}ConYard`);
+    buildingCost.push(`    set EmpAiYardType[${hi}] = ${yardOf ? `'${yardOf}'` : 0}`);
     // its refinery pad order (pads.j)
     const padOrder = (o.units.padOrders ?? []).find((p) => p.refinery === refinery);
     if (padOrder) aiLines.push(`    set EmpAiPadType[${hi}] = '${padOrder.id}'`, `    set EmpAiPadCost[${hi}] = ${padOrder.cost}`, `    set EmpAiPadTime[${hi}] = ${real(padOrder.seconds)}`);
@@ -443,7 +450,7 @@ endfunction`;
     M: C.AI_MAP, P: C.AI_PLAN, S: C.AI_SITE, C, ai, WC3_UNITS_PER_TILE, planTech: ai.firstCampaignTech + 1, mapData: chunks.join('\n'), mapInit: mapInit.join('\n'),
   });
   const aiFunctions = renderFile(jassFile('battle/ai'), {
-    aiMapFunctions,
+    aiMapFunctions, minBaseLines, attackBattle: o.territoryBattle && !o.defend,
     C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND, TICK_SECONDS, ABILITY,
     // AI_HARV_FLIGHT: the tech level the harvester flight waits past (FirstCampaignGameTechLevel + 1)
     harvFlightTech: ai.firstCampaignTech + 1,
@@ -485,9 +492,10 @@ endfunction`;
     gapFactor: 100 / Math.max(1, ai.largeAttackModifier), TPS: TICKS_PER_SECOND,
     aiFunctions, storyAi: storyHouse >= 0, storyHouse,
     harvester, playerBase,
+    // the yard of the minimal base: MIN_BASE.yardShift tiles (left, up)
+    yardLeft: -C.MIN_BASE.yardShift[0] * WC3_UNITS_PER_TILE, yardUp: C.MIN_BASE.yardShift[1] * WC3_UNITS_PER_TILE,
     vehMax: C.ENEMY_VEHICLES.length - 1, infMax: C.ENEMY_INFANTRY.length - 1,
     supportLines: support.map((id) => `    call CreateUnit(Player(0), '${id}', GetLocationX(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), GetLocationY(p) + GetRandomReal(-${C.START_ARMY_SPREAD}, ${C.START_ARMY_SPREAD}), ${FACING})`).join('\n'),
-    templateLines: templateLines.join('\n'),
     ai,
     isBarracks: barracksOf.map((id) => `t == '${id}'`).join(' or '),
     isFactory: factoryOf.map((id) => `t == '${id}'`).join(' or '),

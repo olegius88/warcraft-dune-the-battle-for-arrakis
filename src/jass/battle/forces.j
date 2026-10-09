@@ -22,21 +22,11 @@ function EmpEnemyPick takes boolean veh, boolean special returns integer
     return EmpEnemyInf(0)
 endfunction
 
-// Rules.txt Cost of the units the enemy produces; the enemy base template of every house
-// (config BASE_TEMPLATE: type, offset in tiles from the base point; index = house * TEMPLATE_SLOTS)
+// Rules.txt Cost of the units and buildings the enemy makes; the construction yard of every house
 function EmpCostData takes nothing returns nothing
     set EmpCostTab = InitHashtable()
     set EmpWaveTab = InitHashtable()
 {{costLines}}
-{{templateLines}}
-endfunction
-
-// (re)builds template entry k of the enemy house at the base b
-function EmpTplBuild takes integer k, integer b returns nothing
-    set EmpTplUnit[k] = CreateUnit(Player(1), EmpTplType[k], EmpBaseX[b] + EmpTiles(EmpTplDx[k]), EmpBaseY[b] - EmpTiles(EmpTplDy[k]), {{FACING}})
-    // on the AI's map (battle ai-map.j; before its data, EmpAiMapInit takes the standing ones)
-    set EmpAiMapUnit = EmpTplUnit[k]
-    call ExecuteFunc("EmpAiMapAdd")
 endfunction
 
 // ---- starting forces / enemy base (territory battles). Armies are sets of the house's units worth
@@ -50,15 +40,12 @@ function EmpStartForces takes nothing returns nothing
     call EmpSpawnSet(0, {{army.attacker}}, GetLocationX(p), GetLocationY(p), {{real C.START_ARMY_SPREAD}})
     call SetCameraPositionLocForPlayer(Player(0), p)
     set EmpCamSet = true
-    set i = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
-    loop
-        exitwhen i >= EmpEnemyHouse * {{C.TEMPLATE_SLOTS}} + EmpTplCount[EmpEnemyHouse]
-        call EmpTplBuild(i, b)
-        set i = i + 1
-    endloop
+    // the defending side's minimal base (Game.exe 0x47f170 -> 0x42ea80, config MIN_BASE): its yard at the
+    // start point moved; the rest where the AI's site code puts it once its map stands (ai.j
+    // EmpAiMinimalBase)
+    set EmpAiYard = CreateUnit(Player(1), EmpAiYardType[EmpEnemyHouse], EmpBaseX[b] - {{real yardLeft}}, EmpBaseY[b] + {{real yardUp}}, {{FACING}})
     // ai.ini: the enemy keeps its units at its base between attack waves
     set EmpAIMode[1] = 8
-    call CreateUnit(Player(1), '{{harvester}}', EmpBaseX[b] + {{real C.BASE_HARVESTER_OFFSET}}, EmpBaseY[b] - {{real C.BASE_HARVESTER_OFFSET}}, {{FACING}})
     call EmpSpawnSet(1, {{army.defender}}, EmpBaseX[b], EmpBaseY[b], {{real C.BASE_GUARD_OFFSET}})
     call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, {{money.attack}})
     call SetPlayerStateBJ(Player(1), PLAYER_STATE_RESOURCE_GOLD, {{money.defend}})
@@ -141,34 +128,13 @@ function EmpEnemyProduce takes nothing returns nothing
     endif
 endfunction
 
-// Every BuildingDelay (ai_difficulty.ini): while its construction yard stands and it keeps
-// MinMoneyToConstructBuildings, one destroyed building of its template rebuilt (paid: building costs
-// were missing from EmpCostTab, rebuilds were free until 2026-10-08), or else the base builder's turn
-// (ai.j).
+// Every BuildingDelay (ai_difficulty.ini): the base builder's turn (ai.j) while its construction yard
+// stands; lost buildings come back only by its choices, as in Game.exe
 function EmpEnemyBuildTurn takes nothing returns nothing
     local real d
-    local integer c
-    local integer k
-    local integer b = EmpBaseOfSide(1)
-    // entry 0 of a template is the construction yard
-    set k = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
-    if not EmpAlive(EmpTplUnit[k]) then
+    if not EmpAiYardAlive() then
         return
     endif
-    loop
-        set k = k + 1
-        exitwhen k >= EmpEnemyHouse * {{C.TEMPLATE_SLOTS}} + EmpTplCount[EmpEnemyHouse]
-        if not EmpAlive(EmpTplUnit[k]) then
-            set c = LoadInteger(EmpCostTab, EmpTplType[k], 0)
-            if EmpEnemyGold() >= c + {{ai.minMoneyToBuild}} then
-                call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, EmpEnemyGold() - c)
-                call EmpTplBuild(k, b)
-            endif
-            return
-        endif
-    endloop
-    // the template stands: the base builder grows the base (ai.j); once it maintains, at the
-    // MaintenanceDelay pace (Game.exe 1.09 0x430e95)
     // pace by builder state (Game.exe 0x430e95): start script a tenth of BuildingDelay, maintenance
     // MaintenanceDelay, else BuildingDelay
     call EmpAiBuild()
@@ -284,19 +250,18 @@ function EmpStoryAiStart takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
     local integer b
-    local integer k = {{storyHouse}} * {{C.TEMPLATE_SLOTS}}
     set EmpEnemyHouse = {{storyHouse}}
-    set EmpTplCount[EmpEnemyHouse] = 1
+    set EmpAiYard = null
     call GroupEnumUnitsOfPlayer(g, Player(1), null)
     loop
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if EmpTplUnit[k] == null and EmpAlive(u) and EmpType(u) == EmpTplType[k] then
-            set EmpTplUnit[k] = u
+        if EmpAiYard == null and EmpAlive(u) and EmpType(u) == EmpAiYardType[EmpEnemyHouse] then
+            set EmpAiYard = u
         endif
     endloop
-    if EmpTplUnit[k] == null then
+    if EmpAiYard == null then
         call DestroyGroup(g)
         set g = null
         return
@@ -309,8 +274,8 @@ function EmpStoryAiStart takes nothing returns nothing
     endif
     set b = EmpBaseCount
     set EmpBaseCount = EmpBaseCount + 1
-    set EmpBaseX[b] = GetUnitX(EmpTplUnit[k])
-    set EmpBaseY[b] = GetUnitY(EmpTplUnit[k])
+    set EmpBaseX[b] = GetUnitX(EmpAiYard)
+    set EmpBaseY[b] = GetUnitY(EmpAiYard)
     set EmpBaseOwner[b] = 1
     set EmpSideBase[1] = b
     // guards the map places beyond DefenceTacticWanderDistance and story characters keep their posts

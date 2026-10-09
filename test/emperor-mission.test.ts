@@ -1080,7 +1080,7 @@ test('territory battle armies, credits and paid enemy production follow Rules.tx
 
 // The enemy AI followed no data (TODO(ai)): free production of every building each period, the whole
 // army in every wave, no rebuilding. It now uses ai.ini.
-test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat chance', opts, () => {
+test('territory battle AI: ai.ini unit mix, defence share, no template rebuild, retreat chance', opts, () => {
   const all = loadAll();
   assert.deepStrictEqual({ foot: all.ai?.foot, tank: all.ai?.tank, defencePercent: all.ai?.defencePercent, minMoneyToBuild: all.ai?.minMoneyToBuild, retreatChance: all.ai?.retreatChance }, { foot: 20, tank: 80, defencePercent: 24, minMoneyToBuild: 600, retreatChance: 50 });
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
@@ -1088,9 +1088,9 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   assert.ok(m.script.includes('local boolean veh = GetRandomInt(1, 20 + 80) > 20'), 'Foot / Tank mix');
   assert.ok(m.script.includes('set send = home - IMinBJ(IMaxBJ(home * EmpAiDefPct / 100, EmpAiTMinDef[EmpAiT()]), EmpAiTMaxDef[EmpAiT()])') && m.script.includes('    set EmpAiDefPct = 24'), 'defence share stays home (within ai_difficulty.ini bounds)');
   assert.ok(m.script.includes('GetRandomInt(0, 100 / 50 - 1) != 0'), 'retreat chance (when losing)');
-  assert.ok(m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'rebuild money');
+  assert.ok(!m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'no template rebuild (Game.exe rebuilds by the builder only)');
   const yard = all.units.rawcode.get('HKConYard');
-  assert.ok(m.script.includes(`set EmpTplType[16] = '${yard}'`), 'house 1 template starts with its construction yard');
+  assert.ok(m.script.includes(`set EmpAiYardType[1] = '${yard}'`), 'house 1 has its construction yard');
   // Regression: the type within a category was random every turn, so while a factory (1000) was
   // too dear the next turn picked the cheaper barracks: 5 barracks, no factory in 7 minutes (HK_A02
   // report 2026-10-08). The type the AI has fewest of is picked (random among equals).
@@ -1473,7 +1473,7 @@ test('the AI walls its base along its AI map\'s contour (Game.exe defence plan)'
   assert.ok(body('EmpAiWallsGo').includes('> 15000'), 'ten minutes');
   assert.ok(body('EmpAiBuild').includes('>= 500') && body('EmpAiBuild').includes('>= 20'), 'stays walling');
   assert.ok(!m.script.includes('function EmpAiWalls takes'), 'no invented wall rows');
-  assert.ok(body('EmpTplBuild').includes('call ExecuteFunc("EmpAiMapAdd")') && body('EmpAiFinish').includes('call ExecuteFunc("EmpAiMapAdd")'), 'every building on the map');
+  assert.ok(body('EmpAiMinPlace').includes('call ExecuteFunc("EmpAiMapAdd")') && body('EmpAiFinish').includes('call ExecuteFunc("EmpAiMapAdd")'), 'every building on the map');
 });
 
 // Refinery pads were unreachable: the dock ([ATRefineryDock], Dockable, UpgradeCost 1200) became a
@@ -1516,7 +1516,7 @@ test('building sites: square rings from the cluster centre, all eight weights, d
   // ai.ini [PositionAlgorithmRatiosNoExits]: Aligned 25, Perpendicular 14, Rotation 7; Exits Rotation 15
   for (const w of ['25.0', '14.0', '7.0', '15.0', '12.0', '8.0', '13.0']) assert.ok(score.includes(w), `weight ${w}`);
   assert.ok(score.includes('80.0 * 80.0') && score.includes('/ 24.0') && score.includes('/ 35.0'), 'distance, road bonuses');
-  assert.ok(body('EmpAiSiteDefEval').includes('EmpAiRampRing(x, y) + GetRandomInt(0, 3)') && body('EmpAiSiteGap').includes('> 5 * 5'), 'defence: ramps, MinimumGapBetweenTurrets');
+  assert.ok(body('EmpAiSiteDefEval').includes('EmpAiRampRing(EmpAiEvX, EmpAiEvY) + GetRandomInt(0, 3)') && body('EmpAiSiteGap').includes('> 5 * 5'), 'defence: ramps, MinimumGapBetweenTurrets');
   assert.ok(!m.script.includes('function EmpAiScore takes'), 'the guessed score is gone');
   const yard = all.units.rawcode.get('ATConYard');
   assert.ok(m.script.includes(`call EmpAiOccBox('${yard}', -2, -2, 5, 7)`), 'the yard body box (b d p cells of its Occupy)');
@@ -1561,4 +1561,23 @@ test('the AI spends its credits by Game.exe\'s unit and building shares', opts, 
   assert.ok(produce.includes('EmpAiUnitMoney()') && produce.includes('GetRandomInt(0, 3) != 0') && !produce.includes('EmpAiReserve'), 'unit pick');
   assert.ok(!m.script.includes('EmpAiReserve'), 'no reserve');
   assert.ok(body('EmpAiBuild').includes('EmpAiBuildMoney() <= LoadInteger(EmpCostTab, t, 0)'), 'building cost by its share');
+});
+
+// The enemy of a territory battle started from an invented template (a yard, two windtraps, a
+// refinery, barracks, a factory, an outpost and four turrets at fixed offsets) whose lost buildings it
+// rebuilt first. Game.exe 1.09 gives the defending side its minimal base (0x47f170 -> 0x42ea80): the
+// construction yard at its start point moved by (-128, -192) world units, then for its house one
+// barracks, one refinery and two windtraps where the map has spice (no refinery, one windtrap
+// without), each where the AI's site code puts it (0x44c390 / 0x42a1e0); nothing is rebuilt but by
+// the builder. The attacker comes with an MCV and its units.
+test('the defending AI starts from Game.exe\'s minimal base, placed by its site code', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'base', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpStartForces').includes('CreateUnit(Player(1), EmpAiYardType[EmpEnemyHouse], EmpBaseX[b] - 512.0, EmpBaseY[b] + 768.0'), 'the yard at the start point moved');
+  const min = body('EmpAiMinimalBase');
+  assert.ok(body('EmpAiMinPlace').includes('EmpAiPlace(t)') && min.includes('call EmpAiMinPlace(t, n)') && min.includes('set n = 2') && min.includes('set n = 1'), 'placed, windtraps by spice');
+  assert.ok(!m.script.includes('EmpTplType') && !m.script.includes('function EmpTplBuild'), 'no template');
+  assert.ok(body('EmpAiInit').includes('call EmpAiMinimalBase()'), 'after the AI map');
 });

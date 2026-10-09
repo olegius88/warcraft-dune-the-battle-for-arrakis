@@ -171,11 +171,9 @@
     integer EmpReinfMessage = 0
     integer EmpReinfInitial = 0
     integer EmpReinfSubsequent = 0
-    integer array EmpTplType
-    integer array EmpTplDx
-    integer array EmpTplDy
-    integer array EmpTplCount
-    unit array EmpTplUnit
+    // the AI's construction yard and the yard type of every house (battle forces.j, ai.j EmpAiYardAlive)
+    unit EmpAiYard = null
+    integer array EmpAiYardType
     hashtable EmpWaveTab = null
     // enemy AI of territory battles (battle/ai.j)
     hashtable EmpAiTab = null

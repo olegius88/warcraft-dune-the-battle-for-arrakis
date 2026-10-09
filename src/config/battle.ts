@@ -1,15 +1,25 @@
 // Territory battles: what Emperor does in code rather than in mission scripts (src/emperor/battle.ts).
-// Distances are WC3 world units, offsets in the base template are Emperor tiles, times seconds.
+// Distances are WC3 world units, offsets of bases are Emperor tiles, times seconds.
 
-/** Enemy base: [Emperor building suffix, dx, dy] in tiles from the base point (house prefix added). */
 /** Story maps: the map owner whose placed base the AI runs (owner 1 = Player(1), mission.ts) when it
  * has this building (#A1 / #A2 / #A3 / #C1; battle.ts storyAiHouse). */
 export const STORY_AI_OWNER = 1;
 export const STORY_AI_BUILDING = 'ConYard';
-export const BASE_TEMPLATE: ReadonlyArray<readonly [string, number, number]> = [
-  ['ConYard', 0, 0], ['SmWindtrap', -5, -4], ['SmWindtrap', -5, 0], ['Refinery', 5, -4], ['Barracks', 5, 2],
-  ['Factory', 0, 6], ['Outpost', -5, 5], ['Pillbox', -8, -8], ['Pillbox', 8, -8], ['GunTurret', 8, 8], ['GunTurret', -8, 8],
-];
+/** Game.exe 1.09, the defending side's minimal base (0x47f170 -> 0x42ea80): its construction yard at the
+ * start point moved by `yardShift` tiles (world -128 / -192: left, and up in WC3's y), then for its house
+ * these types by name suffix, [suffix, count with spice on the map, without] (barracks 0x43b920,
+ * refinery 0x43b8e0, windtrap 0x43b960; Game.exe walks the types down its type list), each where the AI's
+ * site code puts it (0x44c390 / 0x42a1e0). Saved buildings of the territory (0x4807e0) are not kept. */
+export const MIN_BASE = {
+  yardShift: [-4, 6] as readonly [number, number],
+  types: [['SmWindtrap', 2, 1], ['Refinery', 1, 0], ['Barracks', 1, 1]] as ReadonlyArray<readonly [string, number, number]>,
+} as const;
+/** The player's minimal base in a defence battle (the same set, Game.exe places it by the AI site code
+ * for any side; the player has no AI map here): offsets in tiles from its yard, a windtrap's second one
+ * next. */
+export const PLAYER_MIN_BASE: Readonly<Record<string, ReadonlyArray<readonly [number, number]>>> = {
+  SmWindtrap: [[-5, -4], [-5, 0]], Refinery: [[5, -4]], Barracks: [[5, 2]],
+};
 /** Units the enemy AI produces, by name suffix (house prefix added; missing ones skipped). */
 export const ENEMY_INFANTRY: readonly string[] = ['Infantry', 'LightInf', 'Trooper', 'Sniper', 'Chemical', 'Flamer', 'Mortar', 'AATrooper', 'Kindjal'];
 export const ENEMY_VEHICLES: readonly string[] = ['Trike', 'Buzzsaw', 'DustScout', 'Mongoose', 'Assault', 'LaserTank', 'Flame', 'Kobra', 'Minotaurus', 'InkVine', 'Missile', 'Devastator', 'SonicTank', 'Deviator'];
@@ -85,7 +95,7 @@ export const STORM_AIR_CELLS = 5;
 export const WORM_SURFACE_OFFSET_TILES = 8;
 export const SURFACE_WORM = 'SurfaceWorm';
 
-/** Enemy base template entries per house in the runtime table (EmpTpl*). */
+/** Slots per house in the runtime tables of the AI (EmpAiBType, EmpAiUpg, ...). */
 export const TEMPLATE_SLOTS = 16;
 
 /** Enemy base builder (src/jass/battle/ai.j): the group of a building of its house, Game.exe 1.09

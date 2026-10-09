@@ -1413,15 +1413,16 @@ endfunction
 // (EmpAiTrX / EmpAiTrY, EmpAiEvN of them); while the list is empty the fitting tile nearest a ramp top
 // (+ rand % 4) is kept in EmpAiEvBest (integer part) / EmpAiEvBx / EmpAiEvBy
 function EmpAiSiteDefEval takes nothing returns nothing
-    local integer x = EmpAiEvX
-    local integer y = EmpAiEvY
+    // the top left tile is Game.exe's candidate: the centre stands off it by the footprint's box
+    local integer x = EmpAiEvX - LoadInteger(EmpAiMapTab, EmpAiEvT, 2)
+    local integer y = EmpAiEvY - LoadInteger(EmpAiMapTab, EmpAiEvT, 3)
     local integer v
-    if EmpAiEvN < {{S.defenceList}} and EmpAiMapBit(x, y, {{M.intrusion}}) and EmpAiSiteFits(EmpAiEvT, x, y) and EmpAiSiteGap(x, y) then
+    if EmpAiEvN < {{S.defenceList}} and EmpAiMapBit(EmpAiEvX, EmpAiEvY, {{M.intrusion}}) and EmpAiSiteFits(EmpAiEvT, x, y) and EmpAiSiteGap(x, y) then
         set EmpAiTrX[EmpAiEvN] = x
         set EmpAiTrY[EmpAiEvN] = y
         set EmpAiEvN = EmpAiEvN + 1
     elseif EmpAiEvN == 0 then
-        set v = EmpAiRampRing(x, y) + GetRandomInt(0, 3)
+        set v = EmpAiRampRing(EmpAiEvX, EmpAiEvY) + GetRandomInt(0, 3)
         if (EmpAiEvBx < 0 or v < R2I(EmpAiEvBest)) and EmpAiSiteFits(EmpAiEvT, x, y) and EmpAiSiteGap(x, y) then
             set EmpAiEvBest = v
             set EmpAiEvBx = x
@@ -1487,17 +1488,20 @@ endfunction
 // EmpAiEvPy / EmpAiEvX / EmpAiEvY in; EmpAiEvN, EmpAiEvBest, EmpAiEvBx / EmpAiEvBy kept
 function EmpAiSiteEval takes nothing returns nothing
     local real s
-    if not EmpAiSiteFits(EmpAiEvT, EmpAiEvX, EmpAiEvY) then
+    // Game.exe's candidate is the footprint's top left tile; ours stand on their centre tile
+    local integer x = EmpAiEvX - LoadInteger(EmpAiMapTab, EmpAiEvT, 2)
+    local integer y = EmpAiEvY - LoadInteger(EmpAiMapTab, EmpAiEvT, 3)
+    if not EmpAiSiteFits(EmpAiEvT, x, y) then
         return
     endif
     set EmpAiEvN = EmpAiEvN + 1
-    set EmpAiSiteX = EmpAiEvX
-    set EmpAiSiteY = EmpAiEvY
+    set EmpAiSiteX = x
+    set EmpAiSiteY = y
     set s = EmpAiSiteScore(EmpAiEvT, EmpAiEvPx, EmpAiEvPy, EmpAiEvC)
     if s > EmpAiEvBest then
         set EmpAiEvBest = s
-        set EmpAiEvBx = EmpAiEvX
-        set EmpAiEvBy = EmpAiEvY
+        set EmpAiEvBx = x
+        set EmpAiEvBy = y
     endif
 endfunction
 
@@ -1634,25 +1638,20 @@ endfunction
 
 {{mapData}}
 // the static layer, the building cells and the plan turrets (EmpAiInit), then the buildings standing:
-// the template's first (its construction yard founds the first cluster), then the others
+// the construction yard first (it founds the first cluster), then the others
 function EmpAiMapInit takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
-    local integer k = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
     set EmpAiMapTab = InitHashtable()
 {{mapInit}}
     call TimerStart(CreateTimer(), {{real S.intrusionPeriod}}, true, function EmpAiIntrusionTick)
     set EmpAiMapLostTrig = CreateTrigger()
     call TriggerRegisterPlayerUnitEvent(EmpAiMapLostTrig, Player(1), EVENT_PLAYER_UNIT_DEATH, null)
     call TriggerAddAction(EmpAiMapLostTrig, function EmpAiMapLost)
-    loop
-        exitwhen k >= EmpEnemyHouse * {{C.TEMPLATE_SLOTS}} + EmpTplCount[EmpEnemyHouse]
-        if EmpAlive(EmpTplUnit[k]) then
-            set EmpAiMapUnit = EmpTplUnit[k]
-            call ExecuteFunc("EmpAiMapAdd")
-        endif
-        set k = k + 1
-    endloop
+    if EmpAlive(EmpAiYard) then
+        set EmpAiMapUnit = EmpAiYard
+        call ExecuteFunc("EmpAiMapAdd")
+    endif
     call GroupEnumUnitsOfPlayer(g, Player(1), null)
     loop
         set u = FirstOfGroup(g)

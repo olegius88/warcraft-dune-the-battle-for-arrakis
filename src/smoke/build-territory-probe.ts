@@ -611,6 +611,31 @@ endfunction`,
     call EmpAiLog("probe: tactics set, crates " + I2S(EmpCrateCount))
 endfunction`,
   } : {}),
+  // --base: the defending AI's minimal base (ai.j EmpAiMinimalBase): no fog, the camera on its yard after
+  // 5 s, the AI report lists its buildings
+  ...(flag('--base') ? {
+    extraStart: 'BaseProbeRun',
+    extraFunctions: `function BaseProbeRun takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(5.0)
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+            call EmpAiLog("probe: building " + GetUnitName(u) + " at tile " + I2S(EmpAiTileX(GetUnitX(u))) + "," + I2S(EmpAiTileY(GetUnitY(u))))
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    call SetCameraFieldForPlayer(Player(0), CAMERA_FIELD_TARGET_DISTANCE, 2600.0, 0.0)
+    call SetCameraPositionForPlayer(Player(0), GetUnitX(EmpAiYard), GetUnitY(EmpAiYard))
+endfunction`,
+  } : {}),
   // --sites: the building sites (ai-map.j): tiles round the first cluster where side 1's refinery fits
   // with and without the road link of an exit, and EmpAiPlace's answer
   ...(flag('--sites') ? {
