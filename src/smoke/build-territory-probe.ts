@@ -807,6 +807,7 @@ function ProjRun takes nothing returns nothing
     local string s1 = "start"
     local string s2 = ""
     local string s3 = ""
+    local integer i
     call FogEnable(false)
     call FogMaskEnable(false)
     call TriggerSleepAction(1.0)
@@ -818,15 +819,22 @@ function ProjRun takes nothing returns nothing
     call EmpDeploySet(p, true)
     call TriggerSleepAction(1.5)
     set cast = IssueTargetOrder(p, "absorb", t)
-    call TriggerSleepAction(1.5)
-    set s1 = "deployed " + I2S(IntegerTertiaryOp(EmpDeployed(p), 1, 0)) + " cast " + I2S(IntegerTertiaryOp(cast, 1, 0)) + " replicas " + I2S(ProjCount())
+    // projected for ReplicaProjectionTime (20 ticks, 0.8 s) from the spell effect, then a normal unit
+    call TriggerSleepAction(0.6)
+    set r = FirstOfGroup(EmpProjAll)
+    set s1 = " phase at 0.6 s " + I2S(LoadInteger(EmpProjTab, GetHandleId(r), 4))
+    call TriggerSleepAction(0.9)
+    set s1 = "deployed " + I2S(IntegerTertiaryOp(EmpDeployed(p), 1, 0)) + " cast " + I2S(IntegerTertiaryOp(cast, 1, 0)) + " replicas " + I2S(ProjCount()) + s1 + " at 1.5 s " + I2S(LoadInteger(EmpProjTab, GetHandleId(r), 4)) + " order " + OrderId2String(GetUnitCurrentOrder(r))
     call ProjSave(s1, "", "")
     set r = FirstOfGroup(EmpProjAll)
     if r != null then
         call UnitDamageTarget(t, r, 10.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
     endif
-    call TriggerSleepAction(0.5)
-    set s2 = "after a hit: replicas " + I2S(ProjCount())
+    set i = EmpTick
+    call TriggerSleepAction(0.1)
+    set s2 = I2S(EmpTick - i) + " ticks after a hit: phase " + I2S(LoadInteger(EmpProjTab, GetHandleId(r), 4)) + " replicas " + I2S(ProjCount())
+    call TriggerSleepAction(0.4)
+    set s2 = s2 + "; 0.5 s: replicas " + I2S(ProjCount())
     call ProjSave(s1, s2, "")
     set cast = IssueTargetOrder(p, "absorb", t)
     call TriggerSleepAction(1.5)

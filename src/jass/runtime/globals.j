@@ -61,6 +61,8 @@
     // projector replicas (mission projector.j)
     hashtable EmpProjTab = null
     group EmpProjAll = null
+    // replicas being projected or vanishing (mission projector.j EmpProjFade)
+    group EmpProjFading = null
     group EmpRideAll = null
     // carryalls at work, their harvesters, a destination (battle carryall.j)
     hashtable EmpCarryTab = null

@@ -1774,8 +1774,15 @@ test('the Ix projector projects replicas that vanish at a hit', opts, () => {
   const m = buildMission({ scripts: [], meta, ...all, name: 'proj', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes(`call SaveBoolean(EmpProjTab, '${id('Carryall')}', 1, true)`), 'Projectable = FALSE');
   const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
-  assert.ok(body('EmpProjDamage').includes('call KillUnit(v)') && body('EmpProjDamage').includes('BlzSetEventDamage(50.0)'), 'a hit ends it; its shots do 100 / 2');
+  assert.ok(body('EmpProjDamage').includes('call EmpProjVanish(v)') && body('EmpProjDamage').includes('BlzSetEventDamage(50.0)'), 'a hit ends it; its shots do 100 / 2');
   assert.ok(body('EmpProjCast').includes('UnitApplyTimedLife(r'), 'its lifespan');
+  // Regression: replicas popped up and went at once. Game.exe 0x571b20: a new replica is in state 0x2c
+  // for [General] ReplicaProjectionTime ticks (20), unable to act, then a normal unit; a hit or the loss
+  // of its projector puts it in state 0x2d for ReplicaVanishTime ticks (5), then it is gone (0x571ca0
+  // draws both). Guaranteed now: the same phases (stunned, faded in / out by alpha).
+  assert.ok(body('EmpProjCast').includes('BlzPauseUnitEx(r, true)'), 'unable to act while projected');
+  assert.ok(body('EmpProjFade').includes('>= 20') && body('EmpProjFade').includes('>= 5'), 'ReplicaProjectionTime / ReplicaVanishTime');
+  assert.ok(body('EmpProjTick').includes('call EmpProjVanish(r)'), 'its projector gone: it vanishes');
 });
 
 // The NIAB tank could not teleport. Game.exe 1.09 class 0x15 (0x56ecb0): deploy, then to a revealed
