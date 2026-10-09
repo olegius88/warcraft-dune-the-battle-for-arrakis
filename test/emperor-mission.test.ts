@@ -1740,6 +1740,39 @@ test('carryalls carry harvesters, and the AI builds them', opts, () => {
   assert.ok(body('EmpEnemyProduce').includes('EmpAiCarryallWanted()'), 'the AI builds them');
 });
 
+// Regression: a weapon whose bullet has AntiAircraft = TRUE could hit aircraft only (WC3 targets "air"),
+// so the ornithopters, the ADV Sardaukar's laser and others never shot at the ground (probe --orni,
+// 2026-10-09: the ATOrni never attacked a construction yard). Game.exe 1.09 keeps two flags on a bullet,
+// AntiGround (+0x39c, 1 unless set, 0x525287) and AntiAircraft (+0x39b), and the turret's target search
+// takes both (0x551119 -> 0x554040). Guaranteed now: the WC3 targets follow both.
+test('AntiAircraft adds air targets; only AntiGround = FALSE takes the ground away', opts, () => {
+  const all = loadAll();
+  const field = (n: string, f: string): string => all.units.objects.find((o) => o.id === all.units.rawcode.get(n))?.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  for (const n of ['ATOrni', 'IMADVSardaukar']) {
+    const t = field(n, 'ua1g').split(',');
+    assert.ok(t.includes('air') && t.includes('ground'), `${n}: ${t}`);
+  }
+  assert.deepStrictEqual(field('ATADP', 'ua1g').split(','), ['air'], 'ATHEATADP_B AntiGround = false');
+  assert.ok(!field('ATTrike', 'ua1g').split(',').includes('air'), 'a plain gun hits the ground only');
+});
+
+// Ornithopters (ATOrni, HKGunship; Rules.txt Ornithoptor) fired forever and the AI's helipads (built for
+// a "critical need") served nothing. Game.exe 1.09 class 5: a turret holds TurretBulletCount rounds
+// (10 / 4); empty, the craft flies to a free own helipad (one craft a pad, 0x444160 / 0x442520) and
+// gains a round a turret every RearmRate (50) ticks there (0x442f21); the AI sends one to rearm as
+// soon as it is short (0x469820). Guaranteed now: the same, in mission orni.j.
+test('ornithopters run out of rounds and rearm at helipads', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'orni', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(m.script.includes(`call EmpOrniType('${id('ATOrni')}', 10)`) && m.script.includes(`call EmpOrniType('${id('HKGunship')}', 4)`), 'TurretBulletCount');
+  assert.ok(m.script.includes(`call SaveBoolean(EmpOrniTab, '${id('ATHelipad')}', 1, true)`), 'helipads');
+  assert.ok(body('EmpOrniShot').includes('call EmpOrniArm(u, false)') && body('EmpOrniArm').includes("BlzUnitDisableAbility(u, 'Aatk'"), 'empty: no more shots');
+  assert.ok(m.script.includes('call TimerStart(CreateTimer(), 2.0, true, function EmpOrniRearmTick)'), 'RearmRate 50 ticks');
+});
+
 // In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an
 // invention) with nothing to build with: once it was beaten the battle was won. Game.exe 1.09 0x47f170
 // gives the side that attacks (and kept no base) an MCV at its start position (0x47f255) besides its

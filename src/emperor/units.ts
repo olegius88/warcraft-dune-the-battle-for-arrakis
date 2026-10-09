@@ -198,7 +198,9 @@ function weaponMods(o: RulesObject, w: Turret, b: Bullet): ObjectMod[] {
     int(F.range, Math.max(1, b.range) * S.RANGE_PER_TILE), unreal(F.acquireRange, Math.max(b.range, o.viewRange) * S.RANGE_PER_TILE),
     unreal(F.cooldown, Math.max(S.MIN_ATTACK_COOLDOWN, w.reload / S.TICKS_PER_SECOND)),
     str(F.attackType, U.DEFAULT_ATTACK_TYPE),
-    str(F.targets, b.antiAircraft ? U.TARGETS_AIR : U.TARGETS_GROUND),
+    // both flags (bug fixed 2026-10-09: AntiAircraft alone made a weapon hit aircraft only; test
+    // "AntiAircraft adds air targets")
+    str(F.targets, [...(b.antiAircraft ? [U.TARGETS_AIR] : []), ...(b.antiGround || !b.antiAircraft ? [U.TARGETS_GROUND] : [])].join(',')),
   ];
 }
 

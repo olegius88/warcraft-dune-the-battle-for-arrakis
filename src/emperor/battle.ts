@@ -90,6 +90,7 @@ import * as C from '../config/battle.ts';
 import type { MapMeta } from './mapxbf.ts';
 import type { EmperorTerrain } from './terrain.ts';
 import type { UnitData } from './units.ts';
+import { weaponOf } from './units.ts';
 
 import type { House, HouseCode } from '../config/houses.ts';
 export type { House };
@@ -260,6 +261,17 @@ function battleSetup(o: BattleOptions): BattleSetup {
     isRefinery: refineries.filter(isId).map((r) => `t == '${r}'`).join(' or ') || 'false',
     isCarryall: carryalls.map((c) => `t == '${c}'`).join(' or ') || 'false',
     minCarryTiles: Number(o.rules?.general.MinCarryTileDist ?? 0) || C.FALLBACK_MIN_CARRY_TILES,
+  }));
+
+  // ---- ornithopters: rounds (TurretBulletCount) and rearming at helipads (orni.j) ----
+  const orniTypes = [...(o.rules?.objects.values() ?? [])].filter((x) => /^true$/i.test((x.raw.Ornithoptor ?? '').trim()));
+  const pads = [...(o.rules?.objects.values() ?? [])].filter((x) => x.category === 'Building' && /^true$/i.test((x.raw.Helipad ?? '').trim()));
+  fns.push(jass('orni', {
+    orniLines: [
+      ...orniTypes.map((x) => [rc(x.name), weaponOf(x)?.ammo ?? 0] as const).filter(([id, n]) => isId(id) && n > 0).map(([id, n]) => `    call EmpOrniType('${id}', ${n})`),
+      ...pads.map((x) => rc(x.name)).filter(isId).map((id) => `    call SaveBoolean(EmpOrniTab, '${id}', 1, true)`),
+    ].join('\n'),
+    rearmSeconds: (Number(o.rules?.general.RearmRate ?? 0) || C.FALLBACK_REARM_TICKS) / TICKS_PER_SECOND,
   }));
 
   // ---- power (Rules.txt and Game.exe 1.09; src/jass/battle/power.j) ----

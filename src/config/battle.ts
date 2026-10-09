@@ -348,3 +348,8 @@ export const FALLBACK_MIN_CARRY_TILES = 10;
 /** Game.exe 1.09 0x467b00 (log 0x5fa5dc): the AI builds a carryall while it has more than `perCarryall`
  * harvesters a carryall, over `credits` and over `units` units (0x44c670), at a hangar. */
 export const AI_CARRYALL = { perCarryall: 2, credits: 2000, units: 10 } as const;
+/** Ornithopters' rounds and rearming (battle orni.j; Game.exe 1.09 class 5): the tick (s), how near a
+ * craft counts as landed on its pad and how far off a fully armed one is sent from a pad another needs
+ * (WC3 units). The round a turret every [General] RearmRate ticks (FALLBACK_REARM_TICKS without one). */
+export const ORNI = { tick: 0.5, land: 192, evict: 320 } as const;
+export const FALLBACK_REARM_TICKS = 50;

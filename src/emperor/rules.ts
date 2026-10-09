@@ -27,7 +27,10 @@ export interface Bullet {
   range: number;
   speed: number;
   warhead: Warhead | null;
+  /** hits aircraft (AntiAircraft, bullet +0x39b) / ground (AntiGround, +0x39c, true unless set:
+   * Game.exe 1.09 0x525287); the turret's target search takes both (0x551119) */
   antiAircraft: boolean;
+  antiGround: boolean;
   blast: number;
   homing: boolean;
 }
@@ -288,7 +291,7 @@ function loadRules(rulesPath: string): Rules {
     const b = baseValues(s).single;
     return {
       name, damage: num(b.Damage), range: num(b.MaxRange), speed: num(b.Speed, -1), warhead: warhead(b.Warhead),
-      antiAircraft: bool(b.AntiAircraft), blast: num(b.BlastRadius), homing: bool(b.Homing),
+      antiAircraft: bool(b.AntiAircraft), antiGround: b.AntiGround === undefined || bool(b.AntiGround), blast: num(b.BlastRadius), homing: bool(b.Homing),
     };
   };
   const turret = (name: string): Turret | null => {

@@ -41,6 +41,9 @@ const atApc = all.units.rawcode.get('ATAPC') as string;
 const harvesterId = all.units.rawcode.get('Harvester') as string;
 const carryallId = all.units.rawcode.get('Carryall') as string;
 const atRefinery = all.units.rawcode.get('ATRefinery') as string;
+const atHelipad = all.units.rawcode.get('ATHelipad') as string;
+const atOrni = all.units.rawcode.get('ATOrni') as string;
+const hkYard = all.units.rawcode.get('HKConYard') as string;
 // --mcvai: a factory of each house
 const factoryOf = { AT: all.units.rawcode.get('ATFactory') as string, HK: all.units.rawcode.get('HKFactory') as string, OR: all.units.rawcode.get('ORFactory') as string };
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
@@ -505,6 +508,46 @@ function HarvOrdersRun takes nothing returns nothing
         set i = i + 1
     endloop
     call PreloadGenEnd("DuneSmoke\\\\harvorders.pld")
+endfunction`,
+  } : {}),
+  // --orni: an ATOrni attacks a sturdy target with a helipad of its owner nearby: 10 shots, then to
+  // the pad, a round every RearmRate there
+  ...(flag('--orni') ? {
+    extraStart: 'OrniRun',
+    extraFunctions: `function OrniRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit o
+    local unit t
+    local unit p
+    local string array l
+    local integer i = 0
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    set p = CreateUnit(Player(0), '${atHelipad}', x - 700.0, y, 270.0)
+    set o = CreateUnit(Player(0), '${atOrni}', x, y, 0.0)
+    set t = CreateUnit(Player(1), '${hkYard}', x + 900.0, y, 180.0)
+    call PauseUnit(t, true)
+    call IssuePointOrder(o, "move", x + 300.0, y - 800.0)
+    call TriggerSleepAction(3.0)
+    set l[23] = "plain move: moved " + R2S(SquareRoot((GetUnitX(o) - x) * (GetUnitX(o) - x) + (GetUnitY(o) - y) * (GetUnitY(o) - y))) + " speed " + R2S(GetUnitMoveSpeed(o)) + " fly height " + R2S(GetUnitFlyHeight(o)) + " paused " + I2S(IntegerTertiaryOp(IsUnitPaused(o), 1, 0))
+    call IssueTargetOrder(o, "attack", t)
+    loop
+        exitwhen i >= 23
+        call TriggerSleepAction(2.5)
+        set l[i] = I2S(i * 5 / 2) + "s rounds " + I2S(EmpOrniRounds(o)) + " state " + I2S(LoadInteger(EmpOrniTab, GetHandleId(o), 4)) + " to pad " + I2S(R2I(SquareRoot((GetUnitX(o) - GetUnitX(p)) * (GetUnitX(o) - GetUnitX(p)) + (GetUnitY(o) - GetUnitY(p)) * (GetUnitY(o) - GetUnitY(p))))) + " order " + OrderId2String(GetUnitCurrentOrder(o))
+        set i = i + 1
+    endloop
+    call PreloadGenClear()
+    call PreloadGenStart()
+    set i = 0
+    loop
+        exitwhen i >= 24
+        call Preload(l[i])
+        set i = i + 1
+    endloop
+    call PreloadGenEnd("DuneSmoke\\\\orni.pld")
 endfunction`,
   } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,

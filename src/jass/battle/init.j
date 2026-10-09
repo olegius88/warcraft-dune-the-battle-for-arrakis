@@ -33,6 +33,7 @@ function EmpBattleInit takes nothing returns nothing
     call TimerStart(CreateTimer(), {{real C.YARD_CHECK_PERIOD}}, true, function EmpYardTick)
     call EmpPowerData()
     call EmpCarryInit()
+    call EmpOrniInit()
     call EmpCostData()
     call TimerStart(CreateTimer(), {{real C.POWER_CHECK_PERIOD}}, true, function EmpPowerTick)
 {{#if territoryBattle}}    // the player's explored map of the last battle here (explored.j)

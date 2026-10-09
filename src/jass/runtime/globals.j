@@ -55,6 +55,9 @@
     real EmpCarryX = 0.0
     real EmpCarryY = 0.0
     unit EmpAiCarryHangar = null
+    // ornithopters' rounds, pads (battle orni.j)
+    hashtable EmpOrniTab = null
+    group EmpOrniAll = null
     unit EmpDeployArgUnit = null
     boolean EmpDeployArgOn = false
     boolean EmpDeployAutoAny = false
