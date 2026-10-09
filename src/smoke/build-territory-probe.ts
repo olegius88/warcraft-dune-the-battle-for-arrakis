@@ -588,7 +588,8 @@ function PadsProbeRun takes nothing returns nothing
 endfunction`,
   } : {}),
   // --tactics: the tactics' starts (ai.j EmpAiTactics): DEFENSIVE, tech 5, skill 9, strength 2, 12 units
-  // of side 1, a crate by its base; the AI report logs the scout points, the yard guard, the crate run
+  // of side 1, a crate by its base (no crate run in the campaign); the AI report logs the scouts and the
+  // yard guard
   ...(flag('--tactics') ? {
     extraStart: 'TacticsProbeRun',
     extraFunctions: `function TacticsProbeRun takes nothing returns nothing

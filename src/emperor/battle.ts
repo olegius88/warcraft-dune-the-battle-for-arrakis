@@ -49,7 +49,8 @@
 // need what the port
 // has not: 0x44e680 (a pro-active target is the best scored one, the score threshold +- rand 10 unless
 // rand % 10 < skill; the waves here go for the player's base, no target scores), 0x4582a0 (a scout
-// team re-picks one of 5 scout points on rand % 20 < skill; scouts roam here), 0x4304c0 (past tech
+// team without units re-picks one of its 5 points on rand % 20 < skill; the route itself is ported,
+// ai.j EmpAiScoutNext, and a scout here is one unit), 0x4304c0 (past tech
 // FirstCampaignGameTechLevel + 1, credits over the reserve >= 10, 1 in 20 updates: each building with
 // building vfunc +0x108 gets command 0x4c2a40 on rand % 10 < skill, group 5 also rand % 300 < skill;
 // the command is not identified, possibly the upgrade the builder here buys at once, EmpAiUpgrade);

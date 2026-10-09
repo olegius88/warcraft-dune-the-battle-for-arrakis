@@ -184,10 +184,6 @@ export const AI_DEFEND_HARVESTER = { skill: 4, units: 10, oneIn: 3000, rollMax: 
  * FirstTechLevelForDefendCYTactic, `units` units, past TicksBeforeDefendCYTactic + (`skillTop` - skill)
  * * `perSkill` ticks, on rand % `oneIn` == 0. Its team: `team` units (GuardObject's size not traced). */
 export const AI_DEFEND_CY = { units: 10, skillTop: 11, perSkill: 400, oneIn: 1500, rollMax: 1500 - 1, team: 2 } as const;
-/** Game.exe 1.09 0x450530, a crate run (Move): crates on, `units` units, rand % (`roll` * 10) < skill
- * (0x46c5d0), a crate it sees nobody runs for; one unit (the Move team's size not traced). EmpWaveTab
- * child `key`: the crate's index + 1. */
-export const AI_CRATE = { units: 10, roll: 35, rollMax: 35 * 10 - 1, key: 7 } as const;
 /** Attack waves gather this far from their base towards the target (share of the way) before attacking. */
 export const AI_STAGING_SHARE = 0.33;
 /** A wave is formed when all its units are within this many tiles of the staging point. */

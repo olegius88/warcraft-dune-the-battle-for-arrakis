@@ -11,7 +11,7 @@
 // one unit each, roaming; the first player building they see becomes the attack target, after
 // TicksUntilAISeesIntoShroud the player's base is known anyway); base defence chases enemies within
 // DefenceTacticWanderDistance; a harvester guard and a construction yard guard as Game.exe starts them
-// (AI_DEFEND_HARVESTER, AI_DEFEND_CY); scouts round five points (AI_SCOUT); crate runs (AI_CRATE); attack waves gather at a staging point and attack when formed or
+// (AI_DEFEND_HARVESTER, AI_DEFEND_CY); scouts round five points (AI_SCOUT); attack waves gather at a staging point and attack when formed or
 // after TicksUntilAbandonForming. Sites: ai-map.j EmpAiPlace (Game.exe's square rings and weights;
 // WC3 buildings do not turn, so the rotation terms take the fixed facing).
 {{dataFunction}}
@@ -957,20 +957,6 @@ function EmpAiTactics takes nothing returns nothing
                 if EmpAlive(yard) and GetUnitCurrentOrder(u) == 0 and not IsUnitInRangeXY(u, GetUnitX(yard), GetUnitY(yard), 4.0 * tile) then
                     call IssuePointOrder(u, "attack", GetUnitX(yard), GetUnitY(yard))
                 endif
-            elseif EmpAiRole(u) == 6 then
-                // a crate run (Move): it ends with the crate
-                set k = LoadInteger(EmpWaveTab, GetHandleId(u), {{C.AI_CRATE.key}}) - 1
-                if k < 0 or EmpCrateItem[k] == null then
-                    call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 0)
-                    call SaveInteger(EmpWaveTab, GetHandleId(u), {{C.AI_CRATE.key}}, 0)
-                elseif GetUnitCurrentOrder(u) == 0 then
-                    call IssuePointOrder(u, "move", GetItemX(EmpCrateItem[k]), GetItemY(EmpCrateItem[k]))
-                endif
-            elseif EmpAiRole(u) == 3 and EmpAiForming then
-                set waveUnits = waveUnits + 1
-                if not IsUnitInRangeXY(u, EmpAiStageX, EmpAiStageY, {{real C.AI_FORMED_TILES}} * tile) then
-                    set formed = false
-                endif
             elseif EmpAiHomeUnit(u) then
                 // the fastest home unit becomes the next scout
                 if best == null or GetUnitDefaultMoveSpeed(u) > GetUnitDefaultMoveSpeed(best) then
@@ -1019,22 +1005,6 @@ function EmpAiTactics takes nothing returns nothing
         call IssuePointOrder(best, "attack", GetUnitX(yard), GetUnitY(yard))
         call EmpAiLog("yard guard " + GetUnitName(best))
         set best = null
-    endif
-    // a crate run (0x450530): crates it sees, units, rand % 350 < skill, nobody on its way there
-    if units >= {{C.AI_CRATE.units}} and best != null and GetRandomInt(0, {{C.AI_CRATE.rollMax}}) < EmpAiSkill then
-        set k = 0
-        loop
-            exitwhen k >= EmpCrateCount or best == null
-            if EmpCrateItem[k] != null and IsVisibleToPlayer(GetItemX(EmpCrateItem[k]), GetItemY(EmpCrateItem[k]), Player(1)) and not LoadBoolean(EmpWaveTab, GetHandleId(EmpCrateItem[k]), 1) then
-                call SaveBoolean(EmpWaveTab, GetHandleId(EmpCrateItem[k]), 1, true)
-                call SaveInteger(EmpWaveTab, GetHandleId(best), 1, 6)
-                call SaveInteger(EmpWaveTab, GetHandleId(best), {{C.AI_CRATE.key}}, k + 1)
-                call IssuePointOrder(best, "move", GetItemX(EmpCrateItem[k]), GetItemY(EmpCrateItem[k]))
-                call EmpAiLog("crate run " + GetUnitName(best))
-                set best = null
-            endif
-            set k = k + 1
-        endloop
     endif
     // harvester escort
     if harv != null and EmpAiGuardHarv then
