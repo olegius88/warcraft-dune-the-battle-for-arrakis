@@ -122,6 +122,10 @@ export const DEPLOY = {
    * SEQUENCE_MAP) */
   animation: 'alternate',
 } as const;
+/** TODO(models): Ordos pop-up turrets (Rules.txt PopupTurret, Game.exe class 0x2f, buildingPopupTurret.cpp
+ * 0x486380) stay up 200 ticks after their gun was last busy and retract (animations 0x18 / 0); that is
+ * their look only, nothing in play changes (no armour, targeting or stealth difference). The converted
+ * models play their stand animation here. Risk: a retracted turret looks raised. */
 /** APC (Rules.txt APC; Game.exe 1.09 class 0xf): 5 passengers, hardcoded (0x5672f0, no Rules key);
  * only infantry boards (0x55e8a0): an infantry type takes infantrySize of the hold, every other unit
  * otherSize, more than the hold (units.ts, WC3 Transported Size). */

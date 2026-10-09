@@ -31,7 +31,8 @@ import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, SUBHOUSE_BUILDINGS, ALLYGAIN_TAGS
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
 import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, DAMAGE_DIVISOR, ARMOR_REDUCTION, RANGE_PER_TILE, moveSpeed } from '../config/scale.ts';
-import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON, ART_ABILITY, ABILITY } from '../config/wc3.ts';
+import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON, ART_ABILITY, ABILITY, TERRAIN } from '../config/wc3.ts';
+import { TEX } from '../config/terrain.ts';
 import { EFFECT_MAX_RADIUS } from '../config/models.ts';
 import * as SC from '../config/scenery.ts';
 import { SHUFFLE_BATTLE_MUSIC } from '../config/music.ts';
@@ -342,6 +343,15 @@ function buildMission(p: MissionParams): BuiltMission {
     boomLines.push(`    call EmpBoomType('${d.type}', ${BOOM_KIND[d.kind]}, ${real(d.damage)}, ${real(d.radius)}, ${real(d.delaySeconds)}, ${d.bombs}, ${real(d.pulseRadius)}, ${d.pulseTicks}, ${d.leaves ? `'${d.leaves}'` : 0}, '${d.button}')`);
     if (d.warhead) boomLines.push(...pctLines(d.type, RT.BOOM_PCT_KEY, d.warhead));
   }
+  // dust scouts (Rules.txt DustScout; burrow.j): they burrow on DustBowl (the dust ground); [type] 2 = an
+  // AntiAircraft weapon (aircraft wake it too)
+  const burrowLines: string[] = [];
+  for (const o of p.rules ? p.rules.objects.values() : []) {
+    const id = p.units.rawcode.get(o.name);
+    if (!id || !/^true$/i.test((o.raw.DustScout ?? '').split('//')[0]?.trim() ?? '')) continue;
+    burrowLines.push(`    call SaveBoolean(EmpBurrowTab, '${id}', 0, true)`);
+    if (weaponOf(o)?.bullet?.antiAircraft) burrowLines.push(`    call SaveBoolean(EmpBurrowTab, '${id}', 2, true)`);
+  }
   // the infantry types (Rules.txt Infantry): what a knife form goes for
   if ((p.units.deploy ?? []).some((d) => d.auto > 0)) {
     for (const o of p.rules ? p.rules.objects.values() : []) {
@@ -505,7 +515,7 @@ function buildMission(p: MissionParams): BuiltMission {
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -528,6 +538,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('damage'),
     jass('deploy'),
     jass('detonate'),
+    jass('burrow'),
     jass('apc'),
     jass('subhouse'),
     jass('specials'),

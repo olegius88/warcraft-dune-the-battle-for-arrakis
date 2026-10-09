@@ -1741,6 +1741,21 @@ test('carryalls carry harvesters, and the AI builds them', opts, () => {
   assert.ok(body('EmpEnemyProduce').includes('EmpAiCarryallWanted()'), 'the AI builds them');
 });
 
+// The dust scout (ORDustScout, Rules.txt DustScout) never burrowed. Game.exe 1.09 class 0xc (0x568d10):
+// idle on DustBowl it burrows, hidden, not firing; an order or a target within GuardTileRange brings it
+// up. Guaranteed now: the same, by a tick (mission burrow.j).
+test('the dust scout burrows on DustBowl', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'burrow', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(m.script.includes(`call SaveBoolean(EmpBurrowTab, '${all.units.rawcode.get('ORDustScout')}', 0, true)`));
+  // the dust ground (config TEX.DUST: Emperor's DustBowl) and GuardTileRange 12 tiles
+  assert.ok(body('EmpBurrowTick').includes("GetTerrainType(GetUnitX(u), GetUnitY(u)) == 'Bdsd'"), 'on its ground');
+  assert.ok(body('EmpBurrowTarget').includes('GroupEnumUnitsInRange(g, GetUnitX(u), GetUnitY(u), 1536.0, null)'), 'GuardTileRange 12');
+  assert.ok(body('EmpBurrowSet').includes("BlzUnitDisableAbility(u, 'Aatk', down, false)"), 'no firing while down');
+});
+
 // HKDevastator, IXInfiltrator and OREITS could not blow themselves up (their deploy command). Game.exe
 // 1.09: Devastator at once its DeathHandBomb (0x568b20); Infiltrator Lifespan ticks later its
 // SaboteurBomb and a reveal pulse within its BlastRadius tiles for Damage ticks (0x56cf2c, 0x4c1a90),

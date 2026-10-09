@@ -42,6 +42,9 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 Пылевой разведчик Ордосов закапывается ([burrow.j](src/jass/mission/burrow.j)). Как в Game.exe
+  (класс `0xc`, `0x568d10`): без дела на DustBowl закапывается — невидим, не стреляет, не двигается; приказ
+  или враг в пределах `GuardTileRange` (12 клеток) поднимают его, и он атакует. Пробник `--burrow`.
 - 2026-10-09 Подрыв Devastator, Infiltrator и EITS ([detonate.j](src/jass/mission/detonate.j), `detonators` в
   [units.ts](src/emperor/units.ts)). Раньше они не умели взрываться. Кнопка «Взорвать» и скриптовый
   `ObjectDeploy` делают как Game.exe: Devastator — сразу DeathHandBomb (`0x568b20`); Infiltrator — через

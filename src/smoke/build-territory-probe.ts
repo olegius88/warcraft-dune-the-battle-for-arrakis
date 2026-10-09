@@ -44,6 +44,8 @@ const atRefinery = all.units.rawcode.get('ATRefinery') as string;
 const atHelipad = all.units.rawcode.get('ATHelipad') as string;
 const atOrni = all.units.rawcode.get('ATOrni') as string;
 const hkYard = all.units.rawcode.get('HKConYard') as string;
+const dustScout = all.units.rawcode.get('ORDustScout') as string;
+const dustTile = TERRAIN.ground[TEX.DUST];
 const [hkDev, ixInf, orEits, orSab, atScout] = ['HKDevastator', 'IXInfiltrator', 'OREITS', 'ORSaboteur', 'ATScout'].map((n) => all.units.rawcode.get(n) as string);
 // --mcvai: a factory of each house
 const factoryOf = { AT: all.units.rawcode.get('ATFactory') as string, HK: all.units.rawcode.get('HKFactory') as string, OR: all.units.rawcode.get('ORFactory') as string };
@@ -592,6 +594,60 @@ function BoomRun takes nothing returns nothing
     call Preload(s2)
     call Preload(s3)
     call PreloadGenEnd("DuneSmoke\\\\boom.pld")
+endfunction`,
+  } : {}),
+  // --burrow: a dust scout on the dust ground burrows; an enemy trike in GuardTileRange brings it up
+  ...(flag('--burrow') ? {
+    extraStart: 'BurrowRun',
+    extraFunctions: `function BurrowLine takes string at, unit u returns string
+    return at + " burrowed " + I2S(IntegerTertiaryOp(LoadBoolean(EmpBurrowTab, GetHandleId(u), 1), 1, 0)) + " invisible " + I2S(GetUnitAbilityLevel(u, 'Apiv')) + " order " + OrderId2String(GetUnitCurrentOrder(u))
+endfunction
+
+function BurrowRun takes nothing returns nothing
+    local real x = EmpMapMinX + 256.0
+    local real y
+    local boolean found = false
+    local unit u
+    local unit t
+    local string s1 = "no dust ground"
+    local string s2 = ""
+    local string s3 = ""
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    loop
+        exitwhen x > EmpMapMaxX or found
+        set y = EmpMapMinY + 256.0
+        loop
+            exitwhen y > EmpMapMaxY or found
+            if GetTerrainType(x, y) == '${dustTile}' and GetTerrainType(x + 128.0, y) == '${dustTile}' then
+                set found = true
+            else
+                set y = y + 256.0
+            endif
+        endloop
+        if not found then
+            set x = x + 256.0
+        endif
+    endloop
+    if found then
+        set u = CreateUnit(Player(0), '${dustScout}', x, y, 0.0)
+        call TriggerSleepAction(1.5)
+        set s1 = BurrowLine("idle on dust", u)
+        set t = CreateUnit(Player(1), '${trike}', x + 1000.0, y, 0.0)
+        call PauseUnit(t, true)
+        call TriggerSleepAction(1.0)
+        set s2 = BurrowLine("enemy at 8 tiles", u) + " trike life " + R2S(GetWidgetLife(t))
+        call RemoveUnit(t)
+        call TriggerSleepAction(4.0)
+        set s3 = BurrowLine("enemy gone, idle again", u)
+    endif
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload(s3)
+    call PreloadGenEnd("DuneSmoke\\\\burrow.pld")
 endfunction`,
   } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,

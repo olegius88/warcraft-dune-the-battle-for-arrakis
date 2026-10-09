@@ -237,3 +237,8 @@ export const BOOM_PCT_KEY = 100;
 /** EITS bombs fall within this many tiles of it (Game.exe 0x56916a: "randomly spread", the spread not
  * read; TODO(units) in detonate.j). */
 export const BOOM_EITS_SPREAD_TILES = 3;
+/** How often (s) the dust scouts look whether to burrow or come up (mission burrow.j; Game.exe every
+ * tick, 0x568d10). */
+export const BURROW_TICK = 0.25;
+/** [General] GuardTileRange when Rules.txt has none (its shipped value). */
+export const FALLBACK_GUARD_TILES = 12;
