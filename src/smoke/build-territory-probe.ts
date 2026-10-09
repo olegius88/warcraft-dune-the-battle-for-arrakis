@@ -587,6 +587,51 @@ function PadsProbeRun takes nothing returns nothing
     set r = null
 endfunction`,
   } : {}),
+  // --sites: the building sites (ai-map.j): tiles round the first cluster where side 1's refinery fits
+  // with and without the road link of an exit, and EmpAiPlace's answer
+  ...(flag('--sites') ? {
+    extraStart: 'SitesProbeRun',
+    extraFunctions: `function SitesProbeTile takes nothing returns nothing
+    if EmpAiSiteFits(EmpAiEvT, EmpAiEvX, EmpAiEvY) then
+        set EmpAiEvN = EmpAiEvN + 1
+    endif
+endfunction
+
+// a thread per tile (the op limit)
+function SitesProbeCount takes integer t returns integer
+    local integer x = EmpAiClX0[0] - 12
+    local integer y
+    set EmpAiEvT = t
+    set EmpAiEvN = 0
+    loop
+        exitwhen x > EmpAiClX1[0] + 12
+        set y = EmpAiClY0[0] - 12
+        loop
+            exitwhen y > EmpAiClY1[0] + 12
+            set EmpAiEvX = x
+            set EmpAiEvY = y
+            call ExecuteFunc("SitesProbeTile")
+            set y = y + 1
+        endloop
+        set x = x + 1
+    endloop
+    return EmpAiEvN
+endfunction
+
+function SitesProbeRun takes nothing returns nothing
+    local integer t = EmpAiRefinery[EmpEnemyHouse]
+    local integer withRoad
+    local integer without
+    set EmpNormalConditions = false
+    call TriggerSleepAction(3.0)
+    set withRoad = SitesProbeCount(t)
+    call SaveBoolean(EmpAiTab, t, 2, false)
+    set without = SitesProbeCount(t)
+    call SaveBoolean(EmpAiTab, t, 2, true)
+    call EmpAiLog("probe: clusters " + I2S(EmpAiClN) + " box " + I2S(EmpAiClX0[0]) + "," + I2S(EmpAiClY0[0]) + " .. " + I2S(EmpAiClX1[0]) + "," + I2S(EmpAiClY1[0]) + " refinery fits " + I2S(withRoad) + " / without the road " + I2S(without))
+    call EmpAiLog("probe: place -> " + I2S(EF_B2I(EmpAiPlace(t))) + " at " + I2S(EmpAiSiteX) + "," + I2S(EmpAiSiteY))
+endfunction`,
+  } : {}),
   // --critneeds: the builder's critical needs (ai.j EmpAiCritical): skill 99, strength 2; the AI report
   // logs EmpAiCritical() past 1 minute (refineries: want 3 > the template's), with the windtraps gone
   // (power) and with 3 ornithopters of the enemy house and its helipads gone (helipads)

@@ -205,7 +205,9 @@ endfunction
 
 // FindRoadLink (0x435150) and DrawLink (0x435290): every direction but back whose three strips all
 // reach a road; Game.exe keeps the last fitting one (0x435240), with the last strip's length
-function EmpAiRoadLink takes integer f returns nothing
+// the road link of the box EmpAiBb* (FindRoadLink 0x435150): its length, -1 none; its direction in
+// EmpAiRdDir
+function EmpAiRoadFind takes integer f returns integer
     local integer d = 0
     local integer k
     local integer n
@@ -231,6 +233,18 @@ function EmpAiRoadLink takes integer f returns nothing
         endif
         set d = d + 1
     endloop
+    set EmpAiRdDir = best
+    if best < 0 then
+        return -1
+    endif
+    return len
+endfunction
+
+function EmpAiRoadLink takes integer f returns nothing
+    local integer k
+    local integer n
+    local integer len = EmpAiRoadFind(f)
+    local integer best = EmpAiRdDir
     if best < 0 then
         call EmpAiLog("map: no road link")
         return
@@ -477,6 +491,40 @@ function EmpAiRoadsToRamp takes integer f returns nothing
     endif
 endfunction
 
+// a building of side 1 lost (0x42e760): its body back to free rock (class 0 where the static layer
+// has rock, else 2), and the types without room are tried again (0x42e980). Game.exe clears the class
+// of every tile and marks its buildings again, losing class 2 for good (0x436f90); here it stays.
+function EmpAiMapLost takes nothing returns nothing
+    local unit u = GetTriggerUnit()
+    local integer t = EmpType(u)
+    local integer cx = EmpAiTileX(GetUnitX(u))
+    local integer cy = EmpAiTileY(GetUnitY(u))
+    local integer n = LoadInteger(EmpAiMapTab, t, 0)
+    local integer i = 0
+    local integer x
+    local integer y
+    local integer v
+    if not LoadBoolean(EmpAiMapTab, GetHandleId(u), 0) then
+        set u = null
+        return
+    endif
+    call RemoveSavedBoolean(EmpAiMapTab, GetHandleId(u), 0)
+    loop
+        exitwhen i >= n
+        set x = cx + LoadInteger(EmpAiMapTab, t, 100 + 2 * i)
+        set y = cy + LoadInteger(EmpAiMapTab, t, 101 + 2 * i)
+        set v = EmpAiMapGet(x, y)
+        if v >= 0 and BlzBitAnd(v, {{M.rock}}) != 0 then
+            call EmpAiMapSet(x, y, BlzBitAnd(v, 252) + {{M.free}})
+        elseif v >= 0 then
+            call EmpAiMapSet(x, y, BlzBitAnd(v, 252) + {{M.blocked}})
+        endif
+        set i = i + 1
+    endloop
+    set EmpAiRoomEpoch = EmpAiRoomEpoch + 1
+    set u = null
+endfunction
+
 // a building of side 1 on the map and in a cluster (0x42af20, 0x42c69a): EmpAiMapUnit (ExecuteFunc)
 function EmpAiMapAdd takes nothing returns nothing
     local unit u = EmpAiMapUnit
@@ -490,6 +538,8 @@ function EmpAiMapAdd takes nothing returns nothing
         return
     endif
     call SaveBoolean(EmpAiMapTab, GetHandleId(u), 0, true)
+    // a new building: the types without room are tried again (0x42df2d)
+    set EmpAiRoomEpoch = EmpAiRoomEpoch + 1
     set t = EmpType(u)
     set defence = LoadBoolean(EmpAiTab, t, 1)
     call EmpAiMapMark(u, true)
@@ -1052,6 +1102,536 @@ function EmpAiShouldDefend takes nothing returns boolean
     return EmpEnemyGold() >= {{ai.minMoneyWalls}} and EmpTick >= mins * {{C.AI_CRITICAL_BARRACKS.ticksPerMinute}}
 endfunction
 
+// ---- building sites (Game.exe 1.09 0x42f6a0 -> 0x42a1e0 / 0x42a680; config AI_SITE) ----
+// the box of type t's body at tile (x, y): EmpAiBb* (EmpAiOccBox data; one tile without)
+function EmpAiSiteBox takes integer t, integer x, integer y returns nothing
+    if HaveSavedInteger(EmpAiMapTab, t, 4) then
+        set EmpAiBbX0 = x + LoadInteger(EmpAiMapTab, t, 2)
+        set EmpAiBbY0 = y + LoadInteger(EmpAiMapTab, t, 3)
+        set EmpAiBbX1 = EmpAiBbX0 + LoadInteger(EmpAiMapTab, t, 4) - 1
+        set EmpAiBbY1 = EmpAiBbY0 + LoadInteger(EmpAiMapTab, t, 5) - 1
+    else
+        set EmpAiBbX0 = x
+        set EmpAiBbY0 = y
+        set EmpAiBbX1 = x
+        set EmpAiBbY1 = y
+    endif
+endfunction
+
+function EmpAiOccBox takes integer t, integer dx, integer dy, integer w, integer h returns nothing
+    call SaveInteger(EmpAiMapTab, t, 2, dx)
+    call SaveInteger(EmpAiMapTab, t, 3, dy)
+    call SaveInteger(EmpAiMapTab, t, 4, w)
+    call SaveInteger(EmpAiMapTab, t, 5, h)
+endfunction
+
+// AiMap.CanPlace (0x434d30): the body on class 0 tiles without a road, nobody there; an exit must
+// reach a road (0x435150). Leaves the box in EmpAiBb* and the link length in EmpAiSiteLen.
+// TODO(ai): the engine's own check (0x5999e0: occupy masks C, tile flag 0x10, the rule near the own
+// base 0x599660) is EmpAiFree here.
+function EmpAiSiteFits takes integer t, integer x, integer y returns boolean
+    local integer n = LoadInteger(EmpAiMapTab, t, 0)
+    local integer i = 0
+    local integer cx
+    local integer cy
+    if n == 0 then
+        if EmpAiMapClass(x, y) != {{M.free}} or EmpAiMapBit(x, y, {{M.road}}) then
+            return false
+        endif
+    endif
+    loop
+        exitwhen i >= n
+        set cx = x + LoadInteger(EmpAiMapTab, t, 100 + 2 * i)
+        set cy = y + LoadInteger(EmpAiMapTab, t, 101 + 2 * i)
+        if EmpAiMapClass(cx, cy) != {{M.free}} or EmpAiMapBit(cx, cy, {{M.road}}) then
+            return false
+        endif
+        set i = i + 1
+    endloop
+    if not EmpAiFree(EmpAiTileWX(x), EmpAiTileWY(y), {{real S.clear}}) then
+        return false
+    endif
+    call EmpAiSiteBox(t, x, y)
+    set EmpAiSiteLen = 0
+    if LoadBoolean(EmpAiTab, t, 2) then
+        set EmpAiSiteLen = EmpAiRoadFind({{P.facing}})
+        return EmpAiSiteLen > 0
+    endif
+    return true
+endfunction
+
+// the first building of the cluster in the box's row or column (0x429c00): 1 its type is t (`same`) or
+// not, -1 none (rotations are all equal: WC3 buildings do not turn)
+function EmpAiSiteLine takes integer t, boolean same returns boolean
+    local group g = CreateGroup()
+    local unit u
+    local boolean found = false
+    local integer x
+    local integer y
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if not found and EmpAlive(u) and IsUnitType(u, UNIT_TYPE_STRUCTURE) and (EmpType(u) == t) == same then
+            set x = EmpAiTileX(GetUnitX(u))
+            set y = EmpAiTileY(GetUnitY(u))
+            set found = x == EmpAiSiteX or y == EmpAiSiteY
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return found
+endfunction
+
+// the score of a site (0x4298d0): the weights of [PositionAlgorithmRatiosExits] for exits, else
+// [...NoExits], times their terms, plus the road bonuses
+function EmpAiSiteScore takes integer t, integer px, integer py, integer c returns real
+    local boolean ex = LoadBoolean(EmpAiTab, t, 2)
+    local real s = 0.0
+    local real v
+    local integer w = EmpAiBbX1 - EmpAiBbX0 + 1
+    local integer h = EmpAiBbY1 - EmpAiBbY0 + 1
+    local real cx = EmpAiBbX0 + w / 2.0
+    local real cy = EmpAiBbY0 + h / 2.0
+    local integer d
+    local integer r
+    local integer i
+    local integer n = 0
+    local boolean bad
+    // Perpendicular: another type in the row / column, else the centre's row / column
+    if EmpAiSiteLine(t, false) then
+        set v = 1.0
+    elseif EmpAiSiteX == px or EmpAiSiteY == py then
+        set v = {{real S.perpCentre}}
+    else
+        set v = 0.0
+    endif
+    if ex then
+        set s = s + {{real ai.positionExits.perpendicular}} * v
+    else
+        set s = s + {{real ai.positionNoExits.perpendicular}} * v
+    endif
+    // Aligned: the same type in the row / column
+    if EmpAiSiteLine(t, true) then
+        if ex then
+            set s = s + {{real ai.positionExits.aligned}}
+        else
+            set s = s + {{real ai.positionNoExits.aligned}}
+        endif
+    endif
+    // Random
+    if ex then
+        set s = s + {{real ai.positionExits.random}} * GetRandomReal(0.0, 1.0)
+    else
+        set s = s + {{real ai.positionNoExits.random}} * GetRandomReal(0.0, 1.0)
+    endif
+    // WithinExistingBounds
+    if EmpAiBbX0 >= EmpAiClX0[c] and EmpAiBbX1 + 1 <= EmpAiClX1[c] and EmpAiBbY0 >= EmpAiClY0[c] and EmpAiBbY1 + 1 <= EmpAiClY1[c] then
+        if ex then
+            set s = s + {{real ai.positionExits.withinExistingBounds}}
+        else
+            set s = s + {{real ai.positionNoExits.withinExistingBounds}}
+        endif
+    endif
+    // DistanceFromCentre: 1 - min(D^2, 80^2) / 80^2
+    set v = 1.0 - RMinBJ((cx - px) * (cx - px) + (cy - py) * (cy - py), {{real S.distance}} * {{real S.distance}}) / ({{real S.distance}} * {{real S.distance}})
+    if ex then
+        set s = s + {{real ai.positionExits.distanceFromCentre}} * v
+    else
+        set s = s + {{real ai.positionNoExits.distanceFromCentre}} * v
+    endif
+    // FurtherFromEdge: tiles to the map edge (as written, H + h - y), then to the first ring round the
+    // footprint with a tile no building may use (0x42a020), out of 15
+    set d = IMinBJ(IMinBJ({{S.edgeMax}}, EmpAiBbX0), IMinBJ(EmpAiBbY0, IMinBJ(EmpAiMapH + h - EmpAiBbY0, EmpAiMapW + w - EmpAiBbX0)))
+    set r = 1
+    set bad = false
+    loop
+        exitwhen r > d or bad
+        set i = EmpAiBbX0 - r
+        loop
+            exitwhen i > EmpAiBbX1 + r or bad
+            set bad = EmpAiMapClass(i, EmpAiBbY0 - r) == {{M.blocked}} or EmpAiMapClass(i, EmpAiBbY1 + r) == {{M.blocked}}
+            set i = i + 1
+        endloop
+        set i = EmpAiBbY0 - r
+        loop
+            exitwhen i > EmpAiBbY1 + r or bad
+            set bad = EmpAiMapClass(EmpAiBbX0 - r, i) == {{M.blocked}} or EmpAiMapClass(EmpAiBbX1 + r, i) == {{M.blocked}}
+            set i = i + 1
+        endloop
+        if bad then
+            set d = r - 1
+        endif
+        set r = r + 1
+    endloop
+    set v = RMinBJ(1.0, I2R(d) / {{S.edgeMax}})
+    if ex then
+        set s = s + {{real ai.positionExits.furtherFromEdge}} * v
+    else
+        set s = s + {{real ai.positionNoExits.furtherFromEdge}} * v
+    endif
+    // OuterPerimeter: 1 - min(m, 80) / 80, m the nearest side of the cluster box
+    set d = IMinBJ(IMinBJ(IAbsBJ(EmpAiBbX0 - EmpAiClX0[c]), IAbsBJ(EmpAiBbY0 - EmpAiClY0[c])), IMinBJ(IAbsBJ(EmpAiBbX1 + 1 - EmpAiClX1[c]), IAbsBJ(EmpAiBbY1 + 1 - EmpAiClY1[c])))
+    set v = 1.0 - RMinBJ(I2R(d), {{real S.distance}}) / {{real S.distance}}
+    if ex then
+        set s = s + {{real ai.positionExits.outerPerimeter}} * v
+    else
+        set s = s + {{real ai.positionNoExits.outerPerimeter}} * v
+    endif
+    // Rotation (WC3: the fixed facing): no exit, the camera side; an exit, facing away from the centre
+    if not ex then
+        set s = s + {{real ai.positionNoExits.rotation}}
+    elseif RAbsBJ(cy - py) >= RAbsBJ(cx - px) and cy >= py then
+        set s = s + {{real ai.positionExits.rotation}}
+    endif
+    // + the road tiles round the box (min 24) / 24, and for an exit 2 (35 - min(L, 35)) / 35
+    set i = EmpAiBbX0 - 1
+    loop
+        exitwhen i > EmpAiBbX1 + 1
+        if EmpAiMapBit(i, EmpAiBbY0 - 1, {{M.road}}) then
+            set n = n + 1
+        endif
+        if EmpAiMapBit(i, EmpAiBbY1 + 1, {{M.road}}) then
+            set n = n + 1
+        endif
+        set i = i + 1
+    endloop
+    set i = EmpAiBbY0
+    loop
+        exitwhen i > EmpAiBbY1
+        if EmpAiMapBit(EmpAiBbX0 - 1, i, {{M.road}}) then
+            set n = n + 1
+        endif
+        if EmpAiMapBit(EmpAiBbX1 + 1, i, {{M.road}}) then
+            set n = n + 1
+        endif
+        set i = i + 1
+    endloop
+    set s = s + IMinBJ(n, {{S.roadRing}}) / {{real S.roadRing}}
+    if ex then
+        set s = s + 2.0 * ({{S.roadLen}} - IMinBJ(EmpAiSiteLen, {{S.roadLen}})) / {{real S.roadLen}}
+    endif
+    return s
+endfunction
+
+// the tiles of enemy ground units round the clusters are intrusions (0x436910, bit AI_MAP.intrusion),
+// cleared every AI_SITE.intrusionClear ticks (0x436980, "Cleaning out intrusion data")
+function EmpAiIntrusionTick takes nothing returns nothing
+    local group g
+    local unit u
+    local integer x
+    local integer y
+    local integer c
+    local boolean near
+    if EmpAiMapW == 0 or EmpAiClN == 0 then
+        return
+    endif
+    if EmpTick - EmpAiIntrusionAt >= {{S.intrusionClear}} then
+        set EmpAiIntrusionAt = EmpTick
+        set c = 0
+        loop
+            exitwhen c >= EmpAiIntrusionN
+            set x = EmpAiIntrusionX[c]
+            set y = EmpAiIntrusionY[c]
+            call EmpAiMapSet(x, y, BlzBitAnd(EmpAiMapGet(x, y), 255 - {{M.intrusion}}))
+            set c = c + 1
+        endloop
+        set EmpAiIntrusionN = 0
+    endif
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and not IsUnitType(u, UNIT_TYPE_FLYING) and EmpAiIntrusionN < {{S.intrusionMax}} then
+            set x = EmpAiTileX(GetUnitX(u))
+            set y = EmpAiTileY(GetUnitY(u))
+            set near = false
+            set c = 0
+            loop
+                exitwhen c >= EmpAiClN or near
+                set near = x >= EmpAiClX0[c] - {{S.intrusionReach}} and x <= EmpAiClX1[c] + {{S.intrusionReach}} and y >= EmpAiClY0[c] - {{S.intrusionReach}} and y <= EmpAiClY1[c] + {{S.intrusionReach}}
+                set c = c + 1
+            endloop
+            if near and EmpAiMapGet(x, y) >= 0 and not EmpAiMapBit(x, y, {{M.intrusion}}) then
+                call EmpAiMapSet(x, y, BlzBitOr(EmpAiMapGet(x, y), {{M.intrusion}}))
+                set EmpAiIntrusionX[EmpAiIntrusionN] = x
+                set EmpAiIntrusionY[EmpAiIntrusionN] = y
+                set EmpAiIntrusionN = EmpAiIntrusionN + 1
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
+// rings from (x, y) to the first ramp top (0x437240), AI_SITE.rampSearch without one
+function EmpAiRampRing takes integer x, integer y returns integer
+    local integer r = 0
+    local integer i
+    loop
+        exitwhen r > {{S.rampSearch}}
+        set i = -r
+        loop
+            exitwhen i > r
+            if EmpAiMapBit(x + i, y - r, {{M.rampTop}}) or EmpAiMapBit(x + i, y + r, {{M.rampTop}}) or EmpAiMapBit(x - r, y + i, {{M.rampTop}}) or EmpAiMapBit(x + r, y + i, {{M.rampTop}}) then
+                return r
+            endif
+            set i = i + 1
+        endloop
+        set r = r + 1
+    endloop
+    return {{S.rampSearch}}
+endfunction
+
+// no AiDefence building of side 1 within MinimumGapBetweenTurrets tiles of (x, y) (0x42a862, "<=" refuses)
+function EmpAiSiteGap takes integer x, integer y returns boolean
+    local group g = CreateGroup()
+    local unit u
+    local boolean ok = true
+    local integer dx
+    local integer dy
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if ok and EmpAlive(u) and LoadBoolean(EmpAiTab, EmpType(u), 1) then
+            set dx = EmpAiTileX(GetUnitX(u)) - x
+            set dy = EmpAiTileY(GetUnitY(u)) - y
+            set ok = dx * dx + dy * dy > {{ai.minTurretGapTiles}} * {{ai.minTurretGapTiles}}
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return ok
+endfunction
+
+// one tile of the defence code (a thread of its own): an intrusion tile it fits goes to the list
+// (EmpAiTrX / EmpAiTrY, EmpAiEvN of them); while the list is empty the fitting tile nearest a ramp top
+// (+ rand % 4) is kept in EmpAiEvBest (integer part) / EmpAiEvBx / EmpAiEvBy
+function EmpAiSiteDefEval takes nothing returns nothing
+    local integer x = EmpAiEvX
+    local integer y = EmpAiEvY
+    local integer v
+    if EmpAiEvN < {{S.defenceList}} and EmpAiMapBit(x, y, {{M.intrusion}}) and EmpAiSiteFits(EmpAiEvT, x, y) and EmpAiSiteGap(x, y) then
+        set EmpAiTrX[EmpAiEvN] = x
+        set EmpAiTrY[EmpAiEvN] = y
+        set EmpAiEvN = EmpAiEvN + 1
+    elseif EmpAiEvN == 0 then
+        set v = EmpAiRampRing(x, y) + GetRandomInt(0, 3)
+        if (EmpAiEvBx < 0 or v < R2I(EmpAiEvBest)) and EmpAiSiteFits(EmpAiEvT, x, y) and EmpAiSiteGap(x, y) then
+            set EmpAiEvBest = v
+            set EmpAiEvBx = x
+            set EmpAiEvBy = y
+        endif
+    endif
+endfunction
+
+// a defence building (0x42a680): a random intrusion tile it fits, else the fitting tile nearest a ramp
+// top (+ rand % 4), within the cluster box + its footprint + 2
+function EmpAiSiteDefence takes integer t, integer c returns boolean
+    local integer x0 = IMaxBJ(0, EmpAiClX0[c] - LoadInteger(EmpAiMapTab, t, 4) - {{S.margin}})
+    local integer y0 = IMaxBJ(0, EmpAiClY0[c] - LoadInteger(EmpAiMapTab, t, 5) - {{S.margin}})
+    local integer x1 = IMinBJ(EmpAiMapW - 1, EmpAiClX1[c] + LoadInteger(EmpAiMapTab, t, 4) + {{S.margin}})
+    local integer y1 = IMinBJ(EmpAiMapH - 1, EmpAiClY1[c] + LoadInteger(EmpAiMapTab, t, 5) + {{S.margin}})
+    local integer x = x0
+    local integer y
+    local integer n = 0
+    local integer v
+    local integer best = -1
+    local integer bx = 0
+    local integer by = 0
+    set EmpAiEvT = t
+    set EmpAiEvN = 0
+    set EmpAiEvBest = 0.0
+    set EmpAiEvBx = -1
+    set EmpAiEvBy = -1
+    loop
+        exitwhen x >= x1
+        set y = y0
+        loop
+            exitwhen y >= y1
+            if EmpAiMapClass(x, y) == {{M.free}} then
+                set EmpAiEvX = x
+                set EmpAiEvY = y
+                call ExecuteFunc("EmpAiSiteDefEval")
+            endif
+            set y = y + 1
+        endloop
+        set x = x + 1
+    endloop
+    set n = EmpAiEvN
+    if EmpAiEvBx >= 0 then
+        set best = R2I(EmpAiEvBest)
+        set bx = EmpAiEvBx
+        set by = EmpAiEvBy
+    endif
+    if n > 0 then
+        set v = GetRandomInt(0, n - 1)
+        set EmpAiSiteX = EmpAiTrX[v]
+        set EmpAiSiteY = EmpAiTrY[v]
+        return true
+    elseif best >= 0 then
+        set EmpAiSiteX = bx
+        set EmpAiSiteY = by
+        return true
+    endif
+    call EmpAiLog("unrecoverable: no position for defence building " + GetObjectName(t))
+    return false
+endfunction
+
+// one tile of the normal code (a thread of its own: the op limit): EmpAiEvT / EmpAiEvC / EmpAiEvPx /
+// EmpAiEvPy / EmpAiEvX / EmpAiEvY in; EmpAiEvN, EmpAiEvBest, EmpAiEvBx / EmpAiEvBy kept
+function EmpAiSiteEval takes nothing returns nothing
+    local real s
+    if not EmpAiSiteFits(EmpAiEvT, EmpAiEvX, EmpAiEvY) then
+        return
+    endif
+    set EmpAiEvN = EmpAiEvN + 1
+    set EmpAiSiteX = EmpAiEvX
+    set EmpAiSiteY = EmpAiEvY
+    set s = EmpAiSiteScore(EmpAiEvT, EmpAiEvPx, EmpAiEvPy, EmpAiEvC)
+    if s > EmpAiEvBest then
+        set EmpAiEvBest = s
+        set EmpAiEvBx = EmpAiEvX
+        set EmpAiEvBy = EmpAiEvY
+    endif
+endfunction
+
+// the normal code (0x42a1e0): square rings from the cluster's centre +- AI_SITE.ring growing to the
+// box + the footprint + 2, a side tried while it grows; stop at MaxSites - 4 sites; the best score
+// (the first on a tie)
+function EmpAiSiteNormal takes integer t, integer c returns boolean
+    local integer px = (EmpAiClX0[c] + EmpAiClX1[c]) / 2
+    local integer py = (EmpAiClY0[c] + EmpAiClY1[c]) / 2
+    local integer m = IMaxBJ(LoadInteger(EmpAiMapTab, t, 4), LoadInteger(EmpAiMapTab, t, 5))
+    local integer lx0 = IMaxBJ(0, EmpAiClX0[c] - m - {{S.margin}})
+    local integer ly0 = IMaxBJ(0, EmpAiClY0[c] - m - {{S.margin}})
+    local integer lx1 = IMinBJ(EmpAiMapW - 1, EmpAiClX1[c] + m + {{S.margin}})
+    local integer ly1 = IMinBJ(EmpAiMapH - 1, EmpAiClY1[c] + m + {{S.margin}})
+    local integer x1 = IMaxBJ(0, px - {{S.ring}})
+    local integer y1 = IMaxBJ(0, py - {{S.ring}})
+    local integer x2 = IMinBJ(EmpAiMapW - 1, px + {{S.ring}})
+    local integer y2 = IMinBJ(EmpAiMapH - 1, py + {{S.ring}})
+    local boolean top = true
+    local boolean right = true
+    local boolean bottom = true
+    local boolean left = true
+    local integer n = 0
+    local integer k
+    local integer i
+    local integer x
+    local integer y
+    local real s
+    local real best = -1000000.0
+    local integer bx = -1
+    local integer by = -1
+    set EmpAiEvT = t
+    set EmpAiEvC = c
+    set EmpAiEvPx = px
+    set EmpAiEvPy = py
+    set EmpAiEvN = 0
+    set EmpAiEvBest = -1000000.0
+    set EmpAiEvBx = -1
+    set EmpAiEvBy = -1
+    loop
+        set k = 0
+        loop
+            exitwhen k > 3
+            if (k == 0 and top) or (k == 1 and right) or (k == 2 and bottom) or (k == 3 and left) then
+                if k == 0 or k == 2 then
+                    set i = x1
+                else
+                    set i = y1
+                endif
+                loop
+                    exitwhen (k == 0 or k == 2) and i >= x2
+                    exitwhen (k == 1 or k == 3) and i >= y2
+                    exitwhen n >= {{ai.maxSites}} - 4
+                    if k == 0 then
+                        set x = i
+                        set y = y1
+                    elseif k == 1 then
+                        set x = x2
+                        set y = i
+                    elseif k == 2 then
+                        set x = i
+                        set y = y2
+                    else
+                        set x = x1
+                        set y = i
+                    endif
+                    set EmpAiEvX = x
+                    set EmpAiEvY = y
+                    call ExecuteFunc("EmpAiSiteEval")
+                    set n = EmpAiEvN
+                    set i = i + 1
+                endloop
+            endif
+            set k = k + 1
+        endloop
+        exitwhen n >= {{ai.maxSites}} - 4
+        set top = y1 > ly0
+        set right = x2 < lx1
+        set bottom = y2 < ly1
+        set left = x1 > lx0
+        exitwhen not (top or right or bottom or left)
+        if top then
+            set y1 = y1 - 1
+        endif
+        if right then
+            set x2 = x2 + 1
+        endif
+        if bottom then
+            set y2 = y2 + 1
+        endif
+        if left then
+            set x1 = x1 - 1
+        endif
+    endloop
+    set bx = EmpAiEvBx
+    set by = EmpAiEvBy
+    if bx < 0 then
+        return false
+    endif
+    set EmpAiSiteX = bx
+    set EmpAiSiteY = by
+    return true
+endfunction
+
+// the site of type t (0x42f6a0): defence types by 0x42a680 unless, with over AI_SITE.turretsNormal
+// defences, a type other than the house's plan turret on 1 in AI_SITE.normalOneIn; the others by the
+// normal code. A thread of its own (the op limit): EmpAiPlaceT in, EmpAiPlaceOk / EmpAiX / EmpAiY out.
+function EmpAiPlaceRun takes nothing returns nothing
+    local integer t = EmpAiPlaceT
+    local integer c = 0
+    set EmpAiPlaceOk = false
+    if EmpAiMapW == 0 or EmpAiClN == 0 then
+        return
+    endif
+    if LoadBoolean(EmpAiTab, t, 1) and not (EmpAiCount(-1) > {{S.turretsNormal}} and t != EmpAiPlanTurret[EmpEnemyHouse] and GetRandomInt(0, {{S.normalOneIn}} - 1) == 0) then
+        set EmpAiPlaceOk = EmpAiSiteDefence(t, c)
+    else
+        set EmpAiPlaceOk = EmpAiSiteNormal(t, c)
+    endif
+    if EmpAiPlaceOk then
+        set EmpAiX = EmpAiTileWX(EmpAiSiteX)
+        set EmpAiY = EmpAiTileWY(EmpAiSiteY)
+    else
+        call EmpAiLog("could not find any room to place " + GetObjectName(t))
+        call SaveInteger(EmpAiTab, t, {{C.AI_TAB_NO_ROOM}}, EmpAiRoomEpoch)
+    endif
+endfunction
+
+function EmpAiPlace takes integer t returns boolean
+    set EmpAiPlaceT = t
+    call ExecuteFunc("EmpAiPlaceRun")
+    return EmpAiPlaceOk
+endfunction
+
 {{mapData}}
 // the static layer, the building cells and the plan turrets (EmpAiInit), then the buildings standing:
 // the template's first (its construction yard founds the first cluster), then the others
@@ -1061,6 +1641,10 @@ function EmpAiMapInit takes nothing returns nothing
     local integer k = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
     set EmpAiMapTab = InitHashtable()
 {{mapInit}}
+    call TimerStart(CreateTimer(), {{real S.intrusionPeriod}}, true, function EmpAiIntrusionTick)
+    set EmpAiMapLostTrig = CreateTrigger()
+    call TriggerRegisterPlayerUnitEvent(EmpAiMapLostTrig, Player(1), EVENT_PLAYER_UNIT_DEATH, null)
+    call TriggerAddAction(EmpAiMapLostTrig, function EmpAiMapLost)
     loop
         exitwhen k >= EmpEnemyHouse * {{C.TEMPLATE_SLOTS}} + EmpTplCount[EmpEnemyHouse]
         if EmpAlive(EmpTplUnit[k]) then

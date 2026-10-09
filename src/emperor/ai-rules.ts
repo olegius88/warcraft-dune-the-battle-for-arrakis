@@ -50,6 +50,8 @@ export interface AiRules {
   maxRefineries: number;
   /** ExtraPower: the builder's critical need for power (Game.exe 0x42d973): made - used below it */
   extraPower: number;
+  /** MaxSites: building sites scored before the best is taken (Game.exe 0x42a4ed: stops at MaxSites - 4) */
+  maxSites: number;
   firstTechTurrets: number;
   minMoneyWalls: number;
   minMoneyMaintenance: number;
@@ -144,6 +146,7 @@ function parseAiRules(text: string, difficulty = ''): AiRules {
     maxTurretsLowTech: s('MaxTurretsAtLowTech', 0),
     maxRefineries: s('MaxRefineries', 1),
     extraPower: s('ExtraPower', 0),
+    maxSites: s('MaxSites', 35),
     firstTechTurrets: s('FirstTechLevelToBuildTurrets', 0),
     minMoneyWalls: s('MinMoneyToStartBuildingWalls', 0),
     minMoneyMaintenance: s('MinMoneyToBuildMaintenanceBuildings', 0),

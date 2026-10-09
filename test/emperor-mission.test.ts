@@ -1509,3 +1509,24 @@ test('refinery pads: an order of the refinery, two per refinery, counted by the 
   assert.ok(body('EmpAiCount').includes('EmpPadCount'), 'pads count as refineries for the AI');
   assert.ok(body('EmpAiCritical').includes('EmpAiPadOrder()'), 'the AI orders pads');
 });
+
+// Building sites were rings round the base point with a guessed score (Perpendicular / Rotation
+// unused). Game.exe 1.09 (0x42f6a0): defence types near intrusions or ramps (0x42a680), the others on
+// square rings from the cluster centre scored by every [PositionAlgorithmRatios*] weight (0x42a1e0,
+// 0x4298d0), MaxSites - 4 sites at most.
+test('building sites: square rings from the cluster centre, all eight weights, defence by intrusions (Game.exe)', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'sites', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpAiPlace').includes('call ExecuteFunc("EmpAiPlaceRun")'), 'a thread of its own');
+  assert.ok(body('EmpAiSiteNormal').includes('exitwhen n >= 35 - 4'), 'MaxSites');
+  const score = body('EmpAiSiteScore');
+  // ai.ini [PositionAlgorithmRatiosNoExits]: Aligned 25, Perpendicular 14, Rotation 7; Exits Rotation 15
+  for (const w of ['25.0', '14.0', '7.0', '15.0', '12.0', '8.0', '13.0']) assert.ok(score.includes(w), `weight ${w}`);
+  assert.ok(score.includes('80.0 * 80.0') && score.includes('/ 24.0') && score.includes('/ 35.0'), 'distance, road bonuses');
+  assert.ok(body('EmpAiSiteDefEval').includes('EmpAiRampRing(x, y) + GetRandomInt(0, 3)') && body('EmpAiSiteGap').includes('> 5 * 5'), 'defence: ramps, MinimumGapBetweenTurrets');
+  assert.ok(!m.script.includes('function EmpAiScore takes'), 'the guessed score is gone');
+  const yard = all.units.rawcode.get('ATConYard');
+  assert.ok(m.script.includes(`call EmpAiOccBox('${yard}', -2, -2, 5, 7)`), 'the yard body box (b d p cells of its Occupy)');
+});

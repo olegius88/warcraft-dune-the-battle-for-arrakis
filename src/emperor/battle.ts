@@ -429,6 +429,10 @@ endfunction`;
       const cells = occupyCells(r.occupy);
       for (const [dx, dy] of cells.body) mapCalls.push(`    call EmpAiOcc('${rc(r.name)}', ${dx}, ${dy}, true)`);
       for (const [dx, dy] of cells.reserved) mapCalls.push(`    call EmpAiOcc('${rc(r.name)}', ${dx}, ${dy}, false)`);
+      if (cells.body.length) {
+        const xs = cells.body.map(([x]) => x), ys = cells.body.map(([, y]) => y);
+        mapCalls.push(`    call EmpAiOccBox('${rc(r.name)}', ${Math.min(...xs)}, ${Math.min(...ys)}, ${Math.max(...xs) - Math.min(...xs) + 1}, ${Math.max(...ys) - Math.min(...ys) + 1})`);
+      }
     }
     const turret = rc(h + (C.AI_PLAN.turret[h] ?? ''));
     mapInit.push(`    set EmpAiPlanTurret[${hi}] = ${turret ? `'${turret}'` : 0}`);
@@ -437,7 +441,7 @@ endfunction`;
   for (let i = 0; i < mapCalls.length; i += C.AI_MAP.linesPerChunk) chunks.push(`function EmpAiMapData${chunks.length} takes nothing returns nothing\n${mapCalls.slice(i, i + C.AI_MAP.linesPerChunk).join('\n')}\nendfunction\n`);
   chunks.forEach((_, i) => mapInit.push(`    call ExecuteFunc("EmpAiMapData${i}")`));
   const aiMapFunctions = renderFile(jassFile('battle/ai-map'), {
-    M: C.AI_MAP, P: C.AI_PLAN, C, ai, WC3_UNITS_PER_TILE, planTech: ai.firstCampaignTech + 1, mapData: chunks.join('\n'), mapInit: mapInit.join('\n'),
+    M: C.AI_MAP, P: C.AI_PLAN, S: C.AI_SITE, C, ai, WC3_UNITS_PER_TILE, planTech: ai.firstCampaignTech + 1, mapData: chunks.join('\n'), mapInit: mapInit.join('\n'),
   });
   const aiFunctions = renderFile(jassFile('battle/ai'), {
     aiMapFunctions,

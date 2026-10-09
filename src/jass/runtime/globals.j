@@ -227,6 +227,29 @@
     integer EmpAiWallSince = 0
     boolean EmpAiWalling = false
     integer EmpAiPersonality = 0
+    // building sites (battle ai-map.j EmpAiPlace)
+    integer EmpAiRdDir = -1
+    integer EmpAiSiteX = 0
+    integer EmpAiSiteY = 0
+    integer EmpAiSiteLen = 0
+    integer EmpAiPlaceT = 0
+    integer EmpAiEvT = 0
+    integer EmpAiEvC = 0
+    integer EmpAiEvPx = 0
+    integer EmpAiEvPy = 0
+    integer EmpAiEvX = 0
+    integer EmpAiEvY = 0
+    integer EmpAiEvN = 0
+    real EmpAiEvBest = 0.0
+    integer EmpAiEvBx = -1
+    integer EmpAiEvBy = -1
+    boolean EmpAiPlaceOk = false
+    integer EmpAiRoomEpoch = 1
+    trigger EmpAiMapLostTrig = null
+    integer EmpAiIntrusionAt = 0
+    integer EmpAiIntrusionN = 0
+    integer array EmpAiIntrusionX
+    integer array EmpAiIntrusionY
     // the builder's critical needs (ai.j EmpAiCritical): refinery and helipad type per house
     integer array EmpAiRefinery
     integer array EmpAiHelipad

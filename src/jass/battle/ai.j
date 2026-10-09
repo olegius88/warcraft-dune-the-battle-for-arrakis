@@ -13,8 +13,8 @@
 // DefenceTacticWanderDistance; harvester escorts after TicksBeforeDefendHarvesterTactic; the whole
 // home guard to the construction yard when it is hit (after TicksBeforeDefendCYTactic, from tech
 // FirstTechLevelForDefendCYTactic); attack waves gather at a staging point and attack when formed or
-// after TicksUntilAbandonForming. Simplifications: sites are tried on rings around the base point
-// (Perpendicular and Rotation weights are not used: WC3 buildings do not turn).
+// after TicksUntilAbandonForming. Sites: ai-map.j EmpAiPlace (Game.exe's square rings and weights;
+// WC3 buildings do not turn, so the rotation terms take the fixed facing).
 {{dataFunction}}
 // Game.exe 1.09 (0x432040, SideAIBehaviour*): an AI value changed by pct percent of itself,
 // v + v * pct * 0.01 computed in the FPU's single precision (Direct3D 7's default DDSCL_FPUSETUP;
@@ -107,108 +107,6 @@ function EmpAiFree takes real x, real y, real tiles returns boolean
     return free and not IsTerrainPathable(x, y, PATHING_TYPE_BUILDABILITY) and not IsTerrainPathable(x + r * 0.5, y + r * 0.5, PATHING_TYPE_BUILDABILITY) and not IsTerrainPathable(x - r * 0.5, y - r * 0.5, PATHING_TYPE_BUILDABILITY)
 endfunction
 
-// an enemy turret within `tiles` of (x, y)
-function EmpAiTurretNear takes real x, real y, real tiles returns boolean
-    local group g = CreateGroup()
-    local unit u
-    local boolean near = false
-    call GroupEnumUnitsInRange(g, x, y, tiles * {{real WC3_UNITS_PER_TILE}}, null)
-    loop
-        set u = FirstOfGroup(g)
-        exitwhen u == null
-        call GroupRemoveUnit(g, u)
-        if GetOwningPlayer(u) == Player(1) and LoadBoolean(EmpAiTab, EmpType(u), 1) then
-            set near = true
-        endif
-    endloop
-    call DestroyGroup(g)
-    set g = null
-    return near
-endfunction
-
-// [PositionAlgorithmRatios*] score of a site for type t at ring r (tiles) of the base point
-function EmpAiScore takes integer t, real x, real y, real r returns real
-    local boolean ex = LoadBoolean(EmpAiTab, t, 2)
-    local group g = CreateGroup()
-    local unit u
-    local real s = 0.0
-    local real minX = 1000000.0
-    local real maxX = -1000000.0
-    local real minY = 1000000.0
-    local real maxY = -1000000.0
-    local real edge
-    local boolean aligned = false
-    local real tile = {{real WC3_UNITS_PER_TILE}}
-    call GroupEnumUnitsOfPlayer(g, Player(1), null)
-    loop
-        set u = FirstOfGroup(g)
-        exitwhen u == null
-        call GroupRemoveUnit(g, u)
-        if EmpAlive(u) and IsUnitType(u, UNIT_TYPE_STRUCTURE) then
-            set minX = RMinBJ(minX, GetUnitX(u))
-            set maxX = RMaxBJ(maxX, GetUnitX(u))
-            set minY = RMinBJ(minY, GetUnitY(u))
-            set maxY = RMaxBJ(maxY, GetUnitY(u))
-            if EmpType(u) == t and (RAbsBJ(GetUnitX(u) - x) < {{real C.AI_ALIGN_TILES}} * tile or RAbsBJ(GetUnitY(u) - y) < {{real C.AI_ALIGN_TILES}} * tile) then
-                set aligned = true
-            endif
-        endif
-    endloop
-    call DestroyGroup(g)
-    set g = null
-    // distance to the map edge, as a share of the reach of the rings
-    set edge = RMinBJ(RMinBJ(x - EmpMapMinX, EmpMapMaxX - x), RMinBJ(y - EmpMapMinY, EmpMapMaxY - y)) / (tile * {{real C.AI_SITE_MAX}})
-    if ex then
-        set s = {{real ai.positionExits.distanceFromCentre}} * (1.0 - r / {{real C.AI_SITE_MAX}}) + {{real ai.positionExits.furtherFromEdge}} * RMinBJ(edge, 1.0) + {{real ai.positionExits.outerPerimeter}} * (r / {{real C.AI_SITE_MAX}}) + {{real ai.positionExits.random}} * GetRandomReal(0.0, 1.0)
-        if aligned then
-            set s = s + {{real ai.positionExits.aligned}}
-        endif
-        if x >= minX and x <= maxX and y >= minY and y <= maxY then
-            set s = s + {{real ai.positionExits.withinExistingBounds}}
-        endif
-    else
-        set s = {{real ai.positionNoExits.distanceFromCentre}} * (1.0 - r / {{real C.AI_SITE_MAX}}) + {{real ai.positionNoExits.furtherFromEdge}} * RMinBJ(edge, 1.0) + {{real ai.positionNoExits.outerPerimeter}} * (r / {{real C.AI_SITE_MAX}}) + {{real ai.positionNoExits.random}} * GetRandomReal(0.0, 1.0)
-        if aligned then
-            set s = s + {{real ai.positionNoExits.aligned}}
-        endif
-        if x >= minX and x <= maxX and y >= minY and y <= maxY then
-            set s = s + {{real ai.positionNoExits.withinExistingBounds}}
-        endif
-    endif
-    return s
-endfunction
-
-// best free site for type t around the base point (EmpAiX / EmpAiY); false when there is none
-function EmpAiPlace takes integer t returns boolean
-    local integer b = EmpBaseOfSide(1)
-    local real r = {{real C.AI_SITE_MIN}}
-    local integer a
-    local real x
-    local real y
-    local real s
-    local real best = -1.0
-    local boolean turret = LoadBoolean(EmpAiTab, t, 1)
-    loop
-        exitwhen r > {{real C.AI_SITE_MAX}}
-        set a = 0
-        loop
-            exitwhen a >= {{C.AI_SITE_ANGLES}}
-            set x = EmpBaseX[b] + r * {{real WC3_UNITS_PER_TILE}} * Cos(a * 2.0 * bj_PI / {{C.AI_SITE_ANGLES}})
-            set y = EmpBaseY[b] + r * {{real WC3_UNITS_PER_TILE}} * Sin(a * 2.0 * bj_PI / {{C.AI_SITE_ANGLES}})
-            if EmpAiFree(x, y, {{real C.AI_SITE_CLEAR}}) and not (turret and EmpAiTurretNear(x, y, {{real ai.minTurretGapTiles}})) then
-                set s = EmpAiScore(t, x, y, r)
-                if s > best then
-                    set best = s
-                    set EmpAiX = x
-                    set EmpAiY = y
-                endif
-            endif
-            set a = a + 1
-        endloop
-        set r = r + {{real C.AI_SITE_STEP}}
-    endloop
-    return best >= 0.0
-endfunction
 
 // a building whose BuildTime has passed: it stands now (when the construction yard still does)
 function EmpAiFinish takes nothing returns nothing
@@ -273,7 +171,7 @@ function EmpAiPick takes integer c returns integer
     loop
         exitwhen i >= last
         set t = EmpAiBType[i]
-        if LoadInteger(EmpAiTab, t, 0) == c and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
+        if LoadInteger(EmpAiTab, t, 0) == c and GetPlayerTechMaxAllowed(Player(1), t) != 0 and LoadInteger(EmpAiTab, t, {{C.AI_TAB_NO_ROOM}}) != EmpAiRoomEpoch then
             set have = EmpCount(1, t)
             if have < fewest then
                 set fewest = have
@@ -390,7 +288,7 @@ function EmpAiCritical takes nothing returns integer
             return 0
         endif
         set t = EmpAiRefinery[EmpEnemyHouse]
-        if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
+        if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 and LoadInteger(EmpAiTab, t, {{C.AI_TAB_NO_ROOM}}) != EmpAiRoomEpoch then
             return t
         endif
     endif
@@ -401,7 +299,7 @@ function EmpAiCritical takes nothing returns integer
     endif
     // ornithopters and helipads (0x465320, type kind 0x21)
     set t = EmpAiHelipad[EmpEnemyHouse]
-    if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
+    if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 and LoadInteger(EmpAiTab, t, {{C.AI_TAB_NO_ROOM}}) != EmpAiRoomEpoch then
         set g = CreateGroup()
         call GroupEnumUnitsOfPlayer(g, Player(1), null)
         loop

@@ -125,7 +125,7 @@ export const AI_PLAN = {
   wallTicks: 15000, facing: 2, turret: { AT: 'Pillbox', HK: 'FlameTurret', OR: 'GasTurret' } as Readonly<Record<string, string>>,
 } as const;
 export const AI_MAP = {
-  classMask: 3, free: 0, body: 1, blocked: 2, road: 0x4, reserved: 0x8, rampTop: 0x20, rock: 0x40,
+  classMask: 3, free: 0, body: 1, blocked: 2, road: 0x4, reserved: 0x8, intrusion: 0x10, rampTop: 0x20, rock: 0x40,
   reserve: 3, join: 6, grow: 5, gapFill: 3, edge: 3, apron: 3, rampRoad: 7, probeTurn: 5, roadWidth: 3,
   /** clusters kept (Game.exe: a list); tiles clear of units round a plan point (EmpAiFree) */
   maxClusters: 32, fitClear: 0.4,
@@ -135,15 +135,20 @@ export const AI_MAP = {
 export const AI_WALL = 'Wall';
 /** "Low tech" for MaxTurretsAtLowTech (ai.ini: "Max turrets at tech < 5"). */
 export const AI_LOW_TECH_BELOW = 5;
-/** Building sites tried: rings around the base point every AI_SITE_STEP tiles out to AI_SITE_MAX,
- * AI_SITE_ANGLES directions each; a site must be buildable and free within AI_SITE_CLEAR tiles. */
-export const AI_SITE_MIN = 3;
-export const AI_SITE_MAX = 15;
-export const AI_SITE_STEP = 2;
-export const AI_SITE_ANGLES = 16;
-export const AI_SITE_CLEAR = 2.5;
-/** A site lines up with a building of the same type when within this many tiles on one axis. */
-export const AI_ALIGN_TILES = 1;
+/** Building sites (ai-map.j EmpAiPlace; Game.exe 1.09 0x42f6a0, 0x42a1e0, 0x42a680): square rings from
+ * the cluster centre +- ring out to its box + the footprint + margin; DistanceFromCentre and
+ * OuterPerimeter out of distance (80, 0x4297f0 / 0x5d08f8), FurtherFromEdge out of edgeMax (15);
+ * Perpendicular perpCentre (0.1, 0x5d090c) on the centre line; road bonuses min(roads round, roadRing)
+ * / roadRing and 2 (roadLen - min(L, roadLen)) / roadLen (0x5d0904, 0x5d0900); defence types at most
+ * defenceList intrusion tiles (0x42a7ce), a ramp top looked for rampSearch rings out; past
+ * turretsNormal defences a type other than the plan turret takes the normal code on 1 in normalOneIn
+ * (0x42f74b / 0x42f77c). Intrusions: enemy ground units within intrusionReach tiles of a cluster box
+ * every intrusionPeriod s, cleared every intrusionClear ticks (6000 AI updates of every second tick,
+ * 0x436980), at most intrusionMax kept. clear: tiles free of units round a site. */
+export const AI_SITE = {
+  ring: 4, margin: 2, distance: 80, edgeMax: 15, perpCentre: 0.1, roadRing: 24, roadLen: 35, defenceList: 123, rampSearch: 24,
+  turretsNormal: 3, normalOneIn: 3, intrusionReach: 12, intrusionPeriod: 2.0, intrusionClear: 12000, intrusionMax: 2000, clear: 1.0,
+} as const;
 /** Tactics tick (seconds): scouts, base defence, harvester escort, construction yard defence, waves. */
 export const AI_TACTIC_PERIOD = 2;
 /** Attack waves gather this far from their base towards the target (share of the way) before attacking. */
@@ -255,6 +260,10 @@ export const AI_TAB_MANUFACTURING = 6;
 export const AI_TAB_YARD = 7;
 /** EmpAiTab child: the unit type has Rules.txt AiSpecial (AI_SPECIAL_UNIT). */
 export const AI_TAB_SPECIAL = 8;
+/** EmpAiTab child: the type found no room (Game.exe builder list entry +0xE, 0x42f861): it is not
+ * chosen while it holds the AI's room epoch, which a new or lost building of side 1 moves on (0x42df2d,
+ * 0x42ee92, 0x42e980). */
+export const AI_TAB_NO_ROOM = 10;
 /** EmpAiTab child: the unit type has Rules.txt Ornithoptor (Game.exe type kind 5, 0x43ba70). */
 export const AI_TAB_ORNI = 9;
 /** Game.exe 1.09 0x42d7c9, the builder's critical need for refineries (after the MCV, 0x42d6e0): it
