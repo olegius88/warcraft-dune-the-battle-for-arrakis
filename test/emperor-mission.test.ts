@@ -1872,6 +1872,18 @@ test('Stealthed units are hidden whether they move or not', opts, () => {
   assert.ok(still.includes('LoadInteger(EmpVetUnit, h, 18)'), 'a reveal pulse shows it for a while');
 });
 
+// Regression: a badly hurt stealthed unit stayed hidden. Game.exe 1.09's "may stealth" check 0x55fca0
+// (both Stealthed +0x3c7 and StealthedWhenStill +0x3c8) divides the health [+0x3c] by the maximum
+// (vcall +0x194) and refuses below the float at 0x5d4404 = 0.33 (fcomp, C0 -> return 0). It was left as
+// a TODO with the constant unread. Guaranteed now: under a third of its health a unit is shown.
+test('a stealthed unit under a third of its health is not hidden', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'stealthhp', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const still = m.script.slice(m.script.indexOf('function EmpStillEnum '), m.script.indexOf('endfunction', m.script.indexOf('function EmpStillEnum ')));
+  assert.match(still, /if GetWidgetLife\(u\) < 0\.33\d* \* GetUnitState\(u, UNIT_STATE_MAX_LIFE\) then\s+set hide = false/, 'the health threshold');
+});
+
 // Regression: a weapon whose bullet has AntiAircraft = TRUE could hit aircraft only (WC3 targets "air"),
 // so the ornithopters, the ADV Sardaukar's laser and others never shot at the ground (probe --orni,
 // 2026-10-09: the ATOrni never attacked a construction yard). Game.exe 1.09 keeps two flags on a bullet,

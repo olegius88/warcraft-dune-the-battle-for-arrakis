@@ -283,6 +283,11 @@
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
 
 ### Fixed
+- 2026-10-09 Сильно раненый невидимый юнит оставался скрытым. В `Game.exe` 1.09 проверка «может
+  скрыться» (`0x55fca0`, и для `Stealthed`, и для `StealthedWhenStill`) делит здоровье на максимум и
+  отказывает при доле ниже 0,33 (`0x5d4404`). Теперь так же ([stealth.j](src/jass/mission/stealth.j),
+  `STEALTH_MIN_LIFE` в [config/runtime.ts](src/config/runtime.ts)); тест «a stealthed unit under a third
+  of its health is not hidden».
 - 2026-10-09 Оружие со снарядом `AntiAircraft=TRUE` било только по воздуху (WC3-цели «air»): орнитоптеры,
   лазер ADV Sardaukar и другие не стреляли по земле. В Game.exe у снаряда два флага — `AntiGround`
   (по умолчанию 1, `0x525287`) и `AntiAircraft`, поиск цели учитывает оба (`0x551119`). Тест

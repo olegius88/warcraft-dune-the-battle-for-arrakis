@@ -240,6 +240,9 @@ export const BOOM_EITS_SPREAD_TILES = 3;
 /** How often (s) the dust scouts look whether to burrow or come up (mission burrow.j; Game.exe every
  * tick, 0x568d10). */
 export const BURROW_TICK = 0.25;
+/** A stealthed unit (Stealthed / StealthedWhenStill) hides only with at least this share of its
+ * health (Game.exe 1.09 0x55fca0: health / maximum against the float at 0x5d4404; mission stealth.j). */
+export const STEALTH_MIN_LIFE = 0.33;
 /** [General] GuardTileRange when Rules.txt has none (its shipped value). */
 export const FALLBACK_GUARD_TILES = 12;
 /** An airborne mine's rocket hits within this radius of its aircraft (WC3 units; the rocket has no

@@ -1,6 +1,6 @@
 // Stealthed (Rules.txt: FRFremen, FRADVFremen, IXInfiltrator) hide moving or not, under the same reveal
-// rules; TODO(units): Game.exe 0x55fca0 also compares the unit's health with its maximum before it
-// hides one (constant 0x5d4404, not read); risk: a badly hurt stealthed unit may stay hidden here.
+// rules. Neither kind hides under RT.STEALTH_MIN_LIFE of its health (Game.exe 0x55fca0, 0x5d4404 = 0.33;
+// test "a stealthed unit under a third of its health is not hidden").
 // StealthedWhenStill (Rules.txt: scouts by type, ATSniper at veterancy level 3): the unit turns
 // invisible StealthDelay ticks after it stopped and StealthDelayAfterFiring ticks after its last shot
 // (EmpOnAttacked records the shot), and visible again when it moves or fires. Units made invisible
@@ -42,6 +42,10 @@ function EmpStillEnum takes nothing returns boolean
         set hide = LoadBoolean(EmpVet, EmpType(u), 5) or EmpTick - LoadInteger(EmpVetUnit, h, 10) >= {{stealth.delay}}
         // a reveal pulse (the Infiltrator's, detonate.j) shows it until EmpVetUnit child 18
         if EmpTick < LoadInteger(EmpVetUnit, h, 18) then
+            set hide = false
+        endif
+        // badly hurt: shown (Game.exe 0x55fca0)
+        if GetWidgetLife(u) < {{real RT.STEALTH_MIN_LIFE}} * GetUnitState(u, UNIT_STATE_MAX_LIFE) then
             set hide = false
         endif
         if HaveSavedInteger(EmpVetUnit, h, 9) and EmpTick - LoadInteger(EmpVetUnit, h, 9) < {{stealth.afterFiring}} then
