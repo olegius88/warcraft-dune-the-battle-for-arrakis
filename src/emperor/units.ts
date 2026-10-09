@@ -61,6 +61,26 @@ export interface UpgradeInfo {
   seconds: number;
 }
 
+/** A refinery pad order: the dock type (Rules.txt Dockable) as a type its refinery trains for its
+ * UpgradeCost and UpgradeBuildTime from UpgradeTechLevel; done, it fills a slot of the refinery (+ the
+ * dock's Health) and brings its GetUnitWhenBuilt. */
+export interface PadOrder {
+  id: string;
+  /** Emperor dock name */
+  dock: string;
+  /** WC3 id of the refinery that trains it (the dock's SecondaryBuilding of its house) */
+  refinery: string;
+  /** WC3 hit points the pad adds */
+  health: number;
+  techLevel: number;
+  /** WC3 id of its GetUnitWhenBuilt, '' none */
+  unit: string;
+  /** UpgradeCost */
+  cost: number;
+  /** the order's training time (s), UpgradeBuildTime */
+  seconds: number;
+}
+
 export interface UnitData {
   objects: UnitObject[];
   /** Emperor name -> WC3 id */
@@ -88,6 +108,8 @@ export interface UnitData {
   effectRadius: Map<string, number>;
   /** starport order type -> the unit a frigate delivers for it (mission starport.j) */
   portOrders: Map<string, string>;
+  /** refinery pads: orders a refinery trains (Game.exe: the dock type's upgrade, mission pads.j) */
+  padOrders: PadOrder[];
   /** veteran types with a longer range (Rules.txt ExtraRange) and the morph abilities into them */
   vetRange: VetRangeType[];
 }
@@ -155,7 +177,8 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   for (const o of all) rawcode.set(o.name, nextId(CUSTOM_ID.unitPrefix));
   const idOf = (name: string): string => rawcode.get(name) as string;
   // building upgrades: one custom upgrade per building with an UpgradeCost
-  const upgrades: UpgradeInfo[] = all.filter((o) => o.category === 'Building' && o.upgradeCost > 0).map((o) => ({
+  const dockable = (o: RulesObject): boolean => /^true$/i.test((o.raw.Dockable ?? '').trim());
+  const upgrades: UpgradeInfo[] = all.filter((o) => o.category === 'Building' && o.upgradeCost > 0 && !dockable(o)).map((o) => ({
     id: nextId(CUSTOM_ID.upgradePrefix), building: o.name, cost: o.upgradeCost, techLevel: o.upgradeTechLevel,
     seconds: (o.upgradeBuildTime || o.buildTime || S.DEFAULT_BUILD_TICKS) / S.TICKS_PER_SECOND,
   }));
@@ -241,8 +264,12 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   // starport.j). The unit keeps its own type, cost and BuildTime at the factory.
   const portable = all.filter((u) => u.category === 'Unit' && u.cost > 0 && /^true$/i.test((u.raw.Starportable ?? '').trim()));
   const orderOf = new Map(portable.map((u) => [u.name, nextId(CUSTOM_ID.unitPrefix)]));
-  const houseBuildings = (h: string): RulesObject[] => all.filter((b) => b.category === 'Building' && b.cost > 0 && houseOf(b) === h && /ConYard/.test(b.primaryBuilding.join(',')));
   const ownVariant = (list: string[], h: string): string => list.find((n) => n.startsWith(h)) || (list[0] as string);
+  // refinery pads: the docks (Rules.txt Dockable) and the refinery of their house that trains each
+  const docks = all.filter((o) => o.category === 'Building' && dockable(o) && o.upgradeCost > 0 && houseOf(o))
+    .map((d) => ({ d, id: nextId(CUSTOM_ID.unitPrefix), refinery: ownVariant(d.secondaryBuilding, houseOf(d) as string) }))
+    .filter((x) => x.refinery && rawcode.has(x.refinery));
+  const houseBuildings = (h: string): RulesObject[] => all.filter((b) => b.category === 'Building' && b.cost > 0 && houseOf(b) === h && /ConYard/.test(b.primaryBuilding.join(',')));
 
   for (const h of HOUSE_CODES) {
     // Builders spawned by a finished construction yard: the house's buildings do not fit one build
@@ -279,6 +306,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       const trains = [...new Set([
         ...all.filter((u) => u.category === 'Unit' && (u.cost > 0 || superweaponKind(u)) && u.primaryBuilding.includes(o.name)).map((u) => rawcode.get(u.name)),
         ...sells.map((u) => orderOf.get(u.name)),
+        ...docks.filter((x) => x.refinery === o.name).map((x) => x.id),
       ])];
       obj.mods.push(str(F.trains, trains.join(',')));
       const abil: string[] = [];
@@ -322,6 +350,18 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       str(F.name, displayName(u.name) + U.PORT_ORDER_SUFFIX), int(F.goldCost, u.cost), int(F.lumberCost, 0), int(F.foodCost, 0),
       int(F.buildTime, U.PORT_ORDER_SECONDS), int(F.attacksEnabled, 0), str(F.abilities, ''), str(F.upgrades, ''), str(F.researches, '')] });
   }
+  // the pad orders: the dock's icon, UpgradeCost, UpgradeBuildTime, unarmed (mission pads.j)
+  const padOrders: PadOrder[] = docks.map(({ d, id, refinery }) => {
+    const dockObj = objects.find((x) => x.emperor === d);
+    const icon = dockObj?.mods.filter((m) => m.field === F.icon).at(-1);
+    objects.push({ base: UNIT.peasant, id, emperor: null, mods: [...(icon ? [icon] : []),
+      str(F.name, displayName(d.name)), int(F.goldCost, d.upgradeCost), int(F.lumberCost, 0), int(F.foodCost, 0),
+      int(F.buildTime, Math.max(1, (d.upgradeBuildTime || d.buildTime || S.DEFAULT_BUILD_TICKS) / S.TICKS_PER_SECOND)),
+      int(F.attacksEnabled, 0), str(F.abilities, ''), str(F.upgrades, ''), str(F.researches, '')] });
+    const unit = d.raw.GetUnitWhenBuilt ? rawcode.get(d.raw.GetUnitWhenBuilt.split('//')[0]?.trim() ?? '') ?? '' : '';
+    return { id, dock: d.name, refinery: idOf(refinery), health: Math.max(S.MIN_HP, d.health / S.HP_DIVISOR), techLevel: d.upgradeTechLevel, unit, cost: d.upgradeCost,
+      seconds: Math.max(1, (d.upgradeBuildTime || d.buildTime || S.DEFAULT_BUILD_TICKS) / S.TICKS_PER_SECOND) };
+  });
   // Veteran types (Rules.txt ExtraRange %): 1.31.1 cannot lengthen one unit's range (the weapon range
   // setter changes nothing, src/smoke/build-range-probe.ts), so a level with ExtraRange turns the
   // unit into a copy of its type with the longer range through a Chaos ability; the unit stays the
@@ -375,7 +415,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, vetRange,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),

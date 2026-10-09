@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Added
+- 2026-10-09 Площадки НПЗ, как в `Game.exe` 1.09 ([pads.j](src/jass/battle/pads.j), `padOrders` в
+  [units.ts](src/emperor/units.ts), `REFINERY_PAD`). Раньше площадка (`[ATRefineryDock]`, Dockable) была
+  зданием, которое никто не строит, с собственным улучшением. Теперь это заказ, который обучает НПЗ:
+  цена `UpgradeCost`, время `UpgradeBuildTime`, с тех. уровня `UpgradeTechLevel`. Готовая площадка
+  занимает один из двух слотов НПЗ, добавляет ему здоровье площадки (доля сохраняется) и приводит
+  харвестер (`GetUnitWhenBuilt`). Без свободного слота деньги возвращаются. ИИ считает площадки как
+  НПЗ и заказывает их по критической нужде (`0x42da33`). Тест «refinery pads», пробник `--pads`: в игре
+  2 площадки, здоровье НПЗ 1500 → 2500, харвестеров 1 → 3, ИИ заказал и получил площадку.
 - 2026-10-09 План обороны ИИ по `Game.exe` 1.09 ([ai-map.j](src/jass/battle/ai-map.j), [ai-map.ts](src/emperor/ai-map.ts),
   `AI_MAP` / `AI_PLAN` в [config/battle.ts](src/config/battle.ts)).
   - Карта тайлов ИИ: скалы и верхушки рамп из рельефа, корпуса зданий — по строкам Occupy.

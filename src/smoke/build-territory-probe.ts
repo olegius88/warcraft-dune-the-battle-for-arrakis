@@ -537,6 +537,56 @@ endfunction`,
     call SetCameraPositionForPlayer(Player(0), EmpAiTileWX((EmpAiClX0[i] + EmpAiClX1[i]) / 2), EmpAiTileWY((EmpAiClY0[i] + EmpAiClY1[i]) / 2))
 endfunction`,
   } : {}),
+  // --pads: refinery pads (battle pads.j): an Atreides refinery of the player trains three pad orders
+  // (the third finds no slot: its credits come back); the AI orders one (ai.j EmpAiPadOrder). The AI
+  // report logs the pads, hit points, harvesters and credits.
+  ...(flag('--pads') ? {
+    extraStart: 'PadsProbeRun',
+    extraFunctions: `function PadsProbeHarv takes player p returns integer
+    local group g = CreateGroup()
+    local unit u
+    local integer n = 0
+    call GroupEnumUnitsOfPlayer(g, p, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and EmpType(u) == '${all.units.rawcode.get('Harvester')}' then
+            set n = n + 1
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return n
+endfunction
+
+function PadsProbeRun takes nothing returns nothing
+    local unit r
+    local integer o = '${all.units.padOrders.find((p) => p.dock === 'ATRefineryDock')?.id ?? '0000'}'
+    set EmpNormalConditions = false
+    call TriggerSleepAction(2.0)
+    set EmpTechLevel = 3
+    call SetPlayerTechMaxAllowed(Player(0), o, -1)
+    call SetPlayerTechMaxAllowed(Player(1), EmpAiPadType[EmpEnemyHouse], -1)
+    call SetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD, 10000)
+    call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, 10000)
+    set r = CreateUnit(Player(0), '${all.units.rawcode.get('ATRefinery')}', EmpBaseX[0] + 600.0, EmpBaseY[0] + 600.0, 270.0)
+    call TriggerSleepAction(1.0)
+    call EmpAiLog("probe: player refinery hp " + I2S(BlzGetUnitMaxHP(r)) + " harvesters " + I2S(PadsProbeHarv(Player(0))) + " gold " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)))
+    call IssueImmediateOrderById(r, o)
+    call IssueImmediateOrderById(r, o)
+    call IssueImmediateOrderById(r, o)
+    call EmpAiLog("probe: AI refineries " + I2S(EmpAiCount(-2)) + " pad order -> " + I2S(EmpAiPadOrder()) + " player gold after 3 orders " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)))
+    // the third order ends past 3 x its time: its credits come back then
+    call TriggerSleepAction(${3 * (all.units.padOrders.find((p) => p.dock === 'ATRefineryDock')?.seconds ?? 29) - 4})
+    call EmpAiLog("probe: before the third, gold " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " pads " + I2S(EmpPadCountOf(r)))
+    call TriggerSleepAction(8.0)
+    call EmpAiLog("probe: after the third, gold " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " pads " + I2S(EmpPadCountOf(r)))
+    call EmpAiLog("probe: player pads " + I2S(EmpPadCountOf(r)) + " hp " + I2S(BlzGetUnitMaxHP(r)) + " harvesters " + I2S(PadsProbeHarv(Player(0))) + " gold " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)))
+    call EmpAiLog("probe: AI refineries and pads " + I2S(EmpAiCount(-2)) + " pads " + I2S(EmpPadCount(Player(1))))
+    set r = null
+endfunction`,
+  } : {}),
   // --critneeds: the builder's critical needs (ai.j EmpAiCritical): skill 99, strength 2; the AI report
   // logs EmpAiCritical() past 1 minute (refineries: want 3 > the template's), with the windtraps gone
   // (power) and with 3 ornithopters of the enemy house and its helipads gone (helipads)

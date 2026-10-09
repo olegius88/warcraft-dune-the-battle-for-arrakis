@@ -183,6 +183,12 @@
     integer array EmpAiBCount
     integer array EmpAiWall
     integer array EmpAiPower
+    // refinery pads (battle pads.j); the AI's pad order per house, its cost and time, one at a time
+    hashtable EmpPadTab = null
+    integer array EmpAiPadType
+    integer array EmpAiPadCost
+    real array EmpAiPadTime
+    boolean EmpAiPadBusy = false
     // the AI's map of tiles and its defence plan (battle ai-map.j)
     hashtable EmpAiMapTab = null
     integer EmpAiMapW = 0

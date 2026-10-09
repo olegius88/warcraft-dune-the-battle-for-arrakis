@@ -1025,8 +1025,11 @@ function EmpAiUnitCount takes nothing returns integer
 endfunction
 
 // ShouldBuildDefences (0x430c90), the critical needs asked by the caller.
-// TODO(ai): Game.exe's "savings holiday" ([money + 0x1c]) and its credits less the reserve
-// (0x4398e0) are the credits here. Risk: walls start a little earlier.
+// TODO(ai): Game.exe's money manager is not ported: 0x4398e0 is (credits +0x868 - reserve [money + 0xc])
+// >= MinMoneyToStartBuildingWalls and false in a "savings holiday" ([money + 0x1c]); 0x4395d0 (the
+// plan point's cost check) is that by the buildings' share [money + 0x8] %, set by the construction
+// modes of 0x42f07d ("Allocating all money to units", "... majority money to buildings", "... money
+// evenly"). Here the credits. Risk: walls start a little earlier and cost less of the unit budget.
 function EmpAiShouldDefend takes nothing returns boolean
     local integer c = EmpAiClN - 1
     local integer mins

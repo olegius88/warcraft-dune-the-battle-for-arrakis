@@ -221,7 +221,7 @@ test('building upgrades: researched by the building, required by UpgradedPrimary
   assert.strictEqual(all.rules.objects.get('ATKindjal')?.upgradedPrimaryRequired, true);
   assert.strictEqual(all.rules.objects.get('ATInfantry')?.upgradedPrimaryRequired, false);
   const up = all.units.upgrades;
-  assert.strictEqual(up.length, 20, 'every building with an UpgradeCost');
+  assert.strictEqual(up.length, 17, 'every building with an UpgradeCost but the three refinery pads (orders: pads.j)');
   const atUp = up.find((u) => u.building === 'ATBarracks');
   assert.ok(atUp && atUp.cost === 800 && atUp.techLevel === 3);
   const objOf = (name: string) => all.units.objects.find((o) => o.id === all.units.rawcode.get(name));
@@ -236,7 +236,7 @@ test('building upgrades: researched by the building, required by UpgradedPrimary
   const w3q = all.units.w3q.toString('latin1');
   assert.strictEqual((w3q.match(/gub1/g) ?? []).length, up.length, 'every upgrade has its extended tooltip');
   // upgrade time: UpgradeBuildTime, else the building's own BuildTime
-  assert.strictEqual(up.find((u) => u.building === 'HKRefineryDock')?.seconds, 720 / 25);
+  assert.strictEqual(all.units.padOrders.find((p) => p.dock === 'HKRefineryDock')?.seconds, 720 / 25, 'the pad order takes UpgradeBuildTime');
   assert.strictEqual(atUp.seconds, (all.rules.objects.get('ATBarracks')?.buildTime ?? 0) / 25);
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'upgrades', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
@@ -1483,4 +1483,29 @@ test('the AI walls its base along its AI map\'s contour (Game.exe defence plan)'
   assert.ok(body('EmpAiBuild').includes('>= 500') && body('EmpAiBuild').includes('>= 20'), 'stays walling');
   assert.ok(!m.script.includes('function EmpAiWalls takes'), 'no invented wall rows');
   assert.ok(body('EmpTplBuild').includes('call ExecuteFunc("EmpAiMapAdd")') && body('EmpAiFinish').includes('call ExecuteFunc("EmpAiMapAdd")'), 'every building on the map');
+});
+
+// Refinery pads were unreachable: the dock ([ATRefineryDock], Dockable, UpgradeCost 1200) became a
+// building nothing builds with an upgrade of its own. In Game.exe 1.09 a pad is an upgrade order of
+// the dock type (0x4c21c0 -> 0x53cb90; UpgradeCost, UpgradeBuildTime, UpgradeTechLevel) that fills one
+// of two slots of a refinery (0x485c00: + its Health, keeping the percentage), GetUnitWhenBuilt brings a
+// harvester, and the AI counts pads as refineries (0x44cc40) and orders one for its critical need.
+test('refinery pads: an order of the refinery, two per refinery, counted by the AI (Game.exe)', opts, () => {
+  const all = loadAll();
+  const pad = all.units.padOrders.find((p) => p.dock === 'ATRefineryDock');
+  assert.ok(pad, 'a pad order of the Atreides dock');
+  assert.strictEqual(pad.refinery, all.units.rawcode.get('ATRefinery'));
+  const obj = all.units.objects.find((o) => o.id === pad.id);
+  const field = (f: string) => obj?.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1);
+  assert.deepStrictEqual([field('ugol'), field('ubld')], ['1200', '29'], 'UpgradeCost, UpgradeBuildTime');
+  const ref = all.units.objects.find((o) => o.id === pad.refinery);
+  assert.ok(ref?.mods.filter((m) => m.field === 'utra').at(-1)?.value.toString().split(',').includes(pad.id), 'the refinery trains it');
+  assert.ok(!all.units.upgrades.some((u) => u.building === 'ATRefineryDock'), 'no upgrade of its own');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'pads', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(m.script.includes(`if EmpTechLevel < 3 then`) && m.script.includes(`call SetPlayerTechMaxAllowed(Player(i), '${pad.id}', 0)`), 'UpgradeTechLevel');
+  assert.ok(body('EmpPadAttach').includes('BlzSetUnitMaxHP') && body('EmpPadAttach').includes(`< ${2}`), 'two slots, + health');
+  assert.ok(body('EmpAiCount').includes('EmpPadCount'), 'pads count as refineries for the AI');
+  assert.ok(body('EmpAiCritical').includes('EmpAiPadOrder()'), 'the AI orders pads');
 });

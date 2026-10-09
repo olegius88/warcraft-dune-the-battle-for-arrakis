@@ -2,6 +2,7 @@ function EmpBattleInit takes nothing returns nothing
     local trigger tr
     local integer i
     call EmpTechLimits()
+    call EmpPadInit()
     call EmpSpiceFields()
     set tr = CreateTrigger()
     set i = 0

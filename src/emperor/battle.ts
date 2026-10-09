@@ -72,6 +72,7 @@ import { jassFile } from '../config/paths.ts';
 import { HOUSE_CODES, CODE_BY_HOUSE } from '../config/houses.ts';
 import { EMPEROR_TILE, TICKS_PER_SECOND, TICK_SECONDS, WC3_UNITS_PER_TILE, HP_DIVISOR, moveSpeed } from '../config/scale.ts';
 import { aiMapRuns, occupyCells } from './ai-map.ts';
+import { REFINERY_PAD } from '../config/units.ts';
 import { TERRAIN, UNIT_FIELD, ART_ABILITY, EFFECT, ABILITY } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import type { WormRules, Rules, RulesObject } from './rules.ts';
@@ -185,6 +186,8 @@ function battleSetup(o: BattleOptions): BattleSetup {
     const lvl = o.units.objects.find((x) => x.id === real)?.emperor?.techLevel ?? 1;
     if (lvl > 1) (byLevel[lvl] = byLevel[lvl] || []).push(order);
   }
+  // refinery pad orders wait for the dock's UpgradeTechLevel
+  for (const p of o.units.padOrders ?? []) if (p.techLevel > 1) (byLevel[p.techLevel] = byLevel[p.techLevel] || []).push(p.id);
   // building upgrades wait for their UpgradeTechLevel
   for (const u of o.units.upgrades) if (u.techLevel > 1) (byLevel[u.techLevel] = byLevel[u.techLevel] || []).push(u.id);
   fns.push(jass('tech-limits', {
@@ -198,6 +201,12 @@ function battleSetup(o: BattleOptions): BattleSetup {
   const spiceValue = Number(o.rules?.general.SpiceValue ?? 0) || C.FALLBACK_SPICE_VALUE;
   // spice mounds of the map (Rules.txt [SpiceMound]; ticks -> seconds)
   const mound = o.rules?.spiceMound ?? { health: 0, minTicks: 0, randomTicks: 0, radiusTiles: 0, capacity: 0, delayTicks: 0, regrowMin: 0, regrowMax: 0 };
+  // refinery pads (pads.j): the order's refinery type, the hit points a pad adds, its unit, its cost
+  fns.push(jass('pads', {
+    REFINERY_PAD,
+    padLines: (o.units.padOrders ?? []).map((p) => [`    call SaveInteger(EmpPadTab, '${p.id}', 0, '${p.refinery}')`, `    call SaveInteger(EmpPadTab, '${p.id}', 1, ${p.health})`,
+      `    call SaveInteger(EmpPadTab, '${p.id}', 2, ${p.unit ? `'${p.unit}'` : 0})`, `    call SaveInteger(EmpPadTab, '${p.id}', 3, ${p.cost})`].join('\n')).join('\n'),
+  }));
   fns.push(jass('spice-fields', {
     fieldLines: clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, ${FACING})\n    call SetResourceAmount(m, ${c.tiles * spiceValue})`; }).join('\n'),
     moundLines: (o.rules ? o.meta.spiceMounds ?? [] : []).map(([tx, ty]) => { const [x, y] = o.terrain.toWorld(tx, ty); return `    call EmpMoundAdd(${real(x)}, ${real(y)})`; }).join('\n'),
@@ -347,6 +356,9 @@ endfunction`;
     const helipad = [...(o.rules?.objects.values() ?? [])].find((r) => r.name.startsWith(h) && /^true$/i.test((r.raw.Helipad ?? '').trim()));
     const pad = helipad ? rc(helipad.name) : undefined;
     aiLines.push(`    set EmpAiRefinery[${hi}] = ${refinery ? `'${refinery}'` : 0}`, `    set EmpAiHelipad[${hi}] = ${pad ? `'${pad}'` : 0}`);
+    // its refinery pad order (pads.j)
+    const padOrder = (o.units.padOrders ?? []).find((p) => p.refinery === refinery);
+    if (padOrder) aiLines.push(`    set EmpAiPadType[${hi}] = '${padOrder.id}'`, `    set EmpAiPadCost[${hi}] = ${padOrder.cost}`, `    set EmpAiPadTime[${hi}] = ${real(padOrder.seconds)}`);
     // the buildings the AI builds or rebuilds pay their Rules.txt Cost too
     for (const r of own) buildingCost.push(`    call SaveInteger(EmpCostTab, '${rc(r.name)}', 0, ${r.cost})`);
   });

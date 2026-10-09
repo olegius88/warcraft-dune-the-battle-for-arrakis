@@ -74,6 +74,10 @@ function EmpAiCount takes integer c returns integer
     endloop
     call DestroyGroup(g)
     set g = null
+    // refineries: their pads count too (Game.exe 0x44cc40)
+    if c == -2 then
+        set n = n + EmpPadCount(Player(1))
+    endif
     return n
 endfunction
 
@@ -332,6 +336,36 @@ function EmpAiCriticalBarracks takes nothing returns integer
     return t
 endfunction
 
+// a refinery pad done (EmpAiPadOrder)
+function EmpAiPadDone takes nothing returns nothing
+    set EmpAiPadBusy = false
+    call EmpPadAttach(Player(1), EmpAiPadType[EmpEnemyHouse], null)
+    call EmpAiLog("pad done, refineries and pads " + I2S(EmpAiCount(-2)))
+    call DestroyTimer(GetExpiredTimer())
+endfunction
+
+// the critical need's pad (0x42da33..0x42da92): -1 when one is on its way or ordered now, 0 when the
+// side may order none (its tech level, no refinery with a free slot)
+function EmpAiPadOrder takes nothing returns integer
+    local integer o = EmpAiPadType[EmpEnemyHouse]
+    if EmpAiPadBusy then
+        return -1
+    endif
+    if o == 0 or GetPlayerTechMaxAllowed(Player(1), o) == 0 or EmpPadFree(Player(1), LoadInteger(EmpPadTab, o, 0), null) == null then
+        return 0
+    endif
+    if EmpEnemyGold() < EmpAiPadCost[EmpEnemyHouse] then
+        set EmpAiReserve = EmpAiPadCost[EmpEnemyHouse]
+        call EmpAiWait(6, "gold " + I2S(EmpEnemyGold()) + " < pad " + I2S(EmpAiPadCost[EmpEnemyHouse]))
+        return -1
+    endif
+    call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, EmpEnemyGold() - EmpAiPadCost[EmpEnemyHouse])
+    set EmpAiPadBusy = true
+    call TimerStart(CreateTimer(), EmpAiPadTime[EmpEnemyHouse], false, function EmpAiPadDone)
+    call EmpAiLog("pad ordered")
+    return -1
+endfunction
+
 // the builder's critical needs (Game.exe 1.09 0x42d6e0, in its order): refineries by time
 // (C.AI_CRITICAL_REFINERY), power (ai.ini ExtraPower), helipads (C.AI_CRITICAL_HELIPAD), barracks;
 // the type to build at once, else 0. The emergency MCV comes first there (no construction yard):
@@ -350,11 +384,11 @@ function EmpAiCritical takes nothing returns integer
 {{refineryLevels}}
     if want > EmpAiCount(-2) then
         call EmpAiLog("critical: more refineries or refinery pads required")
-        // with refineries Game.exe adds a pad (the dock upgrade, 0x438fc0) where the side may; the
-        // pads are nobody's here, so another refinery, as Game.exe does without one (0x42daa3)
-        // TODO(ai): refinery pads (Rules.txt [<house>RefineryDock], Dockable, UpgradeCost) are not
-        // built by the player or the AI: the converted dock is a building nothing builds and its
-        // upgrade belongs to it (units.ts). Risk: fewer harvesters per refinery than in Emperor.
+        // with refineries a pad where the side may order one (0x42da33: nothing more is asked then,
+        // no critical building), else another refinery (0x42daa3)
+        if EmpAiCount(-2) > 0 and EmpAiPadOrder() != 0 then
+            return 0
+        endif
         set t = EmpAiRefinery[EmpEnemyHouse]
         if t != 0 and GetPlayerTechMaxAllowed(Player(1), t) != 0 then
             return t

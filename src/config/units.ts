@@ -88,6 +88,10 @@ export const ALLY_BUILDER_NAME = 'Строитель союзников';
  * the unit itself comes with the frigate (mission starport.j). Name: the unit's + suffix. */
 export const PORT_ORDER_SECONDS = 1;
 export const PORT_ORDER_SUFFIX = ' (заказ)';
+/** Refinery pads (src/emperor/units.ts padOrders, mission pads.j): Game.exe 1.09 gives a refinery two
+ * slots for pads (building +0xa8 / +0xac, 0x485c00); the pad's GetUnitWhenBuilt comes by the refinery
+ * (Game.exe: a carryall brings it to the new dock, 0x597f50). */
+export const REFINERY_PAD = { slots: 2 } as const;
 /** Name of a building upgrade (war3map.w3q): prefix + the building's name. */
 export const UPGRADE_NAME_PREFIX = 'Улучшение: ';
 /** Extended tooltip of a building upgrade: the types it unlocks. */
