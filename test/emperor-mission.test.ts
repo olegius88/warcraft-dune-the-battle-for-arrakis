@@ -12,6 +12,8 @@ import { buildMission } from '../src/emperor/mission.ts';
 import { loadCampaign, defendVariant } from '../src/emperor/campaign-data.ts';
 import { superweapons } from '../src/emperor/superweapons.ts';
 import { specialAbilities } from '../src/emperor/specials.ts';
+import { weaponOf } from '../src/emperor/units.ts';
+import { RANGE_PER_TILE } from '../src/config/scale.ts';
 import { UI_EVENTS } from '../src/config/runtime.ts';
 import * as RT from '../src/config/runtime.ts';
 import modelModule from 'mdx-m3-viewer/dist/cjs/parsers/mdlx/model.js';
@@ -149,7 +151,49 @@ test('veterancy ExtraRange turns the unit into a longer-range copy of its type',
   // every other type lookup goes through EmpType (a comparison with 0 asks whether the unit still
   // exists: the WC3 type itself)
   const raw = m.script.split(/\nfunction /).filter((f) => f.replace(/GetUnitTypeId\([^()]*(\([^()]*\))?\) [!=]= 0/g, '').includes('GetUnitTypeId(')).map((f) => f.split(' ')[0]);
-  assert.deepStrictEqual(raw.filter((f) => !['EmpType', 'EmpAlive', 'EmpVetApply', 'EmpVetMorphed'].includes(f as string)), [], 'raw GetUnitTypeId only where the WC3 type itself is meant');
+  assert.deepStrictEqual(raw.filter((f) => !['EmpType', 'EmpAlive', 'EmpVetApply', 'EmpVetMorphed', 'EmpVetRestore', 'EmpDmgHit', 'EmpDeployed'].includes(f as string)), [], 'raw GetUnitTypeId only where the WC3 type itself is meant');
+});
+
+// Deployable units (Rules.txt DeployInf: ATKindjal, ORMortar; Kobra: ORKobra) were armed with their
+// first turret only: a Kindjal fought with its pistol (range 5) and never with the deployed gun
+// (Kindjal_B, range 12); the Kobra never reached its 16-tile howitzer. Their turrets carry
+// TurretDisableIfUnitDeployed / ...Undeployed (Game.exe 1.09 turret parser 0x529c20 / 0x529c3c).
+// Guaranteed now: each has a deployed copy of its type armed with the turret it fires when deployed,
+// which does not move (Game.exe refuses a move while deployed, 0x55eea1); a Channel button on each
+// form casts the Chaos morph into the other (Bear Form did not work in 1.31.1: probe --deploy); the
+// copy counts as its Emperor type (EmpType) but deals its own weapon's warhead damage.
+test('deployable units get a deployed type with the deployed turret and a morph between the two', opts, () => {
+  const all = loadAll();
+  const k = all.rules.objects.get('ATKindjal');
+  assert.ok(k);
+  assert.deepStrictEqual(k.turrets.map((t) => [t.name, t.disableIfDeployed, t.disableIfUndeployed]), [['ATKindjalGun', true, false], ['ATKindjalBigGun', false, true]]);
+  assert.strictEqual(weaponOf(k)?.bullet?.name, 'Pistol_B');
+  assert.strictEqual(weaponOf(k, true)?.bullet?.name, 'Kindjal_B');
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  assert.deepStrictEqual(all.units.deploy.map((d) => d.type).sort(), ['ATKindjal', 'ORKobra', 'ORMortar'].map(id).sort(), 'DeployInf and Kobra types only');
+  const kd = all.units.deploy.find((d) => d.type === id('ATKindjal'));
+  assert.ok(kd);
+  const obj = (i: string) => all.units.objects.find((o) => o.id === i);
+  const field = (i: string, f: string): string => obj(i)?.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  assert.strictEqual(obj(kd.deployed)?.base, obj(kd.type)?.base);
+  assert.strictEqual(Number(field(kd.deployed, 'ua1r')), 12 * RANGE_PER_TILE, 'Kindjal_B MaxRange 12');
+  assert.strictEqual(Number(field(kd.type, 'ua1r')), 5 * RANGE_PER_TILE, 'Pistol_B MaxRange 5');
+  assert.strictEqual(Number(field(kd.deployed, 'umvs')), 0, 'a deployed unit stands');
+  assert.strictEqual(field(kd.deployed, 'unam'), field(kd.type, 'unam'), 'same name');
+  assert.ok(field(kd.type, 'uabi').split(',').includes(kd.deploy), 'deploy button on the normal form');
+  assert.ok(field(kd.deployed, 'uabi').split(',').includes(kd.undeploy), 'undeploy button on the deployed form');
+  const w3a = all.units.w3a.toString('latin1');
+  assert.ok(w3a.includes(`ANcl${kd.deploy}`) && w3a.includes(`ANcl${kd.undeploy}`), 'buttons made from Channel');
+  assert.ok(w3a.includes(`Sca1${kd.toDeployed}`) && w3a.includes(`Cha1\u0003\0\0\0\u0001\0\0\0\0\0\0\0${kd.deployed}\0`), 'Chaos morph into the deployed copy');
+  assert.ok(w3a.includes(`Sca1${kd.toNormal}`) && w3a.includes(`Cha1\u0003\0\0\0\u0001\0\0\0\0\0\0\0${kd.type}\0`), 'Chaos morph back');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'deploy', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call EmpDeployRegister('${kd.type}', '${kd.deployed}', '${kd.deploy}', '${kd.undeploy}', '${kd.toDeployed}', '${kd.toNormal}', ${12 * RANGE_PER_TILE}.0)`), 'deployed type registered');
+  // 80mmGun_W (Kindjal_B) vs LMG_W (Pistol_B): the deployed copy has its own percentages
+  assert.notStrictEqual(all.rules.sections.get('80mmgun_w')?.entries.find(([a]) => a === 'Heavy')?.[1], all.rules.sections.get('lmg_w')?.entries.find(([a]) => a === 'Heavy')?.[1]);
+  assert.ok(m.script.includes(`call SaveInteger(EmpDmgTab, '${kd.deployed}', ${RT.DMG_PCT_KEY + 1}, `), 'deployed weapon percentages');
+  const body = (name: string): string => m.script.split(`function ${name} takes`)[1]?.split('endfunction')[0] ?? '';
+  assert.match(body('EmpDmgHit'), /GetUnitTypeId\(s\)/, 'the attacker form itself picks the warhead');
 });
 
 // StealthedWhenStill (scouts by type, ATSniper at veterancy level 3) and AIThreat were not modelled.
@@ -1541,6 +1585,24 @@ test('tactics start as in Game.exe: scout route, harvester and yard guards, no c
   assert.ok(tac.includes('EmpAiPersonality == 2') && tac.includes('(11 - EmpAiSkill) * 400') && tac.includes('GetRandomInt(0, 1499) < 25'), 'yard guard start');
   assert.ok(!tac.includes('EmpAiCYHit'), 'no invented yard alarm');
   assert.ok(!tac.includes('crate run'), 'no crate runs in the campaign');
+});
+
+// The AI never deployed its Kindjals, Mortars and Kobras (no deploy at all before). Game.exe 1.09 gives
+// the "Deployable" object set (objectsets.txt) a behaviour (0x465860, update 0x465a80): deploy when the
+// deployed weapon reaches a target, undeploy in an attack when it does not, deploy after standing still
+// NumTicksStandingStillUntilDeploy (ai.ini 160). Guaranteed now: the tactics tick runs these rules.
+test('the AI deploys its deployable units as Game.exe does', opts, () => {
+  const all = loadAll();
+  assert.strictEqual(all.ai?.ticksUntilDeploy, 160);
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'deploy ai', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpAiTactics').includes('call EmpAiDeployTick()'), 'run every tactics tick');
+  const tick = body('EmpAiDeployTick');
+  assert.ok(tick.includes('EmpAiEnemyNear(u, LoadReal(EmpDeployTab, EmpType(u), 4))'), 'target within the deployed range');
+  assert.ok(tick.includes('>= 160'), 'NumTicksStandingStillUntilDeploy');
+  assert.ok(body('EmpAiWave').includes('call EmpDeploySet(u, false)'), 'a wave unit undeploys before it moves');
+  assert.ok(body('EmpDeployArgs').includes('EmpDeployMorph(EmpDeployArgUnit, EmpDeployArgOn)'));
 });
 
 // The money the base builder saved (EmpAiReserve, ours: units spent only what was above it) was an

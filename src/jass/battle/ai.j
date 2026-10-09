@@ -864,6 +864,74 @@ function EmpAiResTeam takes unit u returns integer
     return t
 endfunction
 
+// an enemy of side 1 (the player) it sees within r of u
+function EmpAiEnemyNear takes unit u, real r returns boolean
+    local group g = CreateGroup()
+    local unit e
+    local boolean found = false
+    call GroupEnumUnitsInRange(g, GetUnitX(u), GetUnitY(u), r, null)
+    loop
+        set e = FirstOfGroup(g)
+        exitwhen e == null or found
+        call GroupRemoveUnit(g, e)
+        if EmpAlive(e) and GetOwningPlayer(e) == Player(0) and IsUnitVisible(e, Player(1)) and GetUnitAbilityLevel(e, '{{ABILITY.locust}}') == 0 then
+            set found = true
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    set e = null
+    return found
+endfunction
+
+// Deployable units (Game.exe 0x465a80, C.AI_DEPLOY): an enemy within the deployed weapon's range
+// deploys the unit; a wave unit with none undeploys and goes on; a unit standing still for
+// NumTicksStandingStillUntilDeploy deploys (mission deploy.j does the morph)
+function EmpAiDeployTick takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local integer h
+    local boolean near
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and EmpDeployable(u) then
+            set h = GetHandleId(u)
+            set near = EmpAiEnemyNear(u, LoadReal(EmpDeployTab, EmpType(u), 4))
+            if EmpDeployed(u) then
+                if not near and EmpAiRole(u) == 3 then
+                    call EmpDeploySet(u, false)
+                    if EmpAiForming then
+                        call IssuePointOrder(u, "move", EmpAiStageX, EmpAiStageY)
+                    else
+                        call IssuePointOrder(u, "attack", EmpAiKnownX, EmpAiKnownY)
+                    endif
+                endif
+                call SaveInteger(EmpWaveTab, h, {{C.AI_DEPLOY.keyStill}}, 0)
+            elseif near then
+                call EmpAiLog("deploy " + GetUnitName(u) + ": a target in range")
+                call EmpDeploySet(u, true)
+            else
+                if GetUnitCurrentOrder(u) == 0 and GetUnitX(u) == LoadReal(EmpWaveTab, h, {{C.AI_DEPLOY.keyX}}) and GetUnitY(u) == LoadReal(EmpWaveTab, h, {{C.AI_DEPLOY.keyY}}) then
+                    call SaveInteger(EmpWaveTab, h, {{C.AI_DEPLOY.keyStill}}, LoadInteger(EmpWaveTab, h, {{C.AI_DEPLOY.keyStill}}) + R2I({{real C.AI_TACTIC_PERIOD}} * {{TPS}}))
+                else
+                    call SaveInteger(EmpWaveTab, h, {{C.AI_DEPLOY.keyStill}}, 0)
+                endif
+                if LoadInteger(EmpWaveTab, h, {{C.AI_DEPLOY.keyStill}}) >= {{ai.ticksUntilDeploy}} then
+                    call EmpAiLog("deploy " + GetUnitName(u) + ": standing still")
+                    call EmpDeploySet(u, true)
+                endif
+            endif
+            call SaveReal(EmpWaveTab, h, {{C.AI_DEPLOY.keyX}}, GetUnitX(u))
+            call SaveReal(EmpWaveTab, h, {{C.AI_DEPLOY.keyY}}, GetUnitY(u))
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
 function EmpAiTactics takes nothing returns nothing
     local group g = CreateGroup()
     local unit u
@@ -1042,6 +1110,7 @@ function EmpAiTactics takes nothing returns nothing
         call DestroyGroup(g)
         set g = null
     endif
+    call EmpAiDeployTick()
     set harv = null
     set threat = null
     set best = null
@@ -1089,6 +1158,8 @@ function EmpAiWave takes nothing returns nothing
         if EmpAiHomeUnit(u) and n < send then
             call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 3)
             call SaveBoolean(EmpWaveTab, GetHandleId(u), 0, stay)
+            // a deployed unit cannot move (Game.exe 0x55eea1): it undeploys first (EmpAiDeployTick)
+            call EmpDeploySet(u, false)
             call IssuePointOrder(u, "move", EmpAiStageX, EmpAiStageY)
             set n = n + 1
         endif

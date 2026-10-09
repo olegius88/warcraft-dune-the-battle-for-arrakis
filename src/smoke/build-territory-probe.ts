@@ -15,6 +15,7 @@ import { ART_ABILITY, TERRAIN, UNIT_FIELD } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import { EFFECT_MAX_RADIUS } from '../config/models.ts';
 import * as BATTLE from '../config/battle.ts';
+import { RANGE_PER_TILE } from '../config/scale.ts';
 
 // node src/smoke/build-territory-probe.ts <territory> [script ...]: the scripts (phase 1, 2, ...) too
 // flags as build-campaign.ts sets them: --briefing (of the first script), --no-icons, --autowin
@@ -27,6 +28,11 @@ const trike = all.units.rawcode.get('ATTrike') as string;
 const trikeOrder = [...all.units.portOrders].find(([, real]) => real === trike)?.[0] as string;
 // --vetrange: the trike's own attack range (WC3 units)
 const trikeRange = Number(all.units.objects.find((o) => o.id === trike)?.mods.filter((m) => m.field === UNIT_FIELD.range).at(-1)?.value);
+// --deploy: the Kindjal, its deployed copy and the toggle
+const kindjal = all.units.rawcode.get('ATKindjal') as string;
+const kindjalDeploy = all.units.deploy.find((d) => d.type === kindjal);
+const kindjalDeployed = kindjalDeploy?.deployed ?? '';
+const kindjalToggle = kindjalDeploy?.deploy ?? '';
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
 const fxShown = [...new Map([...all.units.effects.values()].flatMap((fx) => fx.map((m, k) => [m, k] as const)).filter(([m, k]) => m && (!flag('--fxhits') || k === 2))).entries()];
 const meta = readMeta(path.join(ensureMap(territoryMapPrefix(n))[0] as string, 'test.xbf'));
@@ -128,6 +134,123 @@ function VetRangeRun takes nothing returns nothing
     call Preload(VetRangeLog(b, 1))
     call Preload("trikes of player 0 counted " + I2S(EmpCount('${trike}', 0)))
     call PreloadGenEnd("DuneSmoke\\\\vetrange.pld")
+endfunction`,
+  } : {}),
+  // --deploy: a Kindjal raised to level 1 (ExtraDamage 50 %) deploys by its button, then attacks
+  // a paused target 10 tiles away (beyond its pistol's 5, within Kindjal_B's 12), is told to move,
+  // and undeploys: the type, damage, speed and the target's loss after each step
+  ...(flag('--deploy') ? {
+    extraStart: 'DeployProbeRun',
+    extraFunctions: `function DeployProbeB takes boolean b returns string
+    if b then
+        return "yes"
+    endif
+    return "no"
+endfunction
+
+function DeployProbeLog takes string at, unit s, unit t returns string
+    return at + " wc3 type " + I2S(GetUnitTypeId(s)) + " emp type " + I2S(EmpType(s)) + " deployed " + DeployProbeB(EmpDeployed(s)) + " damage " + I2S(BlzGetUnitBaseDamage(s, 0)) + " range " + R2S(BlzGetUnitWeaponRealField(s, UNIT_WEAPON_RF_ATTACK_RANGE, 0)) + " speed " + R2S(GetUnitMoveSpeed(s)) + " x " + R2S(GetUnitX(s)) + " target life " + R2S(GetWidgetLife(t)) + " cast seen " + DeployProbeB(HaveSavedInteger(EmpVetUnit, GetHandleId(s), 15)) + " order " + OrderId2String(GetUnitCurrentOrder(s))
+endfunction
+
+function DeployProbeRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit s
+    local unit t
+    local boolean ok
+    local string array l
+    local integer n = 0
+    local integer i = 0
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(2.0)
+    set s = CreateUnit(Player(0), '${kindjal}', x, y, 0.0)
+    set t = CreateUnit(Player(1), '${kindjal}', x + ${10 * RANGE_PER_TILE}, y, 180.0)
+    call PauseUnit(t, true)
+    set EmpVetArgUnit = s
+    set EmpVetArgLevel = 1
+    call EmpVetSetFromArgs()
+    set l[n] = "kindjal ${kindjal} deployed ${kindjalDeployed} toggle ${kindjalToggle}"
+    set n = n + 1
+    set l[n] = DeployProbeLog("start", s, t)
+    set n = n + 1
+    call IssueImmediateOrder(s, "holdposition")
+    set ok = IssueImmediateOrder(s, "channel")
+    set l[n] = "deploy button cast " + DeployProbeB(ok)
+    set n = n + 1
+    call TriggerSleepAction(0.5)
+    set l[n] = DeployProbeLog("0.5 s", s, t)
+    set n = n + 1
+    call IssueTargetOrder(s, "attack", t)
+    call TriggerSleepAction(6.0)
+    set l[n] = DeployProbeLog("attacked 6 s", s, t)
+    set n = n + 1
+    call IssuePointOrder(s, "move", x, y + 800.0)
+    call TriggerSleepAction(3.0)
+    set l[n] = DeployProbeLog("move 3 s", s, t)
+    set n = n + 1
+    set ok = IssueImmediateOrder(s, "channel")
+    set l[n] = "undeploy button cast " + DeployProbeB(ok)
+    set n = n + 1
+    call TriggerSleepAction(1.0)
+    set l[n] = DeployProbeLog("undeployed 1 s", s, t)
+    set n = n + 1
+    call IssuePointOrder(s, "move", x, y + 800.0)
+    call TriggerSleepAction(3.0)
+    set l[n] = DeployProbeLog("move 3 s", s, t)
+    set n = n + 1
+    call EmpDeploySet(s, true)
+    call TriggerSleepAction(1.0)
+    set l[n] = DeployProbeLog("deployed again by script 1 s", s, t)
+    set n = n + 1
+    call EmpDeploySet(s, false)
+    call TriggerSleepAction(1.0)
+    set l[n] = DeployProbeLog("undeployed again 1 s", s, t)
+    set n = n + 1
+    call PreloadGenClear()
+    call PreloadGenStart()
+    loop
+        exitwhen i >= n
+        call Preload(l[i])
+        set i = i + 1
+    endloop
+    call PreloadGenEnd("DuneSmoke\\\\deploy.pld")
+endfunction`,
+  } : {}),
+  // --deployai: two Kindjals of the AI by its base: one with a paused player trike 10 tiles off (in
+  // the deployed range: deploys at once), one alone (deploys after standing still 160 ticks)
+  ...(flag('--deployai') ? {
+    extraStart: 'DeployAiRun',
+    extraFunctions: `function DeployAiLine takes string at, unit a, unit b returns string
+    return at + " near: type " + I2S(GetUnitTypeId(a)) + " deployed " + I2S(IntegerTertiaryOp(EmpDeployed(a), 1, 0)) + " | alone: type " + I2S(GetUnitTypeId(b)) + " deployed " + I2S(IntegerTertiaryOp(EmpDeployed(b), 1, 0)) + " order " + OrderId2String(GetUnitCurrentOrder(b))
+endfunction
+
+function DeployAiRun takes nothing returns nothing
+    local integer k = EmpBaseOfSide(1)
+    local real x = EmpBaseX[k]
+    local real y = EmpBaseY[k]
+    local unit a
+    local unit b
+    local unit t
+    local string s1
+    local string s2
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(2.0)
+    set a = CreateUnit(Player(1), '${kindjal}', x + 1500.0, y, 0.0)
+    set t = CreateUnit(Player(0), '${trike}', x + 1500.0 + ${10 * RANGE_PER_TILE}, y, 180.0)
+    call PauseUnit(t, true)
+    set b = CreateUnit(Player(1), '${kindjal}', x - 1500.0, y, 0.0)
+    call TriggerSleepAction(4.0)
+    set s1 = DeployAiLine("4 s", a, b)
+    call TriggerSleepAction(10.0)
+    set s2 = DeployAiLine("14 s", a, b)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload("trike life " + R2S(GetWidgetLife(t)))
+    call PreloadGenEnd("DuneSmoke\\\\deployai.pld")
 endfunction`,
   } : {}),
   // --port: a starport sells trike orders at the current price (Rules.txt Cost * EmpPortPct %); a

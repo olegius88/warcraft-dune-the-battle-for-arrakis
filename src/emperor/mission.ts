@@ -30,7 +30,7 @@ import { HOUSE_ID, HOUSES, HOUSE_COLOR, OTHER_ENEMY_COLOR, CODE_BY_HOUSE, HOUSE_
 import { CACHE_FILE, CACHE_KEY, SUBHOUSE_TAGS, SUBHOUSE_BUILDINGS, ALLYGAIN_TAGS, ALLYGAIN_KEY, ALLYBREAK_KEY, DEFAULT_ENEMY, J_CACHE_CATEGORY as CAT, J_CACHE_KEY as K, KIND_ID, DEFAULT_PHASE, DEFAULT_TECH, START_MISSION_PHASE, START_MISSION_TECH } from '../config/campaign.ts';
 import type { MissionKind } from '../config/campaign.ts';
 import * as RT from '../config/runtime.ts';
-import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, DAMAGE_DIVISOR, ARMOR_REDUCTION, moveSpeed } from '../config/scale.ts';
+import { TICK_SECONDS, TICKS_PER_SECOND, REPAIR_PERIOD_TICKS, EMPEROR_TILE, WC3_UNITS_PER_TILE, HP_DIVISOR, DAMAGE_DIVISOR, ARMOR_REDUCTION, RANGE_PER_TILE, moveSpeed } from '../config/scale.ts';
 import { UNIT, DESTRUCTABLE, ITEM, EFFECT, ICON, ART_ABILITY, ABILITY } from '../config/wc3.ts';
 import { EFFECT_MAX_RADIUS } from '../config/models.ts';
 import * as SC from '../config/scenery.ts';
@@ -323,6 +323,13 @@ function buildMission(p: MissionParams): BuiltMission {
     const warhead = weaponOf(o)?.bullet?.warhead?.name;
     if (warhead) dmgLines.push(...pctLines(id, RT.DMG_PCT_KEY, warhead).map((l) => l.replace('EmpSwTab', 'EmpDmgTab')));
   }
+  // a deployed copy fires its own turret (units.ts deploy): its percentages under its own WC3 type
+  const deployLines: string[] = [];
+  for (const d of p.units.deploy ?? []) {
+    const warhead = d.weapon.bullet?.warhead?.name;
+    if (warhead) dmgLines.push(...pctLines(d.deployed, RT.DMG_PCT_KEY, warhead).map((l) => l.replace('EmpSwTab', 'EmpDmgTab')));
+    deployLines.push(`    call EmpDeployRegister('${d.type}', '${d.deployed}', '${d.deploy}', '${d.undeploy}', '${d.toDeployed}', '${d.toNormal}', ${real(Math.max(1, d.weapon.bullet?.range ?? 1) * RANGE_PER_TILE)})`);
+  }
   const sws = p.rules ? superweapons(p.rules) : [];
   if (sws.length) {
     for (const o of p.rules ? p.rules.objects.values() : []) {
@@ -479,7 +486,7 @@ function buildMission(p: MissionParams): BuiltMission {
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -500,6 +507,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('stealth'),
     jass('superweapon'),
     jass('damage'),
+    jass('deploy'),
     jass('subhouse'),
     jass('specials'),
     jass('starport'),

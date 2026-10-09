@@ -38,6 +38,10 @@ export interface Turret {
   reload: number;
   bullet: Bullet | null;
   ammo: number;
+  /** TurretDisableIfUnitDeployed / ...Undeployed: the turret fires only in the other state of a
+   * deployable unit (ATKindjal, ORMortar: DeployInf; ORKobra: Kobra) */
+  disableIfDeployed: boolean;
+  disableIfUndeployed: boolean;
 }
 
 export interface VeterancyLevel {
@@ -289,7 +293,8 @@ function loadRules(rulesPath: string): Rules {
     const s = sec(name);
     if (!s) return null;
     const t = baseValues(s).single;
-    return { name, reload: num(t.ReloadCount, 50), bullet: bullet(t.Bullet), ammo: num(t.Ammo) };
+    return { name, reload: num(t.ReloadCount, 50), bullet: bullet(t.Bullet), ammo: num(t.Ammo),
+      disableIfDeployed: bool(t.TurretDisableIfUnitDeployed), disableIfUndeployed: bool(t.TurretDisableIfUnitUndeployed) };
   };
 
   const objects = new Map<string, RulesObject>();

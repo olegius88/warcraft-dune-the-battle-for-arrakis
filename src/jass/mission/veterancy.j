@@ -4,8 +4,9 @@
 // level L at L*VET_SLOT_STRIDE + 1..9.
 // EmpVetUnit[handle id]: 0 = score so far, 1 = level, 2..3 = original damage/armour,
 // 6 = stealthed when still (veterancy), 7..8 = last x/y, 10 = still since (tick), 9 = last shot (tick),
-// 11..13 = damage / speed / regeneration the veterancy set (put back after a morph), 14 = ExtraRange %
-// the unit has, 15 = its WC3 type before the morph, 16 = the elite effect.
+// 11 = ExtraDamage % the veterancy set, 12..13 = speed / regeneration it set (all put back after a
+// morph), 14 = ExtraRange % the unit has, 15 = the WC3 type a morph turns it into, 16 = the elite
+// effect, 17 = the WC3 type whose base damage child 2 holds (a deployed form has another, deploy.j).
 // ExtraRange: a level with it turns the unit into the veteran copy of its type (EmpVetRangeType,
 // child RT.VET_MORPH_KEY + % = the Chaos ability). The unit stays the same one, but the morph resets
 // damage, speed, regeneration and added abilities (src/smoke/build-morph-probe.ts, 2026-10-08):
@@ -49,10 +50,16 @@ endfunction
 // what the veterancy set on u, again: a morph resets it to the veteran type's own values
 function EmpVetRestore takes unit u returns nothing
     local integer h = GetHandleId(u)
-    if HaveSavedInteger(EmpVetUnit, h, 11) then
-        call BlzSetUnitBaseDamage(u, LoadInteger(EmpVetUnit, h, 11), 0)
+    // the new form's own base damage (a morph reset it), plus the ExtraDamage %
+    if LoadBoolean(EmpVetUnit, h, 5) and GetUnitTypeId(u) != LoadInteger(EmpVetUnit, h, 17) then
+        call SaveInteger(EmpVetUnit, h, 2, BlzGetUnitBaseDamage(u, 0))
+        call SaveInteger(EmpVetUnit, h, 17, GetUnitTypeId(u))
     endif
-    if HaveSavedInteger(EmpVetUnit, h, 12) then
+    if HaveSavedInteger(EmpVetUnit, h, 11) then
+        call BlzSetUnitBaseDamage(u, R2I(LoadInteger(EmpVetUnit, h, 2) * (100 + LoadInteger(EmpVetUnit, h, 11)) / 100.0), 0)
+    endif
+    // (a deployed form stands: speed 0 of its type, units.ts DEPLOY)
+    if HaveSavedInteger(EmpVetUnit, h, 12) and GetUnitDefaultMoveSpeed(u) > 0.0 then
         call SetUnitMoveSpeed(u, LoadInteger(EmpVetUnit, h, 12))
     endif
     if HaveSavedReal(EmpVetUnit, h, 13) then
@@ -98,6 +105,7 @@ function EmpVetApply takes unit u, integer lv returns nothing
     local real pct
     if not LoadBoolean(EmpVetUnit, h, 5) then
         call SaveInteger(EmpVetUnit, h, 2, BlzGetUnitBaseDamage(u, 0))
+        call SaveInteger(EmpVetUnit, h, 17, GetUnitTypeId(u))
         call SaveReal(EmpVetUnit, h, 3, BlzGetUnitArmor(u))
         call SaveBoolean(EmpVetUnit, h, 5, true)
     endif
@@ -109,8 +117,8 @@ function EmpVetApply takes unit u, integer lv returns nothing
     endif
     set v = LoadInteger(EmpVet, t, b + 3)
     if v > 0 then
-        call SaveInteger(EmpVetUnit, h, 11, R2I(LoadInteger(EmpVetUnit, h, 2) * (100 + v) / 100.0))
-        call BlzSetUnitBaseDamage(u, LoadInteger(EmpVetUnit, h, 11), 0)
+        call SaveInteger(EmpVetUnit, h, 11, v)
+        call BlzSetUnitBaseDamage(u, R2I(LoadInteger(EmpVetUnit, h, 2) * (100 + v) / 100.0), 0)
     endif
     set v = LoadInteger(EmpVet, t, b + 4)
     if v > 0 and v < 100 then
@@ -121,7 +129,9 @@ function EmpVetApply takes unit u, integer lv returns nothing
     set v = LoadInteger(EmpVet, t, b + 6)
     if v > 0 then
         call SaveInteger(EmpVetUnit, h, 12, v)
-        call SetUnitMoveSpeed(u, v)
+        if GetUnitDefaultMoveSpeed(u) > 0.0 then
+            call SetUnitMoveSpeed(u, v)
+        endif
     endif
     if LoadReal(EmpVet, t, b + 7) > 0.0 then
         call SaveReal(EmpVetUnit, h, 13, LoadReal(EmpVet, t, b + 7))

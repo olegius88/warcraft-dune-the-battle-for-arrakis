@@ -58,6 +58,32 @@ export const ABILITY_FIELD = {
   /** Chaos: the type the unit turns into (common.j ABILITY_ILF_NEW_UNIT_TYPE = 'Cha1'; the UnitID1
    * column of AbilityData, so level 1 without a data column) */
   newUnitType: 'Cha1',
+  /** Channel (WurstStdlib2 objediting/AbilityObjEditing.wurst AbilityDefinitionIllidanChannel, per
+   * level, data columns 1..6): follow-through time, target type (0 none), options (bit 0 visible,
+   * presets/ChannelAbilityPreset.wurst Option), art duration, disable other abilities, base order */
+  channelFollowThrough: 'Ncl1',
+  channelTarget: 'Ncl2',
+  channelOptions: 'Ncl3',
+  channelArtDuration: 'Ncl4',
+  channelDisableOthers: 'Ncl5',
+  channelOrder: 'Ncl6',
+  /** hero ability flag and level count (level 0) */
+  hero: 'aher',
+  levels: 'alev',
+  /** common ability fields (AbilityObjEditing.wurst AbilityDefinition): icon, tooltips (level 1)
+   * and button cell, normal and turned-off; casting time and cooldown per level */
+  icon: 'aart',
+  iconOff: 'auar',
+  tooltip: 'atp1',
+  tooltipExtended: 'aub1',
+  tooltipOff: 'aut1',
+  tooltipOffExtended: 'auu1',
+  buttonX: 'abpx',
+  buttonY: 'abpy',
+  buttonOffX: 'aubx',
+  buttonOffY: 'auby',
+  castTime: 'acas',
+  cooldown: 'acdn',
 } as const;
 
 /** Upgrade object data fields (war3map.w3q), from WurstStdlib2 objediting/UpgradeObjEditing.wurst:
@@ -89,6 +115,11 @@ export const ABILITY = {
   invisibility: 'Apiv',
   /** Locust: not selectable, not targeted (AbilityData.slk of 1.31.1: Aloc "Locust"); the starport frigate */
   locust: 'Aloc',
+  /** Channel: a button that does nothing but cast (the deploy / undeploy buttons, mission deploy.j).
+   * Bear Form was tried first: in 1.31.1 its alternate form (Emeu) read 0 in game, from the object
+   * data and after BlzSetAbilityIntegerLevelField, and no bearform order was taken (probe --deploy,
+   * 2026-10-09) */
+  channel: 'ANcl',
 } as const;
 
 /** Stock abilities whose art (GetAbilityEffectById, common.j) is used for effects, so the model
@@ -143,6 +174,10 @@ export const CUSTOM_ID = {
   upgradePrefix: 'R',
   /** first letter of the veterancy morph abilities (Chaos into a longer-range veteran type) */
   vetMorphPrefix: 'V',
+  /** first letter of the deploy buttons (Channel) and of the morphs between a type and its deployed
+   * copy (Chaos) */
+  deployPrefix: 'D',
+  deployMorphPrefix: 'E',
   /** stock upgrade the building upgrades are made from (Iron Forged Swords): its effects reach no
    * unit, every Emperor unit has an empty upgrade list (units.ts, F.upgrades) */
   upgradeBase: 'Rhme',

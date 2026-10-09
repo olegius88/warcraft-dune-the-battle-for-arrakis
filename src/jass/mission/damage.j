@@ -13,7 +13,12 @@ function EmpDmgHit takes nothing returns nothing
     local integer a
     local integer t
     if s != null and BlzGetEventDamageType() == DAMAGE_TYPE_NORMAL then
-        set t = EmpType(s)
+        // the attacker's own WC3 type first: a deployed copy (deploy.j) fires another turret than its
+        // Emperor type; veteran copies have no entry and fall back to it
+        set t = GetUnitTypeId(s)
+        if not HaveSavedInteger(EmpDmgTab, t, {{RT.DMG_PCT_KEY}} + 1) then
+            set t = EmpType(s)
+        endif
         set a = LoadInteger(EmpDmgTab, EmpType(GetTriggerUnit()), {{RT.DMG_ARMOUR_KEY}})
         if a > 0 and HaveSavedInteger(EmpDmgTab, t, {{RT.DMG_PCT_KEY}} + a) then
             call BlzSetEventDamage(GetEventDamage() * LoadInteger(EmpDmgTab, t, {{RT.DMG_PCT_KEY}} + a) / 100.0)

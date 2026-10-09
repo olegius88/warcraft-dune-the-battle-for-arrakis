@@ -9,7 +9,7 @@
 
 import { writeObjects, idAllocator } from '../wc3/objects.ts';
 import type { ObjectDef, ObjectMod } from '../wc3/objects.ts';
-import type { Rules, RulesObject, Turret } from './rules.ts';
+import type { Bullet, Rules, RulesObject, Turret } from './rules.ts';
 import type { IconSet } from './icons.ts';
 import type { ModelSet } from './models.ts';
 import { HOUSE_CODES, HOUSE_BY_CODE, HOUSE_RACE } from '../config/houses.ts';
@@ -17,6 +17,7 @@ import type { Wc3Race } from '../config/houses.ts';
 import { UNIT_FIELD as F, ABILITY_FIELD, UPGRADE_FIELD as G, ABILITY, UNIT, CUSTOM_ID } from '../config/wc3.ts';
 import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
+import { DEPLOY_BUTTON_ORDER as RT_DEPLOY_ORDER } from '../config/runtime.ts';
 import { superweaponKind } from './superweapons.ts';
 import type { EffectUse, EffectSet } from './effects.ts';
 import { EFFECT_PLAYED, EFFECT_MAX_RADIUS, EFFECT_MIN_SCALE, MUZZLE_FALLBACK } from '../config/models.ts';
@@ -112,6 +113,21 @@ export interface UnitData {
   padOrders: PadOrder[];
   /** veteran types with a longer range (Rules.txt ExtraRange) and the morph abilities into them */
   vetRange: VetRangeType[];
+  /** deployable types, their deployed copies, buttons and morphs */
+  deploy: DeployType[];
+}
+
+/** A deployable type (Rules.txt DeployInf / Kobra), its deployed copy armed with the turret it fires
+ * when deployed (weapon), the buttons (Channel) on the two forms, and the Chaos morphs into each form
+ * (mission deploy.j). */
+export interface DeployType {
+  type: string;
+  deployed: string;
+  deploy: string;
+  undeploy: string;
+  toDeployed: string;
+  toNormal: string;
+  weapon: Turret;
 }
 
 /** A unit type's copy with ExtraRange percent more range, and the Chaos ability that turns a unit of
@@ -139,9 +155,36 @@ function combatTable(): CombatTable {
 }
 
 /** The weapon of an Emperor object in WC3: its first turret whose bullet does damage (WC3 units here
- * have one attack). */
-function weaponOf(o: RulesObject): Turret | undefined {
-  return o.turrets.find((t) => t.bullet && t.bullet.damage > 0);
+ * have one attack) and that fires in the given state of a deployable unit (TurretDisableIfUnit*). */
+function weaponOf(o: RulesObject, deployed = false): Turret | undefined {
+  return o.turrets.find((t) => t.bullet && t.bullet.damage > 0 && !(deployed ? t.disableIfDeployed : t.disableIfUndeployed));
+}
+
+/** Rules.txt DeployInf (ATKindjal, ORMortar) or Kobra (ORKobra): Game.exe 1.09 gives them their own
+ * unit classes (0x10 / 0xb, unit parser 0x527d81 / 0x527d3d) and the AI's "Deployable" set
+ * (objectsets.txt). The flags of IMSardaukar, ATGeneral, DukeAchillus, HKEngineer and WormRider do
+ * nothing there (their IsDeployed is always false, 0x568350).
+ * TODO(deploy): three more classes switch turrets by a state of their own: FRADVFremen (class 0x11,
+ * deploys like DeployInf where a map condition holds, 0x566e90 -> 0x5991a0, not identified),
+ * IMADVSardaukar / IMGeneral (knife instead of the gun against an infantry target within MaxRange 5,
+ * 0x567190) and GUNIABTank (its byte +0x258 while it teleports, 0x56ecb0). They keep their first
+ * turret here; risk: an ADV Sardaukar never stabs, a NIAB fires while teleporting. */
+function deployable(o: RulesObject): boolean {
+  return o.category === 'Unit' && (/^true$/i.test((o.raw.DeployInf ?? '').trim()) || /^true$/i.test((o.raw.Kobra ?? '').trim()));
+}
+
+const WEAPON_FIELDS: readonly string[] = [F.attacksEnabled, F.damageBase, F.damageDice, F.damageSides, F.range, F.acquireRange, F.cooldown, F.attackType, F.targets];
+
+/** The attack fields of a unit armed with turret w. */
+function weaponMods(o: RulesObject, w: Turret, b: Bullet): ObjectMod[] {
+  return [
+    int(F.attacksEnabled, 1),
+    int(F.damageBase, Math.max(1, b.damage / S.DAMAGE_DIVISOR)), int(F.damageDice, 1), int(F.damageSides, 1),
+    int(F.range, Math.max(1, b.range) * S.RANGE_PER_TILE), unreal(F.acquireRange, Math.max(b.range, o.viewRange) * S.RANGE_PER_TILE),
+    unreal(F.cooldown, Math.max(S.MIN_ATTACK_COOLDOWN, w.reload / S.TICKS_PER_SECOND)),
+    str(F.attackType, U.DEFAULT_ATTACK_TYPE),
+    str(F.targets, b.antiAircraft ? U.TARGETS_AIR : U.TARGETS_GROUND),
+  ];
 }
 
 const str = (field: string, value: string | number | undefined): ObjectMod => ({ field, type: 'string', value: String(value) });
@@ -222,13 +265,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     if (model) mods.push(str(F.model, model));
     const weapon = weaponOf(o);
     if (weapon && weapon.bullet) {
-      const b = weapon.bullet;
-      mods.push(int(F.attacksEnabled, 1));
-      mods.push(int(F.damageBase, Math.max(1, b.damage / S.DAMAGE_DIVISOR)), int(F.damageDice, 1), int(F.damageSides, 1));
-      mods.push(int(F.range, Math.max(1, b.range) * S.RANGE_PER_TILE), unreal(F.acquireRange, Math.max(b.range, o.viewRange) * S.RANGE_PER_TILE));
-      mods.push(unreal(F.cooldown, Math.max(S.MIN_ATTACK_COOLDOWN, weapon.reload / S.TICKS_PER_SECOND)));
-      mods.push(str(F.attackType, U.DEFAULT_ATTACK_TYPE));
-      mods.push(str(F.targets, b.antiAircraft ? U.TARGETS_AIR : U.TARGETS_GROUND));
+      mods.push(...weaponMods(o, weapon, weapon.bullet));
     } else if (!charge && (o.category !== 'Building' || /Wall/i.test(o.name))) {
       mods.push(int(F.attacksEnabled, 0));
     }
@@ -388,6 +425,50 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       vetRange.push({ type: obj.id, percent, veteran, morph });
     }
   }
+  // Deployable units: a copy of the type armed with the turret it fires when deployed, standing
+  // still; a Channel button on each form ("deploy" / "undeploy"), and the Chaos morphs into the other
+  // form that the button's cast adds (mission deploy.j; Chaos keeps the unit, veterancy.j)
+  const deploy: DeployType[] = [];
+  const withAbility = (mods: ObjectMod[], ability: string): ObjectMod[] => {
+    const abil = mods.filter((m) => m.field === F.abilities).map((m) => String(m.value)).at(-1) ?? '';
+    return [...mods.filter((m) => m.field !== F.abilities), str(F.abilities, [...abil.split(',').filter(Boolean), ability].join(','))];
+  };
+  const button = (id: string, name: string, tip: string, icon: string | undefined): ObjectDef => ({ base: ABILITY.channel, id, mods: [
+    { field: ABILITY_FIELD.name, type: 'string', value: name },
+    { field: ABILITY_FIELD.hero, type: 'int', value: 0 }, { field: ABILITY_FIELD.levels, type: 'int', value: 1 },
+    { field: ABILITY_FIELD.requires, type: 'string', value: '' },
+    { field: ABILITY_FIELD.tooltip, type: 'string', value: name, level: 1 },
+    { field: ABILITY_FIELD.tooltipExtended, type: 'string', value: tip, level: 1 },
+    { field: ABILITY_FIELD.buttonX, type: 'int', value: U.DEPLOY.button[0] }, { field: ABILITY_FIELD.buttonY, type: 'int', value: U.DEPLOY.button[1] },
+    { field: ABILITY_FIELD.channelFollowThrough, type: 'unreal', value: 0, level: 1, column: 1 },
+    { field: ABILITY_FIELD.channelTarget, type: 'int', value: 0, level: 1, column: 2 },
+    { field: ABILITY_FIELD.channelOptions, type: 'int', value: 1, level: 1, column: 3 },
+    { field: ABILITY_FIELD.channelArtDuration, type: 'unreal', value: 0, level: 1, column: 4 },
+    { field: ABILITY_FIELD.channelDisableOthers, type: 'int', value: 0, level: 1, column: 5 },
+    { field: ABILITY_FIELD.channelOrder, type: 'string', value: RT_DEPLOY_ORDER, level: 1, column: 6 },
+    { field: ABILITY_FIELD.cooldown, type: 'unreal', value: 0, level: 1 }, { field: ABILITY_FIELD.castTime, type: 'unreal', value: 0, level: 1 },
+    ...(icon ? [{ field: ABILITY_FIELD.icon, type: 'string' as const, value: icon }] : []),
+  ] });
+  const morph = (id: string, into: string): ObjectDef => ({ base: ABILITY.chaos, id, mods: [
+    { field: ABILITY_FIELD.requires, type: 'string', value: '' },
+    { field: ABILITY_FIELD.newUnitType, type: 'string', value: into, level: 1 },
+  ] });
+  for (const obj of objects.filter((x) => x.emperor && deployable(x.emperor))) {
+    const o = obj.emperor as RulesObject;
+    const w = weaponOf(o, true);
+    if (!w?.bullet) continue;
+    const d: DeployType = { type: obj.id, deployed: nextId(CUSTOM_ID.unitPrefix), deploy: nextId(CUSTOM_ID.deployPrefix), undeploy: nextId(CUSTOM_ID.deployPrefix),
+      toDeployed: nextId(CUSTOM_ID.deployMorphPrefix), toNormal: nextId(CUSTOM_ID.deployMorphPrefix), weapon: w };
+    objects.push({ base: obj.base, id: d.deployed, emperor: null, mods: withAbility([
+      ...obj.mods.filter((m) => !WEAPON_FIELDS.includes(m.field) && m.field !== F.moveSpeed),
+      ...weaponMods(o, w, w.bullet), int(F.moveSpeed, U.DEPLOY.moveSpeed),
+    ], d.undeploy) });
+    obj.mods = withAbility(obj.mods, d.deploy);
+    const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
+    abilities.push(button(d.deploy, U.DEPLOY.deployName, U.DEPLOY.deployTooltip, icon), button(d.undeploy, U.DEPLOY.undeployName, U.DEPLOY.undeployTooltip, icon),
+      morph(d.toDeployed, d.deployed), morph(d.toNormal, d.type));
+    deploy.push(d);
+  }
   // Command card cells of the train / research buttons: without them a type keeps its stock base's
   // cell and types of the same base hide each other. Buildings with the most buttons first; each
   // button takes the first cell free in every building that shows it (test/emperor-mission.test.ts).
@@ -415,7 +496,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),
@@ -442,4 +523,4 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   };
 }
 
-export { buildUnitData, combatTable, weaponOf };
+export { buildUnitData, combatTable, weaponOf, deployable };

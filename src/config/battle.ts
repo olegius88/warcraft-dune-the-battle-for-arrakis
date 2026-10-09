@@ -321,3 +321,9 @@ export const AI_SPECIAL_UNIT = { tech: 5, ticks: 3 * 1500, gold: 800, units: 16,
 /** Units the AI may have beyond MaxAiUnits in a story mission (Game.exe 1.09 0x464473: +100 when
  * the mission came from CCampaignManager::SetupMissionData, not from a territory battle). */
 export const STORY_AI_EXTRA_UNITS = 100;
+/** Game.exe 1.09 deployable units of the AI (objectsets.txt "Deployable": ATKindjal, ORMortar, ORKobra;
+ * behaviour 0x465860, update 0x465a80): in an attack an undeployed unit deploys when its deployed
+ * weapon reaches a target (0x465bc2) and a deployed one undeploys when it does not (0x465af9);
+ * standing still for ai.ini NumTicksStandingStillUntilDeploy it deploys (0x465bf1). EmpWaveTab
+ * children of the unit: last x / y and the ticks it has stood still (ai.j EmpAiDeployTick). */
+export const AI_DEPLOY = { keyX: 11, keyY: 12, keyStill: 13 } as const;

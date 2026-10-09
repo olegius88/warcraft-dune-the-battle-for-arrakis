@@ -107,3 +107,15 @@ export const SUPERWEAPON_SCALE = 1.0;
 export const BUTTON_CELLS: ReadonlyArray<readonly [number, number]> = [
   [0, 0], [1, 0], [2, 0], [3, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2], [3, 2],
 ];
+/** Deploy of DeployInf / Kobra units (src/emperor/units.ts deploy, mission deploy.j): a copy of the
+ * type armed with the turrets a deployed unit fires (Rules.txt TurretDisableIfUnitUndeployed); a
+ * Channel button on each form turns the unit into the other through a Chaos morph. A deployed unit
+ * cannot move (Game.exe 1.09: the move command fails while deployed, 0x55eea1 / 0x564d00): moveSpeed 0. */
+export const DEPLOY = {
+  deployName: 'Развернуть',
+  deployTooltip: 'Развернуть основное оружие: больше дальность, но юнит стоит на месте.',
+  undeployName: 'Свернуть',
+  undeployTooltip: 'Свернуть оружие, чтобы двигаться.',
+  button: [0, 2] as const,
+  moveSpeed: 0,
+} as const;

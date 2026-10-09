@@ -44,6 +44,10 @@
     integer EmpTmpCount = 0
     integer EmpTmpType = 0
     boolean EmpTmpLose = false
+    // deployable units: type -> toggle / deployed copy (mission deploy.j)
+    hashtable EmpDeployTab = null
+    unit EmpDeployArgUnit = null
+    boolean EmpDeployArgOn = false
     // attack damage by warhead (mission damage.j)
     hashtable EmpDmgTab = null
     // palace super weapons (helpers.j EmpSwStrike; data from mission superweapon.j)

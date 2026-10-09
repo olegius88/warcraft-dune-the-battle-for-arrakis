@@ -35,6 +35,24 @@ function EmpType takes unit u returns integer
     return t
 endfunction
 
+// a deployable unit in its deployed form (mission deploy.j: EmpDeployTab[type] child 1 = the copy)
+function EmpDeployed takes unit u returns boolean
+    return EmpDeployTab != null and GetUnitTypeId(u) != EmpType(u) and LoadInteger(EmpDeployTab, EmpType(u), 1) == GetUnitTypeId(u)
+endfunction
+
+// u can deploy (Rules.txt DeployInf / Kobra)
+function EmpDeployable takes unit u returns boolean
+    return EmpDeployTab != null and HaveSavedInteger(EmpDeployTab, EmpType(u), 1)
+endfunction
+
+// deploy (on) or undeploy u: mission deploy.j EmpDeployArgs, run by name (it comes after the callers)
+function EmpDeploySet takes unit u, boolean on returns nothing
+    set EmpDeployArgUnit = u
+    set EmpDeployArgOn = on
+    call ExecuteFunc("EmpDeployArgs")
+    set EmpDeployArgUnit = null
+endfunction
+
 function EmpTiles takes integer t returns real
     return I2R(t) * {{real WC3_UNITS_PER_TILE}}
 endfunction

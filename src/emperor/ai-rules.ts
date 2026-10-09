@@ -65,6 +65,8 @@ export interface AiRules {
   reservePerTeam: number;
   ticksSeesIntoShroud: number;
   ticksAbandonForming: number;
+  /** NumTicksStandingStillUntilDeploy: a deployable unit of the AI stands still this long, then deploys (Game.exe 0x465bf1) */
+  ticksUntilDeploy: number;
   /** [StartScript] Next= entries in order: the building groups built first (lower case) */
   startScript: string[];
   /** ai_difficulty.ini by tech level (index 1..8; 0 unused = Tech1) */
@@ -158,6 +160,7 @@ function parseAiRules(text: string, difficulty = ''): AiRules {
     reservePerTeam: s('MaxUnitsPerReserveTeam', 0),
     ticksSeesIntoShroud: s('TicksUntilAISeesIntoShroud', 0),
     ticksAbandonForming: s('TicksUntilAbandonForming', 0),
+    ticksUntilDeploy: get('UnitLevel', 'NumTicksStandingStillUntilDeploy', 0),
     startScript: (sections.get('startscript')?.entries ?? []).filter(([k]) => k.toLowerCase() === 'next').map(([, v]) => (v.split('//')[0] ?? '').trim().toLowerCase()).filter(Boolean),
     tech: parseAiDifficulty(difficulty),
   };
