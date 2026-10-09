@@ -170,8 +170,9 @@ function EmpSpTickEnum takes nothing returns nothing
         endif
     elseif k == 5 then
         set b = EmpSpBuildingAt(u, false)
-        if b != null and HaveSavedInteger(EmpBoomTab, t, 0) then
-            // an Infiltrator: its own bomb, its delay and its reveal pulse (detonate.j)
+        if (b != null or EmpBoomReached(u)) and HaveSavedInteger(EmpBoomTab, t, 0) then
+            // an Infiltrator: its own bomb, its delay and its reveal pulse (detonate.j), at a building or
+            // at the unit it was sent at
             call EmpBoom(u)
         elseif b != null then
             call DestroyEffect(AddSpecialEffect(GetAbilityEffectById('{{ART_ABILITY.bomb.id}}', {{ART_ABILITY.bomb.type}}, 0), GetUnitX(b), GetUnitY(b)))

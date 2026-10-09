@@ -596,23 +596,47 @@ function BoomMine takes real x, real y returns string
     return "ORADP alive " + I2S(IntegerTertiaryOp(EmpAlive(m), 1, 0)) + " orni lost " + R2S(life - GetWidgetLife(o))
 endfunction
 
+// an Infiltrator sent (right click) at a paused enemy trike 12 tiles off: it walks up and goes off
+// within its bomb's BlastRadius plus the trike's Size (Game.exe 0x565cc0)
+function BoomSent takes real x, real y returns string
+    local unit u = CreateUnit(Player(0), '${ixInf}', x, y, 0.0)
+    local unit v = CreateUnit(Player(1), '${trike}', x + 1536.0, y, 0.0)
+    local real life = GetWidgetLife(v)
+    local real gap = 0.0
+    local integer n = 0
+    call PauseUnit(v, true)
+    call TriggerSleepAction(0.5)
+    call IssueTargetOrder(u, "smart", v)
+    loop
+        exitwhen not EmpAlive(u) or n >= 60
+        set gap = SquareRoot((GetUnitX(v) - GetUnitX(u)) * (GetUnitX(v) - GetUnitX(u)) + (GetUnitY(v) - GetUnitY(u)) * (GetUnitY(v) - GetUnitY(u)))
+        call TriggerSleepAction(0.25)
+        set n = n + 1
+    endloop
+    call TriggerSleepAction(0.5)
+    return "sent Infiltrator alive " + I2S(IntegerTertiaryOp(EmpAlive(u), 1, 0)) + " gap at blast " + R2S(gap) + " trike lost " + R2S(life - GetWidgetLife(v))
+endfunction
+
 function BoomRun takes nothing returns nothing
     local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
     local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
     local string s1
     local string s2
     local string s3
+    local string s4
     call FogEnable(false)
     call FogMaskEnable(false)
     call TriggerSleepAction(1.0)
     set s1 = BoomOne('${hkDev}', x, y)
     set s2 = BoomOne('${ixInf}', x, y + 1500.0)
     set s3 = BoomOne('${orEits}', x, y - 1500.0) + " | " + BoomMine(x - 2500.0, y)
+    set s4 = BoomSent(x - 2500.0, y + 2500.0)
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(s1)
     call Preload(s2)
     call Preload(s3)
+    call Preload(s4)
     call PreloadGenEnd("DuneSmoke\\\\boom.pld")
 endfunction`,
   } : {}),

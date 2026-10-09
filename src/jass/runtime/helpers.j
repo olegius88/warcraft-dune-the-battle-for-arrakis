@@ -241,12 +241,16 @@ function EmpSwDamage takes player who, real x, real y, real r, real dmg, boolean
     local unit u
     local real d
     local integer a
-    call GroupEnumUnitsInRange(g, x, y, r, null)
+    local real reach
+    // Game.exe 0x486de0: the distance less the target's Size * 12.8 world units (at least 0) against the
+    // radius (test "area damage reaches a target by its Size as Game.exe does")
+    call GroupEnumUnitsInRange(g, x, y, r + EmpSwSizePad, null)
     loop
         set u = FirstOfGroup(g)
         exitwhen u == null
         call GroupRemoveUnit(g, u)
-        if EmpAlive(u) and u != EmpWorm and (friendly or not IsUnitAlly(u, who)) then
+        set reach = r + LoadReal(EmpSwTab, EmpType(u), {{RT.SW_SIZE_KEY}}) * {{real RT.AREA_SIZE_SHARE}}
+        if EmpAlive(u) and u != EmpWorm and (friendly or not IsUnitAlly(u, who)) and (GetUnitX(u) - x) * (GetUnitX(u) - x) + (GetUnitY(u) - y) * (GetUnitY(u) - y) <= reach * reach then
             set d = dmg
             set a = LoadInteger(EmpSwTab, EmpType(u), {{RT.SW_ARMOUR_KEY}})
             if base > 0 and a > 0 and HaveSavedInteger(EmpSwTab, t, base + a) then

@@ -1877,6 +1877,47 @@ test('the EITS throws its bombs as Game.exe does', opts, () => {
   assert.match(blast, /set rise = rise - LoadReal\(EmpBoomTab, t, 13\)/, 'gravity a tick');
 });
 
+// Regression: an Infiltrator sent at an enemy unit walked up to it and on: it went off at buildings only.
+// Game.exe 1.09 (0x565cc0, the saboteur's tick) takes the unit's target (vcall +0x1bc) and blows it up
+// (deploy 0x22) once the target is within its bomb's BlastRadius (+0x314; SaboteurBomb 96) plus the
+// target's Size tiles (+0x9c, shl 5) of it. Guaranteed now: the target of its last order is kept and the
+// same distance, from centre to centre, sets it off.
+test('an Infiltrator goes off at the unit it is sent at', opts, () => {
+  const all = loadAll();
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'infil', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  // Rules.txt IXInfiltrator Size = 2: 2 tiles = 256 WC3 units
+  assert.ok(m.script.includes(`call SaveReal(EmpSwTab, '${id('IXInfiltrator')}', ${RT.SW_SIZE_KEY}, 256.0)`), 'target sizes');
+  assert.ok(body('EmpBoomOrder').includes('GetOrderTargetUnit()'), 'the target of its order');
+  assert.ok(body('EmpBoomReached').includes(`LoadReal(EmpBoomTab, t, 2) + LoadReal(EmpSwTab, EmpType(e), ${RT.SW_SIZE_KEY})`), 'BlastRadius + Size');
+  assert.ok(body('EmpSpTickEnum').includes('EmpBoomReached(u)'), 'checked with the saboteurs');
+  // on the move (Game.exe: its move state not 0 / 2) it goes off when the target is on a tile next to its
+  // own (vcall +0x218 = 0x4c1190, the 3 x 3 tiles round it); the distance rule is for a stopped one
+  // (WC3 keeps a follow order on a unit that stands by its target: moving is a change of place since the
+  // last scan, EmpBoomMoving)
+  assert.ok(body('EmpBoomReached').includes('if EmpBoomMoving(u) then'), 'moving or not');
+  assert.ok(body('EmpBoomReached').includes('IAbsBJ(EmpBoomTile(GetUnitX(e)) - EmpBoomTile(GetUnitX(u))) <= 1'), 'a tile next to it');
+});
+
+// Regression: area damage (bombs, super weapons, saboteurs; runtime EmpSwDamage) took units by their
+// centre within the radius, so a big target just outside it was missed (probe --boom 2026-10-09: an
+// Infiltrator went off 623 WC3 units from a trike and did it no harm). Game.exe 1.09's area damage
+// (0x486de0, from a bullet's blow-up 0x4883a9) takes the distance less the target's Size * 12.8 world
+// units (0x5d26b0), at least 0, against the BlastRadius. Guaranteed now: the same reach, Size * 12.8 / 32
+// tiles beyond the radius.
+test('area damage reaches a target by its Size as Game.exe does', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'area', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = m.script.slice(m.script.indexOf('function EmpSwDamage '), m.script.indexOf('endfunction', m.script.indexOf('function EmpSwDamage ')));
+  assert.ok(body.includes('GroupEnumUnitsInRange(g, x, y, r + EmpSwSizePad, null)'), 'looks as far as the biggest Size reaches');
+  assert.ok(body.includes(`LoadReal(EmpSwTab, EmpType(u), ${RT.SW_SIZE_KEY}) * ${RT.AREA_SIZE_SHARE}`), 'Size * 12.8 world units');
+  // the largest Rules.txt unit Size is 12: 12 tiles * 128 * 0.4
+  assert.match(m.script, /set EmpSwSizePad = 614.4/, 'the pad');
+});
+
 // Units with Rules.txt Stealthed = TRUE (FRFremen, FRADVFremen, IXInfiltrator) were always visible: only
 // StealthedWhenStill was ported. Game.exe 1.09 starts them stealthed (0x4c0640 sets the stealth bit from
 // the type's +0x3c7) and the same reveal rules apply (firing, UnstealthRange). Guaranteed now: such a

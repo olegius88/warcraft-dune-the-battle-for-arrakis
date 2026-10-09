@@ -143,6 +143,19 @@ export const SW_FLEE_PERIOD = 0.5;
  * of a strike's percentage per armour (key + index) and of its fallout's; a warhead without the armour
  * hits with SW_DEFAULT_PCT. */
 export const SW_ARMOUR_KEY = 20;
+/** EmpSwTab child of a unit type's Rules.txt Size, in WC3 units (Size tiles * 128; mission.ts swLines):
+ * area damage (helpers.j EmpSwDamage) and the Infiltrator's reach (detonate.j EmpBoomReached) use it. */
+export const SW_SIZE_KEY = 21;
+/** Area damage reaches a target this share of its Size beyond the radius: Game.exe 1.09 0x486de0 takes
+ * the distance less Size * 12.8 world units (0x5d26b0), a Size tile being 32 (the Infiltrator's Size << 5,
+ * 0x565de2). */
+export const AREA_SIZE_SHARE = 0.4;
+/** Added to a WC3 coordinate in tiles to keep a tile index positive (mission detonate.j EmpBoomTile); more
+ * than half the largest map's side in tiles. */
+export const BOOM_TILE_SHIFT = 1024;
+/** A unit that moved less than this (WC3 units) since the last saboteur scan counts as stopped (mission
+ * detonate.j EmpBoomMoving). */
+export const BOOM_STILL = 4;
 export const SW_STRIKE_PCT_KEY = 30;
 export const SW_FALLOUT_PCT_KEY = 60;
 export const SW_DEFAULT_PCT = 100;

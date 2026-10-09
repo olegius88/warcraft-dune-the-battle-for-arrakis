@@ -283,6 +283,19 @@
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
 
 ### Fixed
+- 2026-10-09 Infiltrator, посланный на вражеский юнит, проезжал мимо: взрывался только у зданий. Теперь как
+  в `Game.exe` 1.09 (`0x565cc0`, [detonate.j](src/jass/mission/detonate.j) `EmpBoomOrder` /
+  `EmpBoomReached`):
+  - цель последнего приказа запоминается;
+  - в движении Infiltrator взрывается, когда цель на соседней клетке (`0x4c1190`);
+  - остановившись — когда цель не дальше `BlastRadius` бомбы плюс `Size` цели.
+
+  Заодно урон по площади (бомбы, супероружие, диверсанты; `EmpSwDamage` в
+  [helpers.j](src/jass/runtime/helpers.j)) достаёт цель с запасом её `Size` × 12,8 единицы мира, как
+  `0x486de0` (таблица размеров `SW_SIZE_KEY`, `AREA_SIZE_SHARE` в [config/runtime.ts](src/config/runtime.ts)).
+  Проба `--boom`: Infiltrator взорвался в 360 единицах от трайка и уничтожил его (до правки — 0 урона).
+  Тесты «an Infiltrator goes off at the unit it is sent at», «area damage reaches a target by its Size as
+  Game.exe does».
 - 2026-10-09 Бомбы EITS падали случайно в выдуманном квадрате ±3 клетки. Теперь бросок как в `Game.exe` 1.09
   (`0x56916a`, [detonate.j](src/jass/mission/detonate.j) `EmpBoomToss`, `EITS_TOSS` в
   [config/runtime.ts](src/config/runtime.ts)):

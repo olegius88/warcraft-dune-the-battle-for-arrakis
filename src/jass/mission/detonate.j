@@ -12,10 +12,11 @@
 // The EITS throws its bombs (EmpBoomToss: children 8 speed, 9 height, 13 gravity; RT.EITS_TOSS): each
 // flies its own way, 45 degrees up at a random speed, a tick at a time under the gravity until it is
 // down from the EITS's height (test "the EITS throws its bombs as Game.exe does").
-// TODO(units): the Infiltrator goes off on buildings only (Game.exe: any visible ground target within BlastRadius + its Size); the AI's
-// EITS (0x466bb0: flies to the enemy building of most value and blows up there) and Infiltrator
-// (and an attack order given to an airborne mine: Game.exe then waits for that very target)
-// (0x468410) are not ported, the port's AI makes neither. Risk: an Infiltrator walks past units.
+// An Infiltrator also goes off at the unit it was sent at (EmpBoomOrder keeps the target, EmpBoomReached;
+// test "an Infiltrator goes off at the unit it is sent at").
+// TODO(units): the AI's EITS (0x466bb0: flies to the enemy building of most value and blows up there)
+// and Infiltrator (0x468410) are not ported, the port's AI makes neither; an attack order given to an
+// airborne mine (Game.exe then waits for that very target) is not either. Risk: the AI does not use them.
 // Feature test: test/emperor-mission.test.ts "detonate".
 function EmpBoomType takes integer t, integer kind, real dmg, real r, real delay, integer bombs, real pulseR, integer pulseTicks, integer leaves, integer button returns nothing
     call SaveInteger(EmpBoomTab, t, 0, kind)
@@ -201,6 +202,64 @@ function EmpBoom takes unit u returns nothing
 endfunction
 
 // deploy.j EmpDeployArgs (ObjectDeploy of the scripts)
+// the Infiltrator's target: the unit of its last order (Game.exe 0x565cc0 takes the target, vcall +0x1bc);
+// EmpBoomTab[unit] child 14
+function EmpBoomOrder takes nothing returns nothing
+    local unit u = GetTriggerUnit()
+    if LoadInteger(EmpBoomTab, EmpType(u), 0) == {{boomKind.infiltrator}} then
+        if GetOrderTargetUnit() != null then
+            call SaveUnitHandle(EmpBoomTab, GetHandleId(u), 14, GetOrderTargetUnit())
+        else
+            call RemoveSavedHandle(EmpBoomTab, GetHandleId(u), 14)
+        endif
+    endif
+    set u = null
+endfunction
+
+// a WC3 x or y as a terrain tile index (whole tiles from the map's centre, kept positive)
+function EmpBoomTile takes real v returns integer
+    return R2I(v / {{real WC3_UNITS_PER_TILE}} + {{real RT.BOOM_TILE_SHIFT}})
+endfunction
+
+// whether u moved since the last call (its place at EmpBoomTab[unit] children 17, 18); WC3 keeps a follow
+// order on a unit that stands by its target, so the order does not tell
+function EmpBoomMoving takes unit u returns boolean
+    local integer h = GetHandleId(u)
+    local real dx = GetUnitX(u) - LoadReal(EmpBoomTab, h, 17)
+    local real dy = GetUnitY(u) - LoadReal(EmpBoomTab, h, 18)
+    local boolean moved = HaveSavedReal(EmpBoomTab, h, 17) and dx * dx + dy * dy > {{real RT.BOOM_STILL}} * {{real RT.BOOM_STILL}}
+    call SaveReal(EmpBoomTab, h, 17, GetUnitX(u))
+    call SaveReal(EmpBoomTab, h, 18, GetUnitY(u))
+    return moved
+endfunction
+
+// Game.exe 0x565cc0 (buildings: specials.j EmpSpBuildingAt, as before), an enemy unit target: on the
+// move it goes off when the target is on a tile next to its own (vcall +0x218 = 0x4c1190, the 3 x 3
+// tiles round it); stopped (its move state 0 / 2, here it has not moved since the last scan), when the
+// target is within the bomb's BlastRadius plus the target's Size tiles, centre to centre.
+// Approximation: the target's tile is its centre's (Game.exe asks each tile whether the target is on
+// it, 0x54cf20).
+function EmpBoomReached takes unit u returns boolean
+    local unit e = LoadUnitHandle(EmpBoomTab, GetHandleId(u), 14)
+    local integer t = EmpType(u)
+    local real r
+    local real dx
+    local real dy
+    local boolean hit = false
+    if e != null and EmpAlive(e) and IsUnitEnemy(e, GetOwningPlayer(u)) and not IsUnitType(e, UNIT_TYPE_STRUCTURE) then
+        if EmpBoomMoving(u) then
+            set hit = IAbsBJ(EmpBoomTile(GetUnitX(e)) - EmpBoomTile(GetUnitX(u))) <= 1 and IAbsBJ(EmpBoomTile(GetUnitY(e)) - EmpBoomTile(GetUnitY(u))) <= 1
+        else
+            set r = LoadReal(EmpBoomTab, t, 2) + LoadReal(EmpSwTab, EmpType(e), {{RT.SW_SIZE_KEY}})
+            set dx = GetUnitX(e) - GetUnitX(u)
+            set dy = GetUnitY(e) - GetUnitY(u)
+            set hit = dx * dx + dy * dy <= r * r
+        endif
+    endif
+    set e = null
+    return hit
+endfunction
+
 function EmpBoomArgs takes nothing returns nothing
     call EmpBoom(EmpDeployArgUnit)
 endfunction
@@ -221,6 +280,16 @@ function EmpBoomInit takes nothing returns nothing
         set i = i + 1
     endloop
     call TriggerAddAction(tr, function EmpBoomCast)
+    set tr = CreateTrigger()
+    set i = 0
+    loop
+        exitwhen i >= bj_MAX_PLAYER_SLOTS
+        call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_ISSUED_TARGET_ORDER, null)
+        call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER, null)
+        call TriggerRegisterPlayerUnitEvent(tr, Player(i), EVENT_PLAYER_UNIT_ISSUED_ORDER, null)
+        set i = i + 1
+    endloop
+    call TriggerAddAction(tr, function EmpBoomOrder)
     set tr = null
     if EmpBoomMines then
         call TimerStart(CreateTimer(), {{real RT.BURROW_TICK}}, true, function EmpBoomMineTick)

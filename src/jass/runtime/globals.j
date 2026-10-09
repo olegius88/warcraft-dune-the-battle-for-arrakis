@@ -85,6 +85,8 @@
     hashtable EmpDmgTab = null
     // palace super weapons (helpers.j EmpSwStrike; data from mission superweapon.j)
     hashtable EmpSwTab = null
+    // how far beyond its radius area damage looks: the largest Size reach (mission superweapon.j EmpSwData)
+    real EmpSwSizePad = 0.0
     group EmpSwFleeGroup = null
     integer EmpSwDeathHand = 0
     // units of each side that fight for another one for a while (berserk, deviated)
