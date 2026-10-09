@@ -338,9 +338,10 @@ function buildMission(p: MissionParams): BuiltMission {
   }
   // detonating types (units.ts detonators): their bomb, its warhead % per armour (detonate.j)
   const boomLines: string[] = [];
-  const BOOM_KIND = { devastator: 1, infiltrator: 2, eits: 3 } as const;
+  const BOOM_KIND = { devastator: 1, infiltrator: 2, eits: 3, mine: 4 } as const;
   for (const d of p.units.detonators ?? []) {
-    boomLines.push(`    call EmpBoomType('${d.type}', ${BOOM_KIND[d.kind]}, ${real(d.damage)}, ${real(d.radius)}, ${real(d.delaySeconds)}, ${d.bombs}, ${real(d.pulseRadius)}, ${d.pulseTicks}, ${d.leaves ? `'${d.leaves}'` : 0}, '${d.button}')`);
+    boomLines.push(`    call EmpBoomType('${d.type}', ${BOOM_KIND[d.kind]}, ${real(d.damage)}, ${real(d.radius)}, ${real(d.delaySeconds)}, ${d.bombs}, ${real(d.pulseRadius)}, ${d.pulseTicks}, ${d.leaves ? `'${d.leaves}'` : 0}, ${d.button ? `'${d.button}'` : 0})`);
+    if (d.trigger > 0) boomLines.push(`    call EmpBoomMine('${d.type}', ${real(d.trigger)})`);
     if (d.warhead) boomLines.push(...pctLines(d.type, RT.BOOM_PCT_KEY, d.warhead));
   }
   // dust scouts (Rules.txt DustScout; burrow.j): they burrow on DustBowl (the dust ground); [type] 2 = an

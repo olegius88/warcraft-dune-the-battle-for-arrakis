@@ -1776,6 +1776,12 @@ test('Devastator, Infiltrator and EITS detonate as Game.exe does', opts, () => {
   assert.ok(m.script.includes(`call SaveInteger(EmpSwTab, '${id('HKDevastator')}', ${RT.BOOM_PCT_KEY + 1}, `), 'Death_W % per armour');
   const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
   assert.ok(body('EF_ObjectDeploy').includes('EmpBoomTab'), 'ObjectDeploy blows them up too');
+  // the ORADP was unarmed: an airborne mine (Game.exe class 0x1d, 0x5665e0), Lifespan 5 HEATADP_B rockets
+  // at an enemy aircraft within the bullet's MinRange 10, then gone
+  const mine = d('ORADP');
+  assert.deepStrictEqual([mine?.kind, mine?.trigger, mine?.bombs, mine?.damage, mine?.warhead, mine?.button], ['mine', 1280, 5, 240, 'HEATAIR_W', '']);
+  assert.ok(m.script.includes(`call EmpBoomMine('${id('ORADP')}', 1280.0)`));
+  assert.ok(body('EmpBoomMineTick').includes('IsUnitType(e, UNIT_TYPE_FLYING)'), 'aircraft only');
 });
 
 // Units with Rules.txt Stealthed = TRUE (FRFremen, FRADVFremen, IXInfiltrator) were always visible: only

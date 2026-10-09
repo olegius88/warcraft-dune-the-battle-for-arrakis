@@ -51,6 +51,7 @@
     group EmpApcAll = null
     // units that blow themselves up (mission detonate.j)
     hashtable EmpBoomTab = null
+    boolean EmpBoomMines = false
     // dust scouts burrowed (mission burrow.j)
     hashtable EmpBurrowTab = null
     // carryalls at work, their harvesters, a destination (battle carryall.j)

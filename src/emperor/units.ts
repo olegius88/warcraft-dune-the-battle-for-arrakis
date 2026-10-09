@@ -129,7 +129,10 @@ export interface UnitData {
 export interface Detonator {
   type: string;
   button: string;
-  kind: 'devastator' | 'infiltrator' | 'eits';
+  kind: 'devastator' | 'infiltrator' | 'eits' | 'mine';
+  /** an airborne mine (ORADP, AirborneMine; Game.exe 0x5665e0) goes off by itself at an enemy aircraft
+   * within its bullet's MinRange (WC3 units; its rockets: `bombs`, Lifespan); 0 = by its button */
+  trigger: number;
   damage: number;
   radius: number;
   warhead: string;
@@ -524,18 +527,24 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   const detonators: Detonator[] = [];
   const flag = (o: RulesObject, k: string): boolean => /^true$/i.test((o.raw[k] ?? '').split('//')[0]?.trim() ?? '');
   const raw = (name: string): Record<string, string> => Object.fromEntries((rules.sections.get(name.toLowerCase())?.entries ?? []).map(([k, v]) => [k, v.split('//')[0]?.trim() ?? '']));
-  for (const obj of objects.filter((x) => x.emperor && ['Devastator', 'Infiltrator', 'EyeInTheSky'].some((k) => flag(x.emperor as RulesObject, k)))) {
+  for (const obj of objects.filter((x) => x.emperor && ['Devastator', 'Infiltrator', 'EyeInTheSky', 'AirborneMine'].some((k) => flag(x.emperor as RulesObject, k)))) {
     const o = obj.emperor as RulesObject;
-    const kind = flag(o, 'Devastator') ? 'devastator' : flag(o, 'Infiltrator') ? 'infiltrator' : 'eits';
+    const kind = flag(o, 'Devastator') ? 'devastator' : flag(o, 'Infiltrator') ? 'infiltrator' : flag(o, 'AirborneMine') ? 'mine' : 'eits';
     const bomb = raw((o.raw.Resource ?? '').split(',')[0]?.split('//')[0]?.trim() ?? '');
     if (!bomb.Damage) continue;
+    if (kind === 'mine') {
+      detonators.push({ type: obj.id, button: '', kind, trigger: (Number(bomb.MinRange) || 0) * S.WC3_UNITS_PER_TILE,
+        damage: Math.max(1, Number(bomb.Damage) / S.DAMAGE_DIVISOR), radius: 0, warhead: bomb.Warhead ?? '', delaySeconds: 0,
+        bombs: Number(o.raw.Lifespan) || 1, pulseRadius: 0, pulseTicks: 0, leaves: '' });
+      continue;
+    }
     const button = nextId(CUSTOM_ID.deployPrefix);
     const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
     abilities.push({ ...channelButton(button, U.DETONATE.name, U.DETONATE.tooltip, icon), mods: [...channelButton(button, U.DETONATE.name, U.DETONATE.tooltip, icon).mods.filter((m) => m.field !== ABILITY_FIELD.buttonX && m.field !== ABILITY_FIELD.buttonY),
       { field: ABILITY_FIELD.buttonX, type: 'int', value: U.DETONATE.button[0] }, { field: ABILITY_FIELD.buttonY, type: 'int', value: U.DETONATE.button[1] }] });
     obj.mods = withAbility(obj.mods, button);
     detonators.push({
-      type: obj.id, button, kind,
+      type: obj.id, button, kind, trigger: 0,
       damage: Math.max(1, Number(bomb.Damage) / S.DAMAGE_DIVISOR),
       radius: (Number(bomb.BlastRadius) || 0) / S.EMPEROR_TILE * S.WC3_UNITS_PER_TILE,
       warhead: bomb.Warhead ?? '',

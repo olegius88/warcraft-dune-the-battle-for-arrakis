@@ -5,11 +5,14 @@
 // on reaching an enemy building (specials.j, the saboteur's code 0x565cc0). OREITS (9, 0x56916a): ten
 // EITSBomb_B round it, an ORSaboteur of its owner left where it was, it dies. The bomb's warhead %
 // per armour is at EmpSwTab[type] RT.BOOM_PCT_KEY + armour; no falloff (ReduceDamageWithDistance False).
+// ORADP (class 0x1d, AirborneMine, 0x5665e0): by itself at an enemy aircraft within its HEATADP_B's
+// MinRange, Lifespan rockets at it, then it is gone (EmpBoomMineTick).
 // EmpBoomTab[type]: 0 kind (1 / 2 / 3), 1 damage, 2 radius, 3 delay, 4 bombs, 5 pulse radius, 6 pulse
 // ticks, 7 the unit left; [button] 10 = 1; [timer] 11 the unit.
 // TODO(units): the EITS bombs' spread is not read (RT.BOOM_EITS_SPREAD_TILES), the Infiltrator goes off
 // on buildings only (Game.exe: any visible ground target within BlastRadius + its Size); the AI's
 // EITS (0x466bb0: flies to the enemy building of most value and blows up there) and Infiltrator
+// (and an attack order given to an airborne mine: Game.exe then waits for that very target)
 // (0x468410) are not ported, the port's AI makes neither. Risk: bombs fall nearer or farther than in
 // Emperor; an Infiltrator walks past units.
 // Feature test: test/emperor-mission.test.ts "detonate".
@@ -22,7 +25,15 @@ function EmpBoomType takes integer t, integer kind, real dmg, real r, real delay
     call SaveReal(EmpBoomTab, t, 5, pulseR)
     call SaveInteger(EmpBoomTab, t, 6, pulseTicks)
     call SaveInteger(EmpBoomTab, t, 7, leaves)
-    call SaveInteger(EmpBoomTab, button, 10, 1)
+    if button != 0 then
+        call SaveInteger(EmpBoomTab, button, 10, 1)
+    endif
+endfunction
+
+// an airborne mine: goes off at an enemy aircraft within r ([type] 8; EmpBoomMineTick)
+function EmpBoomMine takes integer t, real r returns nothing
+    call SaveReal(EmpBoomTab, t, 8, r)
+    set EmpBoomMines = true
 endfunction
 
 function EmpBoomData takes nothing returns nothing
@@ -48,6 +59,55 @@ function EmpBoomPulse takes player p, real x, real y, real r, integer ticks retu
     endloop
     call DestroyGroup(g)
     set g = null
+endfunction
+
+// the mine's rockets (ORADP; Game.exe 0x5665e0): Lifespan HEATADP_B homing on the aircraft, then it is
+// gone; each rocket its Damage by its warhead % for the target's armour
+function EmpBoomRockets takes unit u, unit e returns nothing
+    local integer t = EmpType(u)
+    local integer i = 0
+    loop
+        exitwhen i >= LoadInteger(EmpBoomTab, t, 4) or not EmpAlive(e)
+        call DestroyEffect(AddSpecialEffectTarget(GetAbilityEffectById('{{ART_ABILITY.bomb.id}}', {{ART_ABILITY.bomb.type}}, 0), e, "origin"))
+        call EmpSwDamage(GetOwningPlayer(u), GetUnitX(e), GetUnitY(e), {{real RT.BOOM_MINE_HIT}}, LoadReal(EmpBoomTab, t, 1), false, t, {{RT.BOOM_PCT_KEY}})
+        set i = i + 1
+    endloop
+    call KillUnit(u)
+endfunction
+
+// every BURROW_TICK: an airborne mine with an enemy aircraft it sees within its reach goes off
+function EmpBoomMineTick takes nothing returns nothing
+    local group g = CreateGroup()
+    local group near = CreateGroup()
+    local unit u
+    local unit e
+    local unit target
+    call GroupEnumUnitsInRect(g, bj_mapInitialPlayableArea, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and LoadReal(EmpBoomTab, EmpType(u), 8) > 0.0 then
+            set target = null
+            call GroupEnumUnitsInRange(near, GetUnitX(u), GetUnitY(u), LoadReal(EmpBoomTab, EmpType(u), 8), null)
+            loop
+                set e = FirstOfGroup(near)
+                exitwhen e == null
+                call GroupRemoveUnit(near, e)
+                if target == null and EmpAlive(e) and IsUnitType(e, UNIT_TYPE_FLYING) and IsUnitEnemy(e, GetOwningPlayer(u)) and IsUnitVisible(e, GetOwningPlayer(u)) then
+                    set target = e
+                endif
+            endloop
+            if target != null then
+                call EmpBoomRockets(u, target)
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    call DestroyGroup(near)
+    set g = null
+    set near = null
+    set target = null
 endfunction
 
 function EmpBoomBlast takes unit u returns nothing
@@ -135,4 +195,7 @@ function EmpBoomInit takes nothing returns nothing
     endloop
     call TriggerAddAction(tr, function EmpBoomCast)
     set tr = null
+    if EmpBoomMines then
+        call TimerStart(CreateTimer(), {{real RT.BURROW_TICK}}, true, function EmpBoomMineTick)
+    endif
 endfunction

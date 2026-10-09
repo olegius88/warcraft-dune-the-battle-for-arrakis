@@ -45,6 +45,7 @@ const atHelipad = all.units.rawcode.get('ATHelipad') as string;
 const atOrni = all.units.rawcode.get('ATOrni') as string;
 const hkYard = all.units.rawcode.get('HKConYard') as string;
 const dustScout = all.units.rawcode.get('ORDustScout') as string;
+const orAdp = all.units.rawcode.get('ORADP') as string;
 const dustTile = TERRAIN.ground[TEX.DUST];
 const [hkDev, ixInf, orEits, orSab, atScout] = ['HKDevastator', 'IXInfiltrator', 'OREITS', 'ORSaboteur', 'ATScout'].map((n) => all.units.rawcode.get(n) as string);
 // --mcvai: a factory of each house
@@ -576,6 +577,16 @@ endfunction`,
     return r
 endfunction
 
+// an ORADP of the player with an enemy ornithopter 8 tiles off: its rockets, then it is gone
+function BoomMine takes real x, real y returns string
+    local unit m = CreateUnit(Player(0), '${orAdp}', x, y, 0.0)
+    local unit o = CreateUnit(Player(1), '${atOrni}', x + 1000.0, y, 180.0)
+    local real life = GetWidgetLife(o)
+    call PauseUnit(o, true)
+    call TriggerSleepAction(1.0)
+    return "ORADP alive " + I2S(IntegerTertiaryOp(EmpAlive(m), 1, 0)) + " orni lost " + R2S(life - GetWidgetLife(o))
+endfunction
+
 function BoomRun takes nothing returns nothing
     local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
     local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
@@ -587,7 +598,7 @@ function BoomRun takes nothing returns nothing
     call TriggerSleepAction(1.0)
     set s1 = BoomOne('${hkDev}', x, y)
     set s2 = BoomOne('${ixInf}', x, y + 1500.0)
-    set s3 = BoomOne('${orEits}', x, y - 1500.0)
+    set s3 = BoomOne('${orEits}', x, y - 1500.0) + " | " + BoomMine(x - 2500.0, y)
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(s1)

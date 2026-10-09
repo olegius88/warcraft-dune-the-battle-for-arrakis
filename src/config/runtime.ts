@@ -242,3 +242,6 @@ export const BOOM_EITS_SPREAD_TILES = 3;
 export const BURROW_TICK = 0.25;
 /** [General] GuardTileRange when Rules.txt has none (its shipped value). */
 export const FALLBACK_GUARD_TILES = 12;
+/** An airborne mine's rocket hits within this radius of its aircraft (WC3 units; the rocket has no
+ * BlastRadius: one target). */
+export const BOOM_MINE_HIT = 48;
