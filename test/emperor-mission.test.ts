@@ -1091,15 +1091,6 @@ test('territory battle AI: ai.ini unit mix, defence share, rebuilding, retreat c
   assert.ok(m.script.includes('if EmpEnemyGold() >= c + 600 then'), 'rebuild money');
   const yard = all.units.rawcode.get('HKConYard');
   assert.ok(m.script.includes(`set EmpTplType[16] = '${yard}'`), 'house 1 template starts with its construction yard');
-  // Regression: the money the base builder saves (EmpAiReserve) kept its last value when
-  // EmpEnemyProduce returned before the builder's turn (construction yard lost, template rebuild),
-  // throttling unit production for a building nobody would start. Every early return of the
-  // building part now sets it: 0 without a construction yard, the rebuild's price while saving for it.
-  const produce = m.script.slice(m.script.indexOf('function EmpEnemyProduce'), m.script.indexOf('call EmpAiBuild()', m.script.indexOf('function EmpEnemyProduce')));
-  const tail = produce.slice(produce.indexOf('// entry 0 of a template'));
-  const returns = tail.split('\n').map((l, i, a) => [l, a.slice(Math.max(0, i - 3), i).join('\n')] as const).filter(([l]) => l.trim() === 'return');
-  assert.ok(returns.length >= 2 && returns.every(([, before]) => before.includes('set EmpAiReserve = ')), 'reserve set before early returns');
-  assert.ok(tail.includes('set EmpAiReserve = c + 600'), 'saves for the template rebuild');
   // Regression: the type within a category was random every turn, so while a factory (1000) was
   // too dear the next turn picked the cheaper barracks: 5 barracks, no factory in 7 minutes (HK_A02
   // report 2026-10-08). The type the AI has fewest of is picked (random among equals).
@@ -1239,7 +1230,7 @@ test('the campaign enemy gets the personality, strength and skill of its phase (
   // SideAIBehaviour* = AGGRESSIVE / DEFENSIVE + STRONG
   assert.ok(body('EmpAiBehave').includes('call EmpAiTune(true, m, 2)'), 'behaviour');
   assert.ok(m.script.includes('    call EmpAiInit()\n    call EmpAiCampaignTune()'), 'at the battle start');
-  assert.ok(body('EmpAiBuild').includes('GetRandomInt(0, 69) < EmpAiSkill and EmpEnemyGold() >= 1100'), 'maintenance: by ratio on the skill roll');
+  assert.ok(body('EmpAiBuild').includes('GetRandomInt(0, 69) < EmpAiSkill and EmpAiBuildMoney() >= 1100'), 'maintenance: by ratio on the skill roll');
   // the builder's critical needs (0x42d6e0): no barracks past 2 / 6 minutes, rand % 100 < skill
   const crit = body('EmpAiCriticalBarracks');
   assert.ok(crit.includes('if EmpAiStrength == 0 or EmpAiSkill < 4 then') && crit.includes('if EmpTick <= m * 1500 or GetRandomInt(0, 99) >= EmpAiSkill then'), 'barracks roll');
@@ -1550,4 +1541,24 @@ test('tactics start as in Game.exe: scout route, harvester and yard guards, crat
   assert.ok(tac.includes('EmpAiPersonality == 2') && tac.includes('(11 - EmpAiSkill) * 400') && tac.includes('GetRandomInt(0, 1499) < 25'), 'yard guard start');
   assert.ok(!tac.includes('EmpAiCYHit'), 'no invented yard alarm');
   assert.ok(tac.includes('GetRandomInt(0, 349) < EmpAiSkill'), 'crates');
+});
+
+// The money the base builder saved (EmpAiReserve, ours: units spent only what was above it) was an
+// invention. Game.exe 1.09 (CAiMoney, 0x439620 by builder state 0x42f131) gives units and buildings
+// their shares of the credits: 0 / 100 before the start script, 20 / 80 in it, 50 / 60 building by
+// ratio, 70 / 30 walling, 70 / 50 maintaining, 100 / 0 without a yard; units get nothing at 500 or less
+// (0x439580), a unit is picked when its share is over its cost, one over a third of it 3 times in 4
+// (0x4651c1); a building's cost is checked against the buildings' share (0x4395d0).
+test('the AI spends its credits by Game.exe\'s unit and building shares', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'money', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const shares = body('EmpAiShares');
+  for (const [u, b] of [[0, 100], [20, 80], [50, 60], [70, 30], [70, 50], [100, 0]]) assert.ok(shares.includes(`set EmpAiUnitPct = ${u}\n        set EmpAiBuildPct = ${b}`), `${u} / ${b}`);
+  assert.ok(body('EmpAiUnitMoney').includes('<= 500'), 'no units at 500 or less');
+  const produce = body('EmpEnemyProduce');
+  assert.ok(produce.includes('EmpAiUnitMoney()') && produce.includes('GetRandomInt(0, 3) != 0') && !produce.includes('EmpAiReserve'), 'unit pick');
+  assert.ok(!m.script.includes('EmpAiReserve'), 'no reserve');
+  assert.ok(body('EmpAiBuild').includes('EmpAiBuildMoney() <= LoadInteger(EmpCostTab, t, 0)'), 'building cost by its share');
 });

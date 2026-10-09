@@ -449,6 +449,8 @@ endfunction`;
     harvFlightTech: ai.firstCampaignTech + 1,
     // the enemy house's barracks type (Game.exe 0x43b920: by the side's house)
     barracksPick: barracksOf.map((id, h) => `    if EmpEnemyHouse == ${h} then\n        set t = '${id}'\n    endif`).join('\n'),
+    // the shares of the credits by builder state (AI_MONEY)
+    moneyShares: C.AI_MONEY.shares.map(([u, bl], s) => `    ${s === 0 ? 'if' : 'elseif'} s == ${s} then\n        set EmpAiUnitPct = ${u}\n        set EmpAiBuildPct = ${bl}`).join('\n') + '\n    endif',
     // the refineries wanted by time and skill (AI_CRITICAL_REFINERY, first match from the top)
     refineryLevels: C.AI_CRITICAL_REFINERY.levels.map((l, i) => `    ${i === 0 ? 'if' : 'elseif'} EmpTick > (late + ${l.minutes}) * ${C.AI_CRITICAL_BARRACKS.ticksPerMinute}${l.skillOver >= 0 ? ` and EmpAiSkill > ${l.skillOver}` : ''} then\n        set want = ${l.level}`).join('\n') + '\n    endif',
     aiReport: o.aiReport ?? '',

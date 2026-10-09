@@ -1024,7 +1024,7 @@ function EmpAiPlanStep takes nothing returns nothing
     set x = LoadInteger(EmpAiMapTab, -1 - c, 1 + 4 * pick)
     set y = LoadInteger(EmpAiMapTab, -1 - c, 2 + 4 * pick)
     set k = LoadInteger(EmpCostTab, t, 0)
-    if EmpEnemyGold() > k then
+    if EmpAiBuildMoney() > k then
         call EmpAiLog("start " + GetObjectName(t) + " (defence plan)")
         call EmpAiStart(t, EmpAiTileWX(x), EmpAiTileWY(y))
     else

@@ -189,6 +189,40 @@ function EmpAiPick takes integer c returns integer
     return pick
 endfunction
 
+// the shares of the credits by builder state (AI_MONEY, Game.exe CAiMoney 0x439620 / 0x42f131)
+function EmpAiShares takes nothing returns nothing
+    local integer s = 4
+    if not EmpAlive(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]) then
+        set s = 5
+    elseif EmpAiStartState == 0 then
+        set s = 0
+    elseif EmpAiStartState == 1 then
+        set s = 1
+    elseif EmpAiWalling then
+        set s = 3
+    elseif not EmpAiMaintaining then
+        set s = 2
+    endif
+{{moneyShares}}
+endfunction
+
+// the units' share (0x439580): nothing at AI_MONEY.unitFloor or less
+function EmpAiUnitMoney takes nothing returns integer
+    local integer m
+    call EmpAiShares()
+    set m = EmpEnemyGold() * EmpAiUnitPct / 100
+    if m <= {{C.AI_MONEY.unitFloor}} then
+        return 0
+    endif
+    return m
+endfunction
+
+// the buildings' share (0x4395d0)
+function EmpAiBuildMoney takes nothing returns integer
+    call EmpAiShares()
+    return EmpEnemyGold() * EmpAiBuildPct / 100
+endfunction
+
 {{aiMapFunctions}}
 
 // why the base builder is idle, logged when it changes (0 building; reasons in EmpAiBuild)
@@ -251,8 +285,7 @@ function EmpAiPadOrder takes nothing returns integer
     if o == 0 or GetPlayerTechMaxAllowed(Player(1), o) == 0 or EmpPadFree(Player(1), LoadInteger(EmpPadTab, o, 0), null) == null then
         return 0
     endif
-    if EmpEnemyGold() < EmpAiPadCost[EmpEnemyHouse] then
-        set EmpAiReserve = EmpAiPadCost[EmpEnemyHouse]
+    if EmpAiBuildMoney() <= EmpAiPadCost[EmpEnemyHouse] then
         call EmpAiWait(6, "gold " + I2S(EmpEnemyGold()) + " < pad " + I2S(EmpAiPadCost[EmpEnemyHouse]))
         return -1
     endif
@@ -345,8 +378,7 @@ function EmpAiUpgrade takes nothing returns boolean
         exitwhen i >= last
         set u = EmpAiUpg[i]
         if GetPlayerTechCount(Player(1), u, true) == 0 and not LoadBoolean(EmpAiTab, u, 6) and GetPlayerTechMaxAllowed(Player(1), u) != 0 and EmpCount(1, EmpAiUpgB[i]) > 0 then
-            if EmpEnemyGold() < EmpAiUpgCost[i] + {{ai.minMoneyToBuild}} then
-                set EmpAiReserve = EmpAiUpgCost[i] + {{ai.minMoneyToBuild}}
+            if EmpAiBuildMoney() <= EmpAiUpgCost[i] then
                 call EmpAiWait(6, "gold " + I2S(EmpEnemyGold()) + " < upgrade " + I2S(EmpAiUpgCost[i]) + " of " + GetObjectName(u))
                 return true
             endif
@@ -438,10 +470,9 @@ function EmpAiBuild takes nothing returns nothing
     local integer tries = 0
     local integer array count
     local boolean array skip
-    // what unit production must leave (forces.j): set below while the builder saves for a building;
-    // without it every unit bought first and the builder never reached a refinery's cost (HK_A02
-    // report 2026-10-08: one building in 7 minutes, gold 5..805 against a cost of 1500)
-    set EmpAiReserve = 0
+    // unit production keeps to the units' share of the credits (EmpAiShares), so the buildings' share
+    // is there for the builder (an invented reserve did this before; HK_A02 2026-10-08: units bought
+    // first, one building in 7 minutes)
     if EmpAiPending > 0 then
         return
     endif
@@ -463,7 +494,6 @@ function EmpAiBuild takes nothing returns nothing
         return
     endif
     if EmpEnemyGold() < {{ai.minMoneyToBuild}} then
-        set EmpAiReserve = {{ai.minMoneyToBuild}}
         call EmpAiWait(2, "gold " + I2S(EmpEnemyGold()) + " < MinMoneyToConstructBuildings")
         return
     endif
@@ -509,7 +539,7 @@ function EmpAiBuild takes nothing returns nothing
             set EmpAiMaintaining = true
         endif
         // the skill roll (0x42f3d0, AI_MAINTAIN_RATIO): rand % 70 < the skill with the credits builds by ratio
-        if EmpAiMaintaining and GetRandomInt(0, {{C.AI_MAINTAIN_RATIO.rollMax}}) < EmpAiSkill and EmpEnemyGold() >= {{C.AI_MAINTAIN_RATIO.gold}} then
+        if EmpAiMaintaining and GetRandomInt(0, {{C.AI_MAINTAIN_RATIO.rollMax}}) < EmpAiSkill and EmpAiBuildMoney() >= {{C.AI_MAINTAIN_RATIO.gold}} then
             call EmpAiLog("maintenance: by ratio (skill " + I2S(EmpAiSkill) + ")")
         elseif EmpAiMaintaining then
             if GetRandomInt(0, 1) != 0 then
@@ -564,8 +594,7 @@ function EmpAiBuild takes nothing returns nothing
         call EmpAiWait(3, "no category can be built")
         return
     endif
-    if EmpEnemyGold() < LoadInteger(EmpCostTab, t, 0) then
-        set EmpAiReserve = LoadInteger(EmpCostTab, t, 0)
+    if EmpAiBuildMoney() <= LoadInteger(EmpCostTab, t, 0) then
         call EmpAiWait(4, "gold " + I2S(EmpEnemyGold()) + " < cost " + I2S(LoadInteger(EmpCostTab, t, 0)) + " of " + GetObjectName(t))
         return
     endif
@@ -1098,7 +1127,7 @@ function EmpAiCriticalTick takes nothing returns nothing
         return
     endif
     set t = EmpAiCritical()
-    if t == 0 or EmpEnemyGold() < LoadInteger(EmpCostTab, t, 0) or not EmpAiPlace(t) then
+    if t == 0 or EmpAiBuildMoney() <= LoadInteger(EmpCostTab, t, 0) or not EmpAiPlace(t) then
         return
     endif
     call EmpAiLog("start " + GetObjectName(t) + " (critical, update)")

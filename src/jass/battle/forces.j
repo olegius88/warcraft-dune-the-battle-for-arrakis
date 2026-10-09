@@ -97,6 +97,7 @@ function EmpEnemyProduce takes nothing returns nothing
     local integer t
     local integer n
     local integer c
+    local integer m
     if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()]{{#if storyAi}} + {{C.STORY_AI_EXTRA_UNITS}}{{/if}} then
         return
     endif
@@ -124,8 +125,10 @@ function EmpEnemyProduce takes nothing returns nothing
             call EmpAiLog("special unit " + GetObjectName(n))
         endif
         set c = LoadInteger(EmpCostTab, n, 0)
-        // units spend only what is above the money the base builder saves (EmpAiReserve, ai.j)
-        if n != 0 and EmpEnemyGold() >= c + EmpAiReserve then
+        // the units' share of the credits (ai.j EmpAiUnitMoney): over the cost, and one over a third of
+        // it is turned down on 1 in 4 (Game.exe 0x4650f8 / 0x4651c1)
+        set m = EmpAiUnitMoney()
+        if n != 0 and m > c and (c <= m / {{C.AI_MONEY.expensive}} or GetRandomInt(0, {{C.AI_MONEY.expensiveRollMax}}) != 0) then
             call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, EmpEnemyGold() - c)
             if veh then
                 call CreateUnit(Player(1), n, GetUnitX(at), GetUnitY(at) - {{real C.PRODUCED_VEHICLE_OFFSET}}, {{FACING}})
@@ -149,10 +152,7 @@ function EmpEnemyBuildTurn takes nothing returns nothing
     local integer b = EmpBaseOfSide(1)
     // entry 0 of a template is the construction yard
     set k = EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}
-    // EmpAiReserve (what unit production leaves) is set on every way out: it kept a stale value
-    // before (test/emperor-mission.test.ts)
     if not EmpAlive(EmpTplUnit[k]) then
-        set EmpAiReserve = 0
         return
     endif
     loop
@@ -163,9 +163,6 @@ function EmpEnemyBuildTurn takes nothing returns nothing
             if EmpEnemyGold() >= c + {{ai.minMoneyToBuild}} then
                 call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, EmpEnemyGold() - c)
                 call EmpTplBuild(k, b)
-                set EmpAiReserve = 0
-            else
-                set EmpAiReserve = c + {{ai.minMoneyToBuild}}
             endif
             return
         endif

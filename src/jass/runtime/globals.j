@@ -273,7 +273,9 @@
     integer EmpAiFormStart = 0
     integer EmpAiProduced = 0
     integer EmpAiWhy = -1
-    integer EmpAiReserve = 0
+    // the AI's shares of its credits for units / buildings (battle ai.j EmpAiShares)
+    integer EmpAiUnitPct = 0
+    integer EmpAiBuildPct = 100
     integer array EmpAiUpg
     integer array EmpAiUpgB
     integer array EmpAiUpgCost

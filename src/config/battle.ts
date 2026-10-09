@@ -151,6 +151,15 @@ export const AI_SITE = {
 } as const;
 /** Tactics tick (seconds): scouts, base defence, harvester escort, construction yard defence, waves. */
 export const AI_TACTIC_PERIOD = 2;
+/** Game.exe 1.09 CAiMoney (0x439620 by builder state, 0x42f131): the shares (%) of the credits for
+ * units / buildings in builder state 0 (before the start script), 1 (start script), 2 (by ratio), 3
+ * (walls), 4 (maintenance), 5 (no construction yard here; Game.exe's log calls state 0 "all money to
+ * units" too); units get nothing at `unitFloor` or less (0x439580); a unit over 1 / `expensive` of its
+ * share is turned down on 1 in `expensiveOneIn` (0x4651c1). */
+export const AI_MONEY = {
+  shares: [[0, 100], [20, 80], [50, 60], [70, 30], [70, 50], [100, 0]] as ReadonlyArray<readonly [number, number]>,
+  unitFloor: 500, expensive: 3, expensiveOneIn: 4, expensiveRollMax: 4 - 1,
+} as const;
 /** Game.exe 1.09 updates an AI side every second tick (0x428370); its 1-in-n starts (rand % n == 0 per
  * update) are a roll of AI_UPDATES_PER_TACTIC in n here, once a tactics tick. */
 export const AI_UPDATES_PER_TACTIC = (AI_TACTIC_PERIOD * 25) / 2;
