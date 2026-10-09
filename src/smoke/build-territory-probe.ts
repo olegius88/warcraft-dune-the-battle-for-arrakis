@@ -33,6 +33,9 @@ const kindjal = all.units.rawcode.get('ATKindjal') as string;
 const kindjalDeploy = all.units.deploy.find((d) => d.type === kindjal);
 const kindjalDeployed = kindjalDeploy?.deployed ?? '';
 const kindjalToggle = kindjalDeploy?.deploy ?? '';
+// --knife: the ADV Sardaukar and an Atreides infantryman
+const advSard = all.units.rawcode.get('IMADVSardaukar') as string;
+const atInf = all.units.rawcode.get('ATInfantry') as string;
 // --mcvai: a factory of each house
 const factoryOf = { AT: all.units.rawcode.get('ATFactory') as string, HK: all.units.rawcode.get('HKFactory') as string, OR: all.units.rawcode.get('ORFactory') as string };
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
@@ -256,6 +259,49 @@ function McvAiRun takes nothing returns nothing
     call Preload(s3)
     call Preload(s4)
     call PreloadGenEnd("DuneSmoke\\\\mcvai.pld")
+endfunction`,
+  } : {}),
+  // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,
+  // it walks up and stabs), then none (the gun again)
+  ...(flag('--knife') ? {
+    extraStart: 'KnifeRun',
+    extraFunctions: `function KnifeLine takes string at, unit s, unit t returns string
+    return at + " type " + I2S(GetUnitTypeId(s)) + " knife " + I2S(IntegerTertiaryOp(EmpDeployed(s), 1, 0)) + " emp " + I2S(EmpType(s)) + " x " + R2S(GetUnitX(s)) + " target life " + R2S(GetWidgetLife(t))
+endfunction
+
+function KnifeRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit s
+    local unit t
+    local string array l
+    local integer i = 0
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(2.0)
+    set s = CreateUnit(Player(0), '${advSard}', x, y, 0.0)
+    set t = CreateUnit(Player(1), '${atInf}', x + ${8 * RANGE_PER_TILE}, y, 180.0)
+    call PauseUnit(t, true)
+    call IssueImmediateOrder(s, "holdposition")
+    call TriggerSleepAction(1.5)
+    set l[0] = KnifeLine("infantry at 8", s, t)
+    call SetUnitPosition(t, x + ${3 * RANGE_PER_TILE}, y)
+    call TriggerSleepAction(1.0)
+    set l[1] = KnifeLine("infantry at 3", s, t)
+    call IssueTargetOrder(s, "attack", t)
+    call TriggerSleepAction(5.0)
+    set l[2] = KnifeLine("attacked 5 s", s, t)
+    call RemoveUnit(t)
+    call TriggerSleepAction(1.0)
+    set l[3] = KnifeLine("no infantry", s, s)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    loop
+        exitwhen i > 3
+        call Preload(l[i])
+        set i = i + 1
+    endloop
+    call PreloadGenEnd("DuneSmoke\\\\knife.pld")
 endfunction`,
   } : {}),
   // --deployai: two Kindjals of the AI by its base: one with a paused player trike 10 tiles off (in

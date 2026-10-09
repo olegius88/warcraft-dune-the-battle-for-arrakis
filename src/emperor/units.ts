@@ -128,6 +128,9 @@ export interface DeployType {
   toDeployed: string;
   toNormal: string;
   weapon: Turret;
+  /** a form switched by the game itself, not by a button (Game.exe class 0x12, the ADV Sardaukar's
+   * knife): enemy infantry within this range (WC3 units) switches to the copy; 0 for a deploy */
+  auto: number;
   /** seconds a deploy / an undeploy take: the model's animations (models.ts deploy), 0 without */
   deploySeconds: number;
   undeploySeconds: number;
@@ -167,13 +170,20 @@ function weaponOf(o: RulesObject, deployed = false): Turret | undefined {
  * unit classes (0x10 / 0xb, unit parser 0x527d81 / 0x527d3d) and the AI's "Deployable" set
  * (objectsets.txt). The flags of IMSardaukar, ATGeneral, DukeAchillus, HKEngineer and WormRider do
  * nothing there (their IsDeployed is always false, 0x568350).
- * TODO(deploy): three more classes switch turrets by a state of their own: FRADVFremen (class 0x11,
- * deploys like DeployInf where a map condition holds, 0x566e90 -> 0x5991a0, not identified),
- * IMADVSardaukar / IMGeneral (knife instead of the gun against an infantry target within MaxRange 5,
- * 0x567190) and GUNIABTank (its byte +0x258 while it teleports, 0x56ecb0). They keep their first
- * turret here; risk: an ADV Sardaukar never stabs, a NIAB fires while teleporting. */
+ * IMADVSardaukar / IMGeneral switch to the knife by themselves (knifeRange).
+ * TODO(deploy): two more classes switch turrets by a state of their own: FRADVFremen (class 0x11,
+ * deploys like DeployInf where a map condition holds, 0x566e90 -> 0x5991a0, not identified) and
+ * GUNIABTank (its byte +0x258 while it teleports, 0x56ecb0). They keep their first turret here; risk:
+ * the ADV Fremen never deploys, a NIAB fires while teleporting. */
 function deployable(o: RulesObject): boolean {
   return o.category === 'Unit' && (/^true$/i.test((o.raw.DeployInf ?? '').trim()) || /^true$/i.test((o.raw.Kobra ?? '').trim()));
+}
+
+/** Rules.txt AdvancedSardaukar (IMADVSardaukar, IMGeneral; Game.exe class 0x12): "deployed" while its
+ * target is infantry within the unit's own MaxRange (0x567190), which turns the gun off and the knife
+ * on: that range in WC3 units, else 0. */
+function knifeRange(o: RulesObject): number {
+  return o.category === 'Unit' && /^true$/i.test((o.raw.AdvancedSardaukar ?? '').trim()) ? Math.max(1, parseFloat(o.raw.MaxRange ?? '') || 0) * S.RANGE_PER_TILE : 0;
 }
 
 const WEAPON_FIELDS: readonly string[] = [F.attacksEnabled, F.damageBase, F.damageDice, F.damageSides, F.range, F.acquireRange, F.cooldown, F.attackType, F.targets];
@@ -456,21 +466,26 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     { field: ABILITY_FIELD.requires, type: 'string', value: '' },
     { field: ABILITY_FIELD.newUnitType, type: 'string', value: into, level: 1 },
   ] });
-  for (const obj of objects.filter((x) => x.emperor && deployable(x.emperor))) {
+  // (the ADV Sardaukar's knife form: no buttons, it walks; a periodic check switches it, deploy.j)
+  for (const obj of objects.filter((x) => x.emperor && (deployable(x.emperor) || knifeRange(x.emperor) > 0))) {
     const o = obj.emperor as RulesObject;
     const w = weaponOf(o, true);
     if (!w?.bullet) continue;
-    const d: DeployType = { type: obj.id, deployed: nextId(CUSTOM_ID.unitPrefix), deploy: nextId(CUSTOM_ID.deployPrefix), undeploy: nextId(CUSTOM_ID.deployPrefix),
-      toDeployed: nextId(CUSTOM_ID.deployMorphPrefix), toNormal: nextId(CUSTOM_ID.deployMorphPrefix), weapon: w,
-      deploySeconds: models?.deploy.get(o.name)?.[0] ?? 0, undeploySeconds: models?.deploy.get(o.name)?.[1] ?? 0 };
-    objects.push({ base: obj.base, id: d.deployed, emperor: null, mods: withAbility([
-      ...obj.mods.filter((m) => !WEAPON_FIELDS.includes(m.field) && m.field !== F.moveSpeed),
-      ...weaponMods(o, w, w.bullet), int(F.moveSpeed, U.DEPLOY.moveSpeed), str(F.animationNames, U.DEPLOY.animation),
-    ], d.undeploy) });
-    obj.mods = withAbility(obj.mods, d.deploy);
-    const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
-    abilities.push(button(d.deploy, U.DEPLOY.deployName, U.DEPLOY.deployTooltip, icon), button(d.undeploy, U.DEPLOY.undeployName, U.DEPLOY.undeployTooltip, icon),
-      morph(d.toDeployed, d.deployed), morph(d.toNormal, d.type));
+    const auto = knifeRange(o);
+    const d: DeployType = { type: obj.id, deployed: nextId(CUSTOM_ID.unitPrefix), deploy: auto ? '' : nextId(CUSTOM_ID.deployPrefix), undeploy: auto ? '' : nextId(CUSTOM_ID.deployPrefix),
+      toDeployed: nextId(CUSTOM_ID.deployMorphPrefix), toNormal: nextId(CUSTOM_ID.deployMorphPrefix), weapon: w, auto,
+      deploySeconds: auto ? 0 : models?.deploy.get(o.name)?.[0] ?? 0, undeploySeconds: auto ? 0 : models?.deploy.get(o.name)?.[1] ?? 0 };
+    const mods = [
+      ...obj.mods.filter((m) => !WEAPON_FIELDS.includes(m.field) && (auto > 0 || m.field !== F.moveSpeed)),
+      ...weaponMods(o, w, w.bullet), ...(auto ? [] : [int(F.moveSpeed, U.DEPLOY.moveSpeed), str(F.animationNames, U.DEPLOY.animation)]),
+    ];
+    objects.push({ base: obj.base, id: d.deployed, emperor: null, mods: auto ? mods : withAbility(mods, d.undeploy) });
+    if (!auto) {
+      obj.mods = withAbility(obj.mods, d.deploy);
+      const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
+      abilities.push(button(d.deploy, U.DEPLOY.deployName, U.DEPLOY.deployTooltip, icon), button(d.undeploy, U.DEPLOY.undeployName, U.DEPLOY.undeployTooltip, icon));
+    }
+    abilities.push(morph(d.toDeployed, d.deployed), morph(d.toNormal, d.type));
     deploy.push(d);
   }
   // Command card cells of the train / research buttons: without them a type keeps its stock base's

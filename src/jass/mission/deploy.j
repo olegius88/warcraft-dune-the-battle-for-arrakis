@@ -18,8 +18,18 @@ function EmpDeployRegister takes integer t, integer deployed, integer deployButt
     call SaveReal(EmpDeployTab, t, 4, range)
     call SaveReal(EmpDeployTab, t, 6, deploySecs)
     call SaveReal(EmpDeployTab, t, 7, undeploySecs)
-    call SaveInteger(EmpDeployTab, deployButton, 5, 1)
-    call SaveInteger(EmpDeployTab, undeployButton, 5, 2)
+    if deployButton != 0 then
+        call SaveInteger(EmpDeployTab, deployButton, 5, 1)
+        call SaveInteger(EmpDeployTab, undeployButton, 5, 2)
+    endif
+endfunction
+
+// a form the game switches itself (Rules.txt AdvancedSardaukar, Game.exe 0x567190): [type] 11 = it is
+// one, 13 = the range enemy infantry ([type] 12) switches it within
+function EmpDeployAuto takes integer t, real range returns nothing
+    call SaveBoolean(EmpDeployTab, t, 11, true)
+    call SaveReal(EmpDeployTab, t, 13, range)
+    set EmpDeployAutoAny = true
 endfunction
 
 function EmpDeployData takes nothing returns nothing
@@ -94,6 +104,48 @@ function EmpDeployMorph takes unit u, boolean on returns nothing
     set tm = null
 endfunction
 
+// enemy infantry of u's owner within r (what the ADV Sardaukar's knife goes for)
+function EmpDeployInfantryNear takes unit u, real r returns boolean
+    local group g = CreateGroup()
+    local unit e
+    local boolean found = false
+    call GroupEnumUnitsInRange(g, GetUnitX(u), GetUnitY(u), r, null)
+    loop
+        set e = FirstOfGroup(g)
+        exitwhen e == null or found
+        call GroupRemoveUnit(g, e)
+        if EmpAlive(e) and IsUnitEnemy(e, GetOwningPlayer(u)) and LoadBoolean(EmpDeployTab, EmpType(e), 12) and IsUnitVisible(e, GetOwningPlayer(u)) then
+            set found = true
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    set e = null
+    return found
+endfunction
+
+// every DEPLOY_AUTO_PERIOD: a knife form while enemy infantry is within its range, else the gun
+// (Game.exe asks it of the current target each tick, 0x567190; here of any enemy infantry it sees)
+function EmpDeployAutoTick takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local boolean near
+    call GroupEnumUnitsInRect(g, bj_mapInitialPlayableArea, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and LoadBoolean(EmpDeployTab, EmpType(u), 11) then
+            set near = EmpDeployInfantryNear(u, LoadReal(EmpDeployTab, EmpType(u), 13))
+            if near != EmpDeployed(u) then
+                call EmpDeployApply(u, near)
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+endfunction
+
 // runtime helpers.j EmpDeploySet (the AI, the scripts' ObjectDeploy / ObjectUndeploy)
 function EmpDeployArgs takes nothing returns nothing
     call EmpDeployMorph(EmpDeployArgUnit, EmpDeployArgOn)
@@ -118,4 +170,7 @@ function EmpDeployInit takes nothing returns nothing
     endloop
     call TriggerAddAction(tr, function EmpDeployCast)
     set tr = null
+    if EmpDeployAutoAny then
+        call TimerStart(CreateTimer(), {{real RT.DEPLOY_AUTO_PERIOD}}, true, function EmpDeployAutoTick)
+    endif
 endfunction

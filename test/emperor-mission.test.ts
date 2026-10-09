@@ -170,7 +170,7 @@ test('deployable units get a deployed type with the deployed turret and a morph 
   assert.strictEqual(weaponOf(k)?.bullet?.name, 'Pistol_B');
   assert.strictEqual(weaponOf(k, true)?.bullet?.name, 'Kindjal_B');
   const id = (n: string): string => all.units.rawcode.get(n) as string;
-  assert.deepStrictEqual(all.units.deploy.map((d) => d.type).sort(), ['ATKindjal', 'ORKobra', 'ORMortar'].map(id).sort(), 'DeployInf and Kobra types only');
+  assert.deepStrictEqual(all.units.deploy.filter((d) => d.auto === 0).map((d) => d.type).sort(), ['ATKindjal', 'ORKobra', 'ORMortar'].map(id).sort(), 'deployed by button: DeployInf and Kobra types only');
   const kd = all.units.deploy.find((d) => d.type === id('ATKindjal'));
   assert.ok(kd);
   const obj = (i: string) => all.units.objects.find((o) => o.id === i);
@@ -1607,6 +1607,32 @@ test('the AI builds an emergency MCV and deploys its MCVs as Game.exe does', opt
   assert.ok(tick.indexOf('EmpAiMcvFree(GetUnitX(u), GetUnitY(u), u)') < tick.indexOf('GetUnitCurrentOrder(u) == 0'), 'deploys where it fits before it moves');
   assert.ok(tick.includes('EmpAiBaseUnused(b)') && tick.includes('ExecuteFunc("EmpAiMcvRingRun")'), 'unused base position, then the spiral');
   assert.ok(body('EmpAiHomeUnit').includes('EmpType(u) != EmpAiMcv'), 'the MCV is no home guard');
+});
+
+// The ADV Sardaukar (and the Imperial general) only ever shot their laser. Game.exe 1.09 gives class
+// 0x12 (AdvancedSardaukar) a "deployed" state of its own (0x567190): its target is infantry within the
+// unit's MaxRange (5): the gun turret is off and the knife (Stab_B, 1000 damage, range 1) on.
+// Guaranteed now: such a type has a knife copy (Stab_B, same speed, no buttons) that a periodic check
+// switches to when enemy infantry is within MaxRange, and back when none is.
+test('ADV Sardaukar switch to the knife against infantry within MaxRange', opts, () => {
+  const all = loadAll();
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const k = all.units.deploy.find((d) => d.type === id('IMADVSardaukar'));
+  assert.ok(k, 'a knife form');
+  assert.strictEqual(k.weapon.bullet?.name, 'Stab_B');
+  assert.strictEqual(k.auto, 5 * RANGE_PER_TILE, 'switches by enemy infantry within MaxRange 5');
+  assert.ok(all.units.deploy.some((d) => d.type === id('IMGeneral') && d.auto > 0));
+  assert.ok(all.units.deploy.filter((d) => d.auto === 0).every((d) => d.deploy !== ''), 'the others deploy by button');
+  const field = (i: string, f: string): string => all.units.objects.find((o) => o.id === i)?.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  assert.strictEqual(field(k.deployed, 'umvs'), field(k.type, 'umvs'), 'the knife form walks');
+  assert.strictEqual(Number(field(k.deployed, 'ua1r')), RANGE_PER_TILE, 'Stab_B range 1');
+  assert.ok(!field(k.type, 'uabi').includes(k.toDeployed), 'no button');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'knife', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call EmpDeployAuto('${k.type}', ${5 * RANGE_PER_TILE}.0)`), 'registered as automatic');
+  assert.ok(m.script.includes(`call SaveBoolean(EmpDeployTab, '${id('ATInfantry')}', 12, true)`), 'infantry types marked');
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpDeployable').includes('11'), 'an automatic form is no deployable unit (AI, scripts)');
 });
 
 // In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an

@@ -48,6 +48,7 @@
     hashtable EmpDeployTab = null
     unit EmpDeployArgUnit = null
     boolean EmpDeployArgOn = false
+    boolean EmpDeployAutoAny = false
     // attack damage by warhead (mission damage.j)
     hashtable EmpDmgTab = null
     // palace super weapons (helpers.j EmpSwStrike; data from mission superweapon.j)

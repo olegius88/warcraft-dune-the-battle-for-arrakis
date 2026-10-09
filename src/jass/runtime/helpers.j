@@ -40,9 +40,9 @@ function EmpDeployed takes unit u returns boolean
     return EmpDeployTab != null and GetUnitTypeId(u) != EmpType(u) and LoadInteger(EmpDeployTab, EmpType(u), 1) == GetUnitTypeId(u)
 endfunction
 
-// u can deploy (Rules.txt DeployInf / Kobra)
+// u can deploy (Rules.txt DeployInf / Kobra; not a form the game switches itself, [type] 11)
 function EmpDeployable takes unit u returns boolean
-    return EmpDeployTab != null and HaveSavedInteger(EmpDeployTab, EmpType(u), 1)
+    return EmpDeployTab != null and HaveSavedInteger(EmpDeployTab, EmpType(u), 1) and not LoadBoolean(EmpDeployTab, EmpType(u), 11)
 endfunction
 
 // deploy (on) or undeploy u: mission deploy.j EmpDeployArgs, run by name (it comes after the callers)

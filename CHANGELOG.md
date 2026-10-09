@@ -42,6 +42,12 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 Нож ADV Sardaukar и имперского генерала (Rules.txt `AdvancedSardaukar`, класс `0x12` Game.exe,
+  `0x567190`; [units.ts](src/emperor/units.ts) `knifeRange`, [deploy.j](src/jass/mission/deploy.j)
+  `EmpDeployAutoTick`). Раньше они стреляли только лазером. Теперь, когда вражеская пехота в пределах
+  MaxRange (5 клеток), юнит переходит в форму с ножом (Stab_B: 1000 урона, дальность 1), подходит и
+  бьёт, без пехоты — обратно к лазеру. Кнопок нет, ИИ и скрипты эту форму не трогают. Тест «ADV Sardaukar
+  switch to the knife…», пробник `--knife`: пехотинец на 8 клетках — лазер, на 3 — нож, убит.
 - 2026-10-09 Оборонительная битва: атакующий ИИ стартует у своего входа с MCV, армией UnitValueAttacker и
   CampaignAttackMoney, дальше играет как обычный ИИ ([forces.j](src/jass/battle/forces.j) `EmpDefendAttacker`).
   Раньше через 45 с приходила одна придуманная волна (`EmpDefendWave`), а после её разгрома битва была

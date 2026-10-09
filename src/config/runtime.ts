@@ -83,6 +83,9 @@ export const VET_MORPH_TRIES = 20;
 /** Base order of the deploy / undeploy buttons (Channel, units.ts deploy): the stock Channel's own
  * (WurstStdlib2 objediting/presets/OrderStringFactory.wurst lists it); the two never share a unit. */
 export const DEPLOY_BUTTON_ORDER = 'channel';
+/** How often (s) the forms the game switches itself are checked (mission deploy.j EmpDeployAutoTick;
+ * Game.exe asks every tick, 0x567190). */
+export const DEPLOY_AUTO_PERIOD = 0.25;
 
 /** Debug report for unattended tests: sides 0..DEBUG_REPORT_SIDES, written to
  * CustomMapData\<DEBUG_REPORT_DIR>\<map>.pld every DEBUG_REPORT_PERIOD seconds. */

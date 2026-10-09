@@ -325,10 +325,20 @@ function buildMission(p: MissionParams): BuiltMission {
   }
   // a deployed copy fires its own turret (units.ts deploy): its percentages under its own WC3 type
   const deployLines: string[] = [];
+  const code = (id: string): string => (id ? `'${id}'` : '0');
   for (const d of p.units.deploy ?? []) {
     const warhead = d.weapon.bullet?.warhead?.name;
     if (warhead) dmgLines.push(...pctLines(d.deployed, RT.DMG_PCT_KEY, warhead).map((l) => l.replace('EmpSwTab', 'EmpDmgTab')));
-    deployLines.push(`    call EmpDeployRegister('${d.type}', '${d.deployed}', '${d.deploy}', '${d.undeploy}', '${d.toDeployed}', '${d.toNormal}', ${real(Math.max(1, d.weapon.bullet?.range ?? 1) * RANGE_PER_TILE)}, ${real(d.deploySeconds)}, ${real(d.undeploySeconds)})`);
+    deployLines.push(`    call EmpDeployRegister('${d.type}', '${d.deployed}', ${code(d.deploy)}, ${code(d.undeploy)}, '${d.toDeployed}', '${d.toNormal}', ${real(Math.max(1, d.weapon.bullet?.range ?? 1) * RANGE_PER_TILE)}, ${real(d.deploySeconds)}, ${real(d.undeploySeconds)})`);
+    // a form the game switches itself (the ADV Sardaukar's knife): by enemy infantry within range
+    if (d.auto > 0) deployLines.push(`    call EmpDeployAuto('${d.type}', ${real(d.auto)})`);
+  }
+  // the infantry types (Rules.txt Infantry): what a knife form goes for
+  if ((p.units.deploy ?? []).some((d) => d.auto > 0)) {
+    for (const o of p.rules ? p.rules.objects.values() : []) {
+      const id = p.units.rawcode.get(o.name);
+      if (id && o.infantry) deployLines.push(`    call SaveBoolean(EmpDeployTab, '${id}', 12, true)`);
+    }
   }
   const sws = p.rules ? superweapons(p.rules) : [];
   if (sws.length) {
