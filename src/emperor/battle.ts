@@ -34,10 +34,9 @@
 // The defending enemy starts from Game.exe's minimal base (MIN_BASE, 0x42ea80), placed by the site code
 // (ai-map.j EmpAiPlace, 0x42a1e0 / 0x42a680). TODO(ai): the buildings a territory kept from earlier
 // battles (0x4807e0 <- 0x490bf0, the defender only) and the reserves (0x4809b0, UnitValueReserves per
-// stack of 0x490d60) are not carried between battles; in a defence battle the attacking AI comes in
-// waves (forces.j EmpDefendWave) instead of Game.exe's MCV, UnitValueAttacker units and
-// CampaignAttackMoney (0x47f255), because how its MCV is deployed is not traced. Risk: later fights on a
-// territory start from a fresh base; defence battles end sooner than in Emperor.
+// stack of 0x490d60) are not carried between battles. Risk: later fights on a territory start from a
+// fresh base. In a defence battle the attacking AI starts with Game.exe's MCV (0x47f255),
+// UnitValueAttacker units and CampaignAttackMoney (forces.j EmpDefendAttacker) and builds its base.
 // Builder state 3 is Game.exe's defence plan (ai-map.j, AI_PLAN / AI_MAP): walls along the contour of
 // a building cluster on the AI's map of tiles, turrets where the walls end at its roads. Of the 17
 // skill rolls (0x46c5d0) the
@@ -492,7 +491,7 @@ endfunction`;
     defensiveSide: [tuneLines(BP.defensive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.defensive)].join('\n'),
     gapFactor: 100 / Math.max(1, ai.largeAttackModifier), TPS: TICKS_PER_SECOND,
     aiFunctions, storyAi: storyHouse >= 0, storyHouse,
-    harvester, playerBase,
+    harvester, playerBase, mcv: mcv ?? '',
     // the yard of the minimal base: MIN_BASE.yardShift tiles (left, up)
     yardLeft: -C.MIN_BASE.yardShift[0] * WC3_UNITS_PER_TILE, yardUp: C.MIN_BASE.yardShift[1] * WC3_UNITS_PER_TILE,
     vehMax: C.ENEMY_VEHICLES.length - 1, infMax: C.ENEMY_INFANTRY.length - 1,

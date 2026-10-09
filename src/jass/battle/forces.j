@@ -333,8 +333,11 @@ function EmpStoryAiStart takes nothing returns nothing
     call EmpAiStartPace()
 endfunction
 
-{{/if}}// ---- defence battles: the player holds a base; the attacker's army (UnitValueAttacker) arrives
-// from its entrance after DEFEND_ATTACK_DELAY, then the reinforcement sets keep coming
+{{/if}}// ---- defence battles: the player holds a base (the defender's minimal base, PLAYER_MIN_BASE). Game.exe
+// 1.09 0x47f170 gives a side that attacks and kept no base an MCV at its start position instead
+// (0x47f255; campaign game types 2 / 3); here the attacking AI starts at its entrance with the MCV, its
+// army (UnitValueAttacker) and CampaignAttackMoney, and plays as in an attack battle (the MCV deploys:
+// ai.j EmpAiMcvTick). Its reinforcement sets come as in every territory battle.
 function EmpDefendStart takes nothing returns nothing
     local integer b = EmpBaseOfSide(0)
 {{playerBase}}
@@ -343,18 +346,34 @@ function EmpDefendStart takes nothing returns nothing
     call SetCameraPositionForPlayer(Player(0), EmpBaseX[b], EmpBaseY[b])
     set EmpCamSet = true
     call SetPlayerStateBJ(Player(0), PLAYER_STATE_RESOURCE_GOLD, {{money.defend}})
-    call SetPlayerStateBJ(Player(1), PLAYER_STATE_RESOURCE_GOLD, {{money.attack}})
     set EmpDefendMode = true
-    set EmpWavesLeft = 1
+    set EmpWavesLeft = 0
 endfunction
 
-function EmpDefendWave takes nothing returns nothing
+// the attacking AI of a defence battle: its base point is the free one nearest its entrance (where
+// its waves stage and its home guard keeps)
+function EmpDefendAttacker takes nothing returns nothing
     local integer e = EmpEntranceFor(1)
-    call DestroyTimer(GetExpiredTimer())
-    call EmpSpawnSet(1, {{army.attacker}}, EmpEntrX[e], EmpEntrY[e], {{real C.DEFEND_WAVE_SPREAD}})
-    set EmpWavesLeft = 0
-    set EmpAIMode[1] = 1
-    set EmpAITargetSide[1] = 0
-    call PingMinimap(EmpEntrX[e], EmpEntrY[e], {{real C.DEFEND_WAVE_PING_SECONDS}})
-    call DisplayTimedTextToPlayer(Player(0), 0.0, 0.0, {{real C.DEFEND_WAVE_MESSAGE_SECONDS}}, {{str C.DEFEND_WAVE_MESSAGE}})
+    local integer b = 0
+    local integer best = -1
+    local real d
+    local real bd = 0.0
+    loop
+        exitwhen b >= EmpBaseCount
+        set d = (EmpBaseX[b] - EmpEntrX[e]) * (EmpBaseX[b] - EmpEntrX[e]) + (EmpBaseY[b] - EmpEntrY[e]) * (EmpBaseY[b] - EmpEntrY[e])
+        if EmpBaseOwner[b] < 0 and (best < 0 or d < bd) then
+            set best = b
+            set bd = d
+        endif
+        set b = b + 1
+    endloop
+    if best >= 0 then
+        set EmpBaseOwner[best] = 1
+        set EmpSideBase[1] = best
+    endif
+{{#if mcv}}    call CreateUnit(Player(1), '{{mcv}}', EmpEntrX[e], EmpEntrY[e], {{FACING}})
+{{/if}}    call EmpSpawnSet(1, {{army.attacker}}, EmpEntrX[e], EmpEntrY[e], {{real C.START_ARMY_SPREAD}})
+    // ai.ini: the AI keeps its units at its base between attack waves
+    set EmpAIMode[1] = 8
+    call SetPlayerStateBJ(Player(1), PLAYER_STATE_RESOURCE_GOLD, {{money.attack}})
 endfunction

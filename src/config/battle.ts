@@ -62,13 +62,6 @@ export const HARV_REPLACE_PERIOD = 2;
  * many refineries of a side are compared. */
 export const HARV_HOME_RANGE = 1024;
 export const HARV_MAX_REFINERIES = 16;
-/** Defence: the attacker's army arrives this long after the start, spread around its entrance;
- * later only its reinforcement sets come. */
-export const DEFEND_ATTACK_DELAY = 45;
-export const DEFEND_WAVE_SPREAD = 250;
-export const DEFEND_WAVE_PING_SECONDS = 4;
-export const DEFEND_WAVE_MESSAGE_SECONDS = 8;
-export const DEFEND_WAVE_MESSAGE = 'Ментат: Враг атакует нашу базу!';
 /** Random picks of an enemy unit allowed at the current tech level before falling back. */
 export const ENEMY_PICK_TRIES = 20;
 

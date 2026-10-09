@@ -45,6 +45,9 @@ function EmpBattleInit takes nothing returns nothing
 {{#if storyAi}}    // the map's own base of side 1 (after EmpPlaced, start.j)
     call EmpStoryAiStart()
 {{/if}}{{#if defendBattle}}    call EmpDefendStart()
-    call TimerStart(CreateTimer(), {{real C.DEFEND_ATTACK_DELAY}}, false, function EmpDefendWave){{/if}}
+    call EmpDefendAttacker()
+    call EmpAiInit()
+    call EmpAiCampaignTune()
+    call EmpAiStartPace(){{/if}}
     set tr = null
 endfunction
