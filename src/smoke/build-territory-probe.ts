@@ -732,6 +732,23 @@ endfunction`,
     return at + " burrowed " + I2S(IntegerTertiaryOp(LoadBoolean(EmpBurrowTab, GetHandleId(u), 1), 1, 0)) + " invisible " + I2S(GetUnitAbilityLevel(u, 'Apiv')) + " order " + OrderId2String(GetUnitCurrentOrder(u))
 endfunction
 
+// the phase (0 none, 1 going under, 2 coming up; b = burrowed) every 0.25 s for n samples
+function BurrowPhases takes unit u, integer n returns string
+    local string r = ""
+    local integer i = 0
+    loop
+        exitwhen i >= n
+        set r = r + I2S(LoadInteger(EmpBurrowTab, GetHandleId(u), 5))
+        if LoadBoolean(EmpBurrowTab, GetHandleId(u), 1) then
+            set r = r + "b"
+        endif
+        set r = r + "(" + I2S(LoadInteger(EmpBurrowTab, GetHandleId(u), 7)) + ":" + OrderId2String(LoadInteger(EmpBurrowTab, GetHandleId(u), 8)) + "/" + I2S(LoadInteger(EmpBurrowTab, GetHandleId(u), 8)) + ") "
+        call TriggerSleepAction(0.25)
+        set i = i + 1
+    endloop
+    return r
+endfunction
+
 function BurrowRun takes nothing returns nothing
     local real x = EmpMapMinX + 256.0
     local real y
@@ -761,15 +778,17 @@ function BurrowRun takes nothing returns nothing
     endloop
     if found then
         set u = CreateUnit(Player(0), '${dustScout}', x, y, 0.0)
-        call TriggerSleepAction(1.5)
-        set s1 = BurrowLine("idle on dust", u)
-        set t = CreateUnit(Player(1), '${trike}', x + 1000.0, y, 0.0)
-        call PauseUnit(t, true)
-        call TriggerSleepAction(1.0)
-        set s2 = BurrowLine("enemy at 8 tiles", u) + " trike life " + R2S(GetWidgetLife(t))
-        call RemoveUnit(t)
+        // going under for its Sink (0.72 s with the models)
+        set s1 = "times " + I2S(LoadInteger(EmpBurrowTab, EmpType(u), 4)) + " / " + I2S(LoadInteger(EmpBurrowTab, EmpType(u), 5)) + " ticks; idle: " + BurrowPhases(u, 8)
+        set s1 = s1 + "| " + BurrowLine("burrowed", u) + " seen by the enemy " + I2S(IntegerTertiaryOp(IsUnitVisible(u, Player(1)), 1, 0))
+        // an order to it: up for its Surface (0.8 s), then off it goes
+        call IssuePointOrder(u, "move", x + 600.0, y)
+        set s2 = "move ordered: " + BurrowPhases(u, 6) + BurrowLine("| then", u)
         call TriggerSleepAction(4.0)
-        set s3 = BurrowLine("enemy gone, idle again", u)
+        // a trike in GuardTileRange: up, then the attack
+        set t = CreateUnit(Player(1), '${trike}', GetUnitX(u) + 1000.0, GetUnitY(u), 0.0)
+        call PauseUnit(t, true)
+        set s3 = "enemy at 8 tiles: " + BurrowPhases(u, 6) + BurrowLine("| then", u) + " trike life " + R2S(GetWidgetLife(t))
     endif
     call PreloadGenClear()
     call PreloadGenStart()

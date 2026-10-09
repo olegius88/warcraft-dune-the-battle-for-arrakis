@@ -44,12 +44,20 @@ export const SEQUENCE_MAP: ReadonlyArray<readonly [string, string, boolean]> = [
   ['Construct', 'Birth', false],
   ['Harv Eat Hold', 'Stand Work', true],
   ['Fly', 'Walk', true],
+  // the dust scout (mission burrow.j): Sink while it goes under, SinkHold under, Surface coming up
+  ['Sink', 'Spell', false],
+  ['SinkHold', 'Stand Channel', true],
+  ['Surface', 'Spell Slam', false],
   ['Hover', 'Stand', true],
 ];
 
 /** The Emperor animations of a deploy and an undeploy: Game.exe 1.09 changes the state when they end
  * (0x568750 / 0x56de70 via 0x563c50), so their lengths are the time each takes (models.ts deploy). */
 export const MODEL_DEPLOY_ANIMS = ['Deploy Gun', 'Undeploy Gun'] as const;
+/** The dust scout's burrow animations: Game.exe 1.09 (unitDustScout.cpp 0x568d10) is burrowed once its
+ * Sink animation ends and up once Surface ends (vcall +0x278 queues the next one), so their lengths are
+ * the time each takes (models.ts burrow, units.ts burrowers). */
+export const MODEL_BURROW_ANIMS = ['Sink', 'Surface'] as const;
 /** The NIAB's teleport animations (Game.exe 0x56ecb0 waits for each: 0x3d before the jump, 0x3e after;
  * units.ts teleporters). */
 export const MODEL_TELEPORT_ANIMS = ['Enter Portal', 'Exit Portal'] as const;

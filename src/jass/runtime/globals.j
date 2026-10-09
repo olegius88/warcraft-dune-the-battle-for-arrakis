@@ -147,6 +147,8 @@
     real EmpTmpR = 0.0
     boolean EmpTmpBool = false
     unit EmpTmpUnit = null
+    // the dust scouts' kept orders are being given again (mission burrow.j EmpBurrowEnd)
+    boolean EmpBurrowReissue = false
     boolean EmpNormalConditions = true
     integer EmpLastBuiltSide = -1
     unit EmpLastBuilt = null

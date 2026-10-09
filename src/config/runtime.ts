@@ -257,6 +257,9 @@ export const EITS_TOSS = { angleStep: 0.6283185, firstAngle: -Math.PI / 2, rise:
 /** How often (s) the dust scouts look whether to burrow or come up (mission burrow.j; Game.exe every
  * tick, 0x568d10). */
 export const BURROW_TICK = 0.25;
+/** The point order WC3 issues to a unit BlzPauseUnitEx stuns (probe --burrow, 2026-10-09: 851973 at the
+ * stun); mission burrow.j does not take it for a player's order. */
+export const STUN_ORDER = 851973;
 /** A stealthed unit (Stealthed / StealthedWhenStill) hides only with at least this share of its
  * health (Game.exe 1.09 0x55fca0: health / maximum against the float at 0x5d4404; mission stealth.j). */
 export const STEALTH_MIN_LIFE = 0.33;

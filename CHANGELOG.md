@@ -283,6 +283,16 @@
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
 
 ### Fixed
+- 2026-10-09 Пылевой разведчик зарывался и выходил мгновенно, а приказ закопанному сразу исполнялся. В
+  `Game.exe` 1.09 (`unitDustScout.cpp` `0x568d10`) закапывание длится анимацию Sink, выход — Surface
+  (`0x22` / `0x24` ждут их, vcall `+0x278`), и в это время разведчик ничего не делает. Теперь так же:
+  - длительности берутся из модели (`MODEL_BURROW_ANIMS`, у ORDustScout 0,72 / 0,8 с);
+  - анимации проигрываются (Spell / Spell Slam / Stand Channel);
+  - приказ закопанному сохраняется и отдаётся после выхода
+    ([burrow.j](src/jass/mission/burrow.j) `EmpBurrowOrder`).
+
+  Проба `--burrow --models` подтверждает. Тесты «the dust scout burrows on DustBowl», «XBF -> MDX: the dust
+  scout sinks and surfaces…».
 - 2026-10-09 ИИ не отвечал сценарием на угрозы у своей базы: 44 реактивные стратегии отбрасывались и не
   попадали даже в обычный выбор. Теперь как в `Game.exe` 1.09 ([ai-scripts.j](src/jass/battle/ai-scripts.j)
   `EmpScrReact`, `AI_REACT` в [config/battle.ts](src/config/battle.ts)):

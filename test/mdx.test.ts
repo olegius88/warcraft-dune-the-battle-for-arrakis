@@ -129,7 +129,9 @@ test('XBF -> MDX: AT_Trike_H0 converts, loads in the independent reader, has Sta
   const buf = writeMdx(model);
   const m = new MdlxModel();
   m.load(new Uint8Array(buf));
-  assert.deepStrictEqual(m.sequences.map((s: { name: string }) => s.name), ['Stand', 'Walk', 'Attack', 'Death']);
+  // its Sink / Surface (as the dust scout's, config SEQUENCE_MAP) come along: WC3 plays Spell sequences
+  // only for a cast, and a trike casts nothing
+  assert.deepStrictEqual(m.sequences.map((s: { name: string }) => s.name), ['Stand', 'Walk', 'Attack', 'Death', 'Spell', 'Spell Slam']);
   assert.ok(m.geosets.length >= 5);
   // the trike is about 82 Emperor units long -> about 328 WC3 units along x (it faces +x)
   const len = model.extent.max[0] - model.extent.min[0];
@@ -240,6 +242,30 @@ test('XBF -> MDX: deploy animations and their lengths for the deployed form', { 
   const d = data.deploy.find((x) => x.type === data.rawcode.get('ATKindjal'));
   assert.deepStrictEqual([d?.deploySeconds, d?.undeploySeconds], [2.48, 2.96]);
   assert.strictEqual(data.objects.find((o) => o.id === d?.deployed)?.mods.filter((x) => x.field === 'uani').at(-1)?.value, 'alternate');
+});
+
+// The dust scout went under and came up at once. Game.exe 1.09 (unitDustScout.cpp 0x568d10): burrowing
+// (state 0x22) it queues animation 0x27 (SinkHold) after Sink and is burrowed (0x23) when that starts;
+// surfacing (0x24) it queues 0 (Stationary) after Surface (vcall +0x278). So burrowing takes the Sink and
+// surfacing the Surface animation. Guaranteed now: both lengths go to the unit data (mission burrow.j)
+// and both play (Spell / Spell Slam; SinkHold as Stand Channel).
+test('XBF -> MDX: the dust scout sinks and surfaces for its animations\' time', { skip: fs.existsSync(archive + '.RFH') ? false : 'Emperor not installed' }, async () => {
+  const path = await import('node:path');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const { buildModels } = await import('../src/emperor/models.ts');
+  const { loadRules } = await import('../src/emperor/rules.ts');
+  const { buildUnitData } = await import('../src/emperor/units.ts');
+  const { RAW_DIR } = await import('../src/config/paths.ts');
+  const models = buildModels(['ORDustScout'], loadArtIni(path.join(RAW_DIR, 'ArtIni.txt')));
+  // Sink 18 frames, Surface 20 frames at 40 ms a frame
+  assert.deepStrictEqual(models.burrow.get('ORDustScout'), [0.72, 0.8]);
+  const file = Object.keys(models.files).find((f) => f.endsWith('.mdx')) as string;
+  const m = new MdlxModel();
+  m.load(new Uint8Array(models.files[file] as Buffer));
+  const names = (m.sequences as Array<{ name: string }>).map((s) => s.name);
+  for (const n of ['Spell', 'Spell Slam', 'Stand Channel']) assert.ok(names.includes(n), `${n} in ${names.join(', ')}`);
+  const data = buildUnitData(loadRules(path.join(RAW_DIR, 'Rules.txt')), (n) => n, undefined, models);
+  assert.deepStrictEqual(data.burrowers.find((b) => b.type === data.rawcode.get('ORDustScout')), { type: data.rawcode.get('ORDustScout'), sink: 0.72, surface: 0.8 });
 });
 
 // House colour: Emperor recolours the saturated blue panels of its "=" textures to the side's

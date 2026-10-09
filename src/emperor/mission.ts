@@ -353,6 +353,8 @@ function buildMission(p: MissionParams): BuiltMission {
     if (!id || !/^true$/i.test((o.raw.DustScout ?? '').split('//')[0]?.trim() ?? '')) continue;
     burrowLines.push(`    call SaveBoolean(EmpBurrowTab, '${id}', 0, true)`);
     if (weaponOf(o)?.bullet?.antiAircraft) burrowLines.push(`    call SaveBoolean(EmpBurrowTab, '${id}', 2, true)`);
+    const b = p.units.burrowers?.find((x) => x.type === id);
+    if (b) burrowLines.push(`    call EmpBurrowTimes('${id}', ${Math.round(b.sink * TICKS_PER_SECOND)}, ${Math.round(b.surface * TICKS_PER_SECOND)})`);
   }
   // worm rides (wormride.j): callers -> their rider, riders (WormRider) -> their Resource
   const wormLines: string[] = [];

@@ -131,6 +131,9 @@ export interface UnitData {
   /** NIAB tanks: the teleport button, seconds before the jump (deploy + Enter Portal) and after it
    * (Exit Portal + TeleportSleepTime) */
   teleporters: { type: string; button: string; before: number; after: number }[];
+  /** dust scouts (Rules.txt DustScout): seconds of going under and of coming up (their models' Sink /
+   * Surface; 0 without a model; mission burrow.j) */
+  burrowers: { type: string; sink: number; surface: number }[];
 }
 
 /** A type that blows itself up on its deploy command (Game.exe 1.09 classes 0x1c Devastator, 0x1b
@@ -638,6 +641,10 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     if (flag(obj.emperor as RulesObject, 'WormRider')) obj.mods = obj.mods.map((m) => m.field === F.targets && m.value !== '' ? { ...m, value: `${String(m.value)},${U.RIDER_TARGETS}` } : m);
   }
   // NIAB tanks (Rules.txt NiabTank): a point-target teleport button (mission teleport.j)
+  const burrowers = objects.filter((x) => x.emperor && flag(x.emperor as RulesObject, 'DustScout')).map((x) => {
+    const [sink, surface] = models?.burrow.get((x.emperor as RulesObject).name) ?? [0, 0];
+    return { type: x.id, sink, surface };
+  });
   const teleporters: { type: string; button: string; before: number; after: number }[] = [];
   for (const obj of objects.filter((x) => x.emperor && flag(x.emperor as RulesObject, 'NiabTank'))) {
     const o = obj.emperor as RulesObject;
@@ -682,7 +689,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers, teleporters, projectors, advCarryalls, carriable,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers, teleporters, burrowers, projectors, advCarryalls, carriable,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),

@@ -1868,6 +1868,12 @@ test('the dust scout burrows on DustBowl', opts, () => {
   assert.ok(body('EmpBurrowTick').includes("GetTerrainType(GetUnitX(u), GetUnitY(u)) == 'Bdsd'"), 'on its ground');
   assert.ok(body('EmpBurrowTarget').includes('GroupEnumUnitsInRange(g, GetUnitX(u), GetUnitY(u), 1536.0, null)'), 'GuardTileRange 12');
   assert.ok(body('EmpBurrowSet').includes("BlzUnitDisableAbility(u, 'Aatk', down, false)"), 'no firing while down');
+  // Regression: it went under and came up at once. Game.exe 0x568d10: burrowing takes the Sink, surfacing
+  // the Surface animation (test/mdx.test.ts), unable to act; an order to a burrowed one is carried out
+  // once it is up. Guaranteed now: the phases (EmpBurrowTab[unit] 5, until tick 6) and the order kept.
+  assert.ok(body('EmpBurrowBegin').includes('call BlzPauseUnitEx(u, true)') && body('EmpBurrowBegin').includes('LoadInteger(EmpBurrowTab, EmpType(u), 3 + phase)'), 'a phase for its animation\'s time');
+  assert.ok(body('EmpBurrowOrder').includes('GetOrderTargetUnit()') && body('EmpBurrowOrder').includes('call EmpBurrowBegin(u, 2)'), 'an order brings it up first');
+  assert.ok(body('EmpBurrowTick').includes('call EmpBurrowEnd(u)'), 'the phase ends');
 });
 
 // HKDevastator, IXInfiltrator and OREITS could not blow themselves up (their deploy command). Game.exe
