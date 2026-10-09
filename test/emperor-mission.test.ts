@@ -1789,8 +1789,10 @@ test('ADV Fremen call worms and ride them for WormRiderLifespan', opts, () => {
   const m = buildMission({ scripts: [], meta, ...all, name: 'worm', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
   assert.ok(m.script.includes(`call SaveInteger(EmpRideTab, '${id('WormRider')}', 0, '${id('FRADVFremen')}')`), 'the rider turns back into an ADV Fremen');
   const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
-  assert.ok(body('EmpRideCast').includes('100 + GetRandomInt(0, 1999)'), 'Min / MaxWormRideWaitDelay');
+  assert.ok(body('EmpRideStart').includes('100 + GetRandomInt(0, 1999)'), 'Min / MaxWormRideWaitDelay');
   assert.ok(body('EmpRideTick').includes('call SaveInteger(EmpRideTab, GetHandleId(n), 5, 1000)'), 'WormRiderLifespan');
+  // a script's ObjectDeploy deploys any class that can (Game.exe 0x4f30b0): the ADV Fremen calls a worm
+  assert.ok(body('EF_ObjectDeploy').includes('EmpRideTab') && body('EmpDeployArgs').includes('ExecuteFunc("EmpRideArgs")'), 'ObjectDeploy calls a worm');
 });
 
 // The dust scout (ORDustScout, Rules.txt DustScout) never burrowed. Game.exe 1.09 class 0xc (0x568d10):

@@ -38,19 +38,30 @@ function EmpRideWander takes unit u returns nothing
     call IssuePointOrder(u, "move", GetRandomReal(EmpMapMinX, EmpMapMaxX), GetRandomReal(EmpMapMinY, EmpMapMaxY))
 endfunction
 
-function EmpRideCast takes nothing returns nothing
-    local unit u = GetTriggerUnit()
+// u plants its thumper, on sand
+function EmpRideStart takes unit u returns nothing
     local real x = GetUnitX(u)
     local real y = GetUnitY(u)
-    if LoadInteger(EmpRideTab, GetSpellAbilityId(), 3) == 1 and LoadBoolean(EmpRideTab, EmpType(u), 1) then
-        if GetTerrainType(x, y) == '{{sandTile}}' or GetTerrainType(x, y) == '{{spiceTile}}' then
-            call SaveInteger(EmpRideTab, GetHandleId(u), 4, {{WORM.waitMin}} + GetRandomInt(0, {{WORM.waitRollMax}}))
-            call GroupAddUnit(EmpRideAll, u)
-        elseif GetOwningPlayer(u) == Player(0) then
-            call EmpShow({{str WORM.noSand}})
-        endif
+    if not EmpAlive(u) or not LoadBoolean(EmpRideTab, EmpType(u), 1) or IsUnitInGroup(u, EmpRideAll) then
+        return
     endif
-    set u = null
+    if GetTerrainType(x, y) == '{{sandTile}}' or GetTerrainType(x, y) == '{{spiceTile}}' then
+        call SaveInteger(EmpRideTab, GetHandleId(u), 4, {{WORM.waitMin}} + GetRandomInt(0, {{WORM.waitRollMax}}))
+        call GroupAddUnit(EmpRideAll, u)
+    elseif GetOwningPlayer(u) == Player(0) then
+        call EmpShow({{str WORM.noSand}})
+    endif
+endfunction
+
+function EmpRideCast takes nothing returns nothing
+    if LoadInteger(EmpRideTab, GetSpellAbilityId(), 3) == 1 then
+        call EmpRideStart(GetTriggerUnit())
+    endif
+endfunction
+
+// deploy.j EmpDeployArgs (the scripts' ObjectDeploy: Game.exe 0x4f30b0 deploys any class that can)
+function EmpRideArgs takes nothing returns nothing
+    call EmpRideStart(EmpDeployArgUnit)
 endfunction
 
 // every WORM_TICK: the callers wait (an order calls the worm off), the riders wander and come back

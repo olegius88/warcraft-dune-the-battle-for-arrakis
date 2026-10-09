@@ -7,7 +7,8 @@
 // after, 2 = a teleporter; [button] 3 = 1.
 // TODO(units): Game.exe's tile check wants the per-player map state 3 at the target (0x56ebe0, meaning
 // "revealed" assumed: here the owner's explored ground); it can also teleport with a deploy and a
-// separate move order, the port's button joins them. Risk: a target Emperor would refuse.
+// separate move order, the port's button joins them; so a script's ObjectDeploy (which only deploys,
+// Game.exe 0x4f30b0) has nothing to do on a NIAB here. Risk: a target Emperor would refuse.
 // Feature test: test/emperor-mission.test.ts "NIAB".
 function EmpTeleData takes nothing returns nothing
     set EmpTeleTab = InitHashtable()

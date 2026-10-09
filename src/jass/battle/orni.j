@@ -7,6 +7,8 @@
 // short of rounds and back to its group once full (0x469820). EmpOrniTab[type]: 0 rounds when full,
 // 1 a helipad type; [craft]: 2 rounds left, 3 its pad, 4 state (0 free, 1 to its pad, 2 on it);
 // [pad]: 5 the craft on it. WC3 units here have one weapon: one turret's rounds.
+// TODO(units): a shot is counted by EVENT_PLAYER_UNIT_ATTACKED of the target's owner, registered for
+// every player slot; one at a neutral of no slot listed would not count. Risk: none on the maps here.
 // Feature test: test/emperor-mission.test.ts "ornithopters".
 function EmpOrniType takes integer t, integer rounds returns nothing
     call SaveInteger(EmpOrniTab, t, 0, rounds)

@@ -154,6 +154,11 @@ function EmpDeployArgs takes nothing returns nothing
         call ExecuteFunc("EmpBoomArgs")
         return
     endif
+    // an ADV Fremen calls a worm (wormride.j)
+    if EmpDeployArgOn and EmpRideTab != null and LoadBoolean(EmpRideTab, EmpType(EmpDeployArgUnit), 1) then
+        call ExecuteFunc("EmpRideArgs")
+        return
+    endif
     call EmpDeployMorph(EmpDeployArgUnit, EmpDeployArgOn)
 endfunction
 
