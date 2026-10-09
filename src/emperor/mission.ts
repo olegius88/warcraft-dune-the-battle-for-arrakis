@@ -363,6 +363,9 @@ function buildMission(p: MissionParams): BuiltMission {
     const back = p.units.rawcode.get((o.raw.Resource ?? '').split(',')[0]?.split('//')[0]?.trim() ?? '');
     if (id && back && /^true$/i.test((o.raw.WormRider ?? '').split('//')[0]?.trim() ?? '')) wormLines.push(`    call SaveInteger(EmpRideTab, '${id}', 0, '${back}')`, `    call SaveBoolean(EmpRideTab, '${id}', 2, true)`);
   }
+  // NIAB teleports (teleport.j)
+  const teleLines = (p.units.teleporters ?? []).flatMap((t) => [`    call SaveReal(EmpTeleTab, '${t.type}', 0, ${real(t.before)})`, `    call SaveReal(EmpTeleTab, '${t.type}', 1, ${real(t.after)})`,
+    `    call SaveBoolean(EmpTeleTab, '${t.type}', 2, true)`, `    call SaveInteger(EmpTeleTab, '${t.button}', 3, 1)`]);
   const gen = (k: string, d: number): number => Number(p.rules?.general[k] ?? 0) || d;
   const WORM = { waitMin: gen('MinWormRideWaitDelay', RT.FALLBACK_WORM_WAIT[0]), waitRollMax: gen('MaxWormRideWaitDelay', RT.FALLBACK_WORM_WAIT[1]) - 1,
     lifespan: gen('WormRiderLifespan', RT.FALLBACK_WORM_LIFESPAN), tick: RT.WORM_TICK, tickTicks: Math.round(RT.WORM_TICK * TICKS_PER_SECOND), noSand: RT.WORM_NO_SAND };
@@ -529,7 +532,7 @@ function buildMission(p: MissionParams): BuiltMission {
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), wormLines: wormLines.join('\n'), WORM, sandTile: TERRAIN.ground[TEX.SAND], spiceTile: TERRAIN.ground[TEX.SPICE], burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), wormLines: wormLines.join('\n'), teleLines: teleLines.join('\n'), WORM, sandTile: TERRAIN.ground[TEX.SAND], spiceTile: TERRAIN.ground[TEX.SPICE], burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -554,6 +557,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('detonate'),
     jass('burrow'),
     jass('wormride'),
+    jass('teleport'),
     jass('apc'),
     jass('subhouse'),
     jass('specials'),

@@ -252,3 +252,5 @@ export const WORM_TICK = 0.5;
 export const WORM_NO_SAND = 'Червя можно призвать только на песке.';
 export const FALLBACK_WORM_WAIT = [100, 2000] as const;
 export const FALLBACK_WORM_LIFESPAN = 1000;
+/** The NIAB cannot teleport to ground its owner has not explored (mission teleport.j). */
+export const TELEPORT_UNSEEN = 'Телепорт возможен только в разведанную точку.';

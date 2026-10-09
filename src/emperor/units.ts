@@ -121,6 +121,9 @@ export interface UnitData {
   detonators: Detonator[];
   /** ADV Fremen: the worm call button, the WormRider it becomes (Resource) */
   wormCallers: { type: string; button: string; rider: string }[];
+  /** NIAB tanks: the teleport button, seconds before the jump (deploy + Enter Portal) and after it
+   * (Exit Portal + TeleportSleepTime) */
+  teleporters: { type: string; button: string; before: number; after: number }[];
 }
 
 /** A type that blows itself up on its deploy command (Game.exe 1.09 classes 0x1c Devastator, 0x1b
@@ -571,6 +574,24 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     obj.mods = withAbility(obj.mods, button);
     wormCallers.push({ type: obj.id, button, rider });
   }
+  // NIAB tanks (Rules.txt NiabTank): a point-target teleport button (mission teleport.j)
+  const teleporters: { type: string; button: string; before: number; after: number }[] = [];
+  for (const obj of objects.filter((x) => x.emperor && flag(x.emperor as RulesObject, 'NiabTank'))) {
+    const o = obj.emperor as RulesObject;
+    const button = nextId(CUSTOM_ID.deployPrefix);
+    const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
+    const b = channelButton(button, U.TELEPORT.name, U.TELEPORT.tooltip, icon);
+    abilities.push({ ...b, mods: [...b.mods.filter((m) => !([ABILITY_FIELD.buttonX, ABILITY_FIELD.buttonY, ABILITY_FIELD.channelTarget, ABILITY_FIELD.channelOptions] as string[]).includes(m.field)),
+      { field: ABILITY_FIELD.buttonX, type: 'int', value: U.TELEPORT.button[0] }, { field: ABILITY_FIELD.buttonY, type: 'int', value: U.TELEPORT.button[1] },
+      // a point target (ChannelAbilityPreset.wurst Targettype POINT = 2), visible with a targeting image (1 | 2)
+      { field: ABILITY_FIELD.channelTarget, type: 'int', value: 2, level: 1, column: 2 },
+      { field: ABILITY_FIELD.channelOptions, type: 'int', value: 3, level: 1, column: 3 },
+      { field: ABILITY_FIELD.castRange, type: 'unreal', value: U.TELEPORT.castRange, level: 1 }] });
+    obj.mods = withAbility(obj.mods, button);
+    const deploy = models?.deploy.get(o.name)?.[0] ?? 0;
+    const [enter, exit] = models?.teleport.get(o.name) ?? [0, 0];
+    teleporters.push({ type: obj.id, button, before: deploy + enter, after: exit + (Number(o.raw.TeleportSleepTime) || 0) / S.TICKS_PER_SECOND });
+  }
   // Command card cells of the train / research buttons: without them a type keeps its stock base's
   // cell and types of the same base hide each other. Buildings with the most buttons first; each
   // button takes the first cell free in every building that shows it (test/emperor-mission.test.ts).
@@ -598,7 +619,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers, teleporters,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),

@@ -144,3 +144,10 @@ export const WORM_CALL = {
   tooltip: 'Поставить тумпер и ждать червя: через время фримен оседлает его. Новый приказ отменяет вызов.',
   button: [1, 2] as const,
 } as const;
+/** The NIAB's teleport button (units.ts teleporters, mission teleport.j): a point target, any range. */
+export const TELEPORT = {
+  name: 'Телепорт',
+  tooltip: 'Перенестись в разведанную точку карты. После переноса танк некоторое время ничего не делает.',
+  button: [1, 2] as const,
+  castRange: 99999,
+} as const;

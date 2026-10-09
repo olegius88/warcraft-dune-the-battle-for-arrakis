@@ -42,6 +42,10 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 Телепорт танка NIAB ([teleport.j](src/jass/mission/teleport.j), `TELEPORT` в [config/units.ts](src/config/units.ts)).
+  Раньше не было. Как в Game.exe (класс `0x15`, `0x56ecb0`): в разведанную точку на любом расстоянии;
+  время развёртывания и анимаций портала (из модели), перенос, затем сон `TeleportSleepTime` (93 тика),
+  когда танк ничего не делает. Пробник `--tele`.
 - 2026-10-09 ADV Fremen призывают червя и ездят на нём ([wormride.j](src/jass/mission/wormride.j)). Как в Game.exe
   (класс `0x11`, `0x566f30`; всадник `0x13`, `0x572a60`): кнопка «Призвать червя» на песке, через
   `MinWormRideWaitDelay + rand % MaxWormRideWaitDelay` тиков фримен становится WormRider (новый приказ

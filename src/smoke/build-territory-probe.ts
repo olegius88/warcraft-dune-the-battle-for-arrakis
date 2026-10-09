@@ -46,6 +46,7 @@ const atOrni = all.units.rawcode.get('ATOrni') as string;
 const hkYard = all.units.rawcode.get('HKConYard') as string;
 const dustScout = all.units.rawcode.get('ORDustScout') as string;
 const orAdp = all.units.rawcode.get('ORADP') as string;
+const niab = all.units.rawcode.get('GUNIABTank') as string;
 const advFremen = all.units.rawcode.get('FRADVFremen') as string;
 const wormRider = all.units.rawcode.get('WormRider') as string;
 const wormButton = all.units.wormCallers[0]?.button ?? '';
@@ -725,6 +726,39 @@ endfunction`,
     call Preload(s2)
     call Preload(s3)
     call PreloadGenEnd("DuneSmoke\\\\worm.pld")
+endfunction`,
+  } : {}),
+  // --tele: a NIAB tank teleports 3000 units off (explored: the fog is off), sleeps, acts again
+  ...(flag('--tele') ? {
+    extraStart: 'TeleRun',
+    extraFunctions: `function TeleRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit u
+    local boolean cast
+    local string s1
+    local string s2
+    local string s3
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    set u = CreateUnit(Player(0), '${niab}', x, y, 0.0)
+    call TriggerSleepAction(0.5)
+    set cast = IssuePointOrder(u, "channel", x, y + 3000.0)
+    call TriggerSleepAction(1.0)
+    set s1 = "cast " + I2S(IntegerTertiaryOp(cast, 1, 0)) + " moved " + R2S(GetUnitY(u) - y) + " paused " + I2S(IntegerTertiaryOp(IsUnitPaused(u), 1, 0))
+    call TriggerSleepAction(1.5)
+    set s2 = "2.5 s: moved " + R2S(GetUnitY(u) - y)
+    call TriggerSleepAction(4.0)
+    call IssuePointOrder(u, "move", x + 600.0, y + 3000.0)
+    call TriggerSleepAction(1.5)
+    set s3 = "6.5 s: ordered to move, x moved " + R2S(GetUnitX(u) - x)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload(s3)
+    call PreloadGenEnd("DuneSmoke\\\\tele.pld")
 endfunction`,
   } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,

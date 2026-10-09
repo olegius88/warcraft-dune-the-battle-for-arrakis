@@ -90,6 +90,8 @@ export const ABILITY_FIELD = {
   buttonOffX: 'aubx',
   buttonOffY: 'auby',
   castTime: 'acas',
+  /** Cast Range per level (AbilityObjEditing.wurst setCastRange) */
+  castRange: 'aran',
   cooldown: 'acdn',
 } as const;
 

@@ -56,6 +56,8 @@
     hashtable EmpBurrowTab = null
     // worm calls and riders (mission wormride.j)
     hashtable EmpRideTab = null
+    // NIAB teleports (mission teleport.j)
+    hashtable EmpTeleTab = null
     group EmpRideAll = null
     // carryalls at work, their harvesters, a destination (battle carryall.j)
     hashtable EmpCarryTab = null

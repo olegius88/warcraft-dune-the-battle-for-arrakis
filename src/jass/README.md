@@ -51,6 +51,7 @@
 | `mission/detonate.j` | `src/emperor/mission.ts` | подрыв Devastator / Infiltrator / EITS: бомбы, импульс раскрытия, саботёр EITS |
 | `mission/burrow.j` | `src/emperor/mission.ts` | пылевой разведчик закапывается на DustBowl и выкапывается при приказе или враге |
 | `mission/wormride.j` | `src/emperor/mission.ts` | ADV Fremen: вызов червя (тумпер), WormRider, возврат во фримена |
+| `mission/teleport.j` | `src/emperor/mission.ts` | телепорт NIAB: кнопка с точкой, время анимаций, сон после переноса |
 | `mission/apc.j` | `src/emperor/mission.ts` | APC: учёт пассажиров, гибель пассажиров вместе с APC |
 | `battle/spice-fields.j` | `src/emperor/battle.ts` | поля спайса по кластерам карты; спайс, сохранённый территорией с прошлой битвы |
 | `battle/carryall.j` | `src/emperor/battle.ts` | карриалы возят харвестеры к полю и к НПЗ; гибель груза со сбитым карриалом |

@@ -50,6 +50,9 @@ export const SEQUENCE_MAP: ReadonlyArray<readonly [string, string, boolean]> = [
 /** The Emperor animations of a deploy and an undeploy: Game.exe 1.09 changes the state when they end
  * (0x568750 / 0x56de70 via 0x563c50), so their lengths are the time each takes (models.ts deploy). */
 export const MODEL_DEPLOY_ANIMS = ['Deploy Gun', 'Undeploy Gun'] as const;
+/** The NIAB's teleport animations (Game.exe 0x56ecb0 waits for each: 0x3d before the jump, 0x3e after;
+ * units.ts teleporters). */
+export const MODEL_TELEPORT_ANIMS = ['Enter Portal', 'Exit Portal'] as const;
 
 /** Draw both sides of every face (thin parts such as flags and wings are single sheets). */
 export const TWO_SIDED = true;

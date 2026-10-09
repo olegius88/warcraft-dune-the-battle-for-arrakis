@@ -1741,6 +1741,22 @@ test('carryalls carry harvesters, and the AI builds them', opts, () => {
   assert.ok(body('EmpEnemyProduce').includes('EmpAiCarryallWanted()'), 'the AI builds them');
 });
 
+// The NIAB tank could not teleport. Game.exe 1.09 class 0x15 (0x56ecb0): deploy, then to a revealed
+// point anywhere: Enter Portal, the jump, Exit Portal, TeleportSleepTime (93) ticks of sleep unable to act.
+// Guaranteed now: a point-target button, any range, the animations' time and the sleep (teleport.j).
+test('the NIAB tank teleports to explored ground', opts, () => {
+  const all = loadAll();
+  const t = all.units.teleporters.find((x) => x.type === all.units.rawcode.get('GUNIABTank'));
+  assert.ok(t && Math.abs(t.after - 93 / 25) < 1e-9, 'TeleportSleepTime 93 ticks (no models here: no animation time)');
+  const w3a = all.units.w3a.toString('latin1');
+  assert.ok(w3a.includes(`ANcl${t.button}`) && w3a.includes('Ncl2\0\0\0\0\u0001\0\0\0\u0002\0\0\0\u0002\0\0\0'), 'a point target');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'tele', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpTeleCast').includes('IsMaskedToPlayer(x, y, GetOwningPlayer(u))'), 'explored ground only');
+  assert.ok(body('EmpTeleJump').includes('SetUnitPosition(u'), 'the jump');
+});
+
 // The ADV Fremen could not call a worm. Game.exe 1.09 class 0x11 (0x566f30): a thumper, MinWormRideWait
 // + rand % MaxWormRideWait ticks later a WormRider (its Resource) of its owner; the rider (0x13, 0x572a60)
 // wanders unless ordered and after WormRiderLifespan ticks is an ADV Fremen again with its share of
