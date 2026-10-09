@@ -245,6 +245,11 @@
     integer EmpAiEvBy = -1
     boolean EmpAiPlaceOk = false
     integer EmpAiRoomEpoch = 1
+    // tactics started (battle ai.j EmpAiTactics)
+    boolean EmpAiGuardHarv = false
+    boolean EmpAiGuardCY = false
+    real EmpAiPtX = 0.0
+    real EmpAiPtY = 0.0
     trigger EmpAiMapLostTrig = null
     integer EmpAiIntrusionAt = 0
     integer EmpAiIntrusionN = 0
@@ -266,7 +271,6 @@
     real EmpAiStageY = 0.0
     boolean EmpAiForming = false
     integer EmpAiFormStart = 0
-    integer EmpAiCYHit = 0
     integer EmpAiProduced = 0
     integer EmpAiWhy = -1
     integer EmpAiReserve = 0

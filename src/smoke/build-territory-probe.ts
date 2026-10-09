@@ -587,6 +587,30 @@ function PadsProbeRun takes nothing returns nothing
     set r = null
 endfunction`,
   } : {}),
+  // --tactics: the tactics' starts (ai.j EmpAiTactics): DEFENSIVE, tech 5, skill 9, strength 2, 12 units
+  // of side 1, a crate by its base; the AI report logs the scout points, the yard guard, the crate run
+  ...(flag('--tactics') ? {
+    extraStart: 'TacticsProbeRun',
+    extraFunctions: `function TacticsProbeRun takes nothing returns nothing
+    local integer i = 0
+    local integer b = EmpBaseOfSide(1)
+    set EmpNormalConditions = false
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(2.0)
+    set EmpTechLevel = 5
+    set EmpAiPersonality = 2
+    set EmpAiStrength = 2
+    set EmpAiSkill = 9
+    loop
+        exitwhen i >= 12
+        call CreateUnit(Player(1), '${all.units.rawcode.get('HKLightInf')}', EmpBaseX[b] + GetRandomReal(-300.0, 300.0), EmpBaseY[b] - 700.0, 270.0)
+        set i = i + 1
+    endloop
+    call EmpAddCrate(EmpBaseX[b] + 900.0, EmpBaseY[b] - 900.0, 0, 500)
+    call EmpAiLog("probe: tactics set, crates " + I2S(EmpCrateCount))
+endfunction`,
+  } : {}),
   // --sites: the building sites (ai-map.j): tiles round the first cluster where side 1's refinery fits
   // with and without the road link of an exit, and EmpAiPlace's answer
   ...(flag('--sites') ? {

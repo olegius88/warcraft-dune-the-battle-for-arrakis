@@ -1530,3 +1530,24 @@ test('building sites: square rings from the cluster centre, all eight weights, d
   const yard = all.units.rawcode.get('ATConYard');
   assert.ok(m.script.includes(`call EmpAiOccBox('${yard}', -2, -2, 5, 7)`), 'the yard body box (b d p cells of its Occupy)');
 });
+
+// Tactics as Game.exe 1.09 starts them (0x44d040, AI updates every second tick): scouts go round five
+// points NW, NE, SE, SW and the centre (0x4582a0, table 0x4584a0); the harvester guard comes with a
+// strength, skill 4, 10 units, past TicksBeforeDefendHarvesterTactic, on 1 in 3000 updates (0x450020);
+// the construction yard guard only for a DEFENSIVE AI, from FirstTechLevelForDefendCYTactic, 10 units,
+// past TicksBeforeDefendCYTactic + (11 - skill) * 400, on 1 in 1500 (0x4500d0) - not the whole home
+// guard whenever the yard is hit; a unit goes for a crate it sees with 10 units on rand % 350 < skill
+// (0x450530).
+test('tactics start as in Game.exe: scout route, harvester and yard guards, crates', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'tactics', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const tac = body('EmpAiTactics');
+  assert.ok(body('EmpAiScoutPoint').includes('EmpAiMapW - 4') && body('EmpAiScoutPoint').includes('EmpAiMapH - 4'), 'five points');
+  assert.ok(tac.includes('call EmpAiScoutNext(u)') && !m.script.includes('function EmpAiRoam takes'), 'scouts on the route');
+  assert.ok(tac.includes('EmpAiStrength != 0 and EmpAiSkill >= 4') && tac.includes('GetRandomInt(0, 2999) < 25'), 'harvester guard start');
+  assert.ok(tac.includes('EmpAiPersonality == 2') && tac.includes('(11 - EmpAiSkill) * 400') && tac.includes('GetRandomInt(0, 1499) < 25'), 'yard guard start');
+  assert.ok(!tac.includes('EmpAiCYHit'), 'no invented yard alarm');
+  assert.ok(tac.includes('GetRandomInt(0, 349) < EmpAiSkill'), 'crates');
+});

@@ -33,8 +33,7 @@
 // skirmish lobbies give an AI sub-houses (0x47c1a0 "Changed AI side %d to subhouses %d, %d").
 // TODO(ai): still simplified against Game.exe: a territory battle's enemy starts from a fixed base
 // template whose lost buildings are rebuilt first (BASE_TEMPLATE; Emperor's campaign start base is not
-// traced); sites are tried on rings (Perpendicular / Rotation weights unused, WC3 buildings do not
-// turn);
+// traced). Building sites: ai-map.j EmpAiPlace (Game.exe 0x42a1e0 / 0x42a680).
 // Builder state 3 is Game.exe's defence plan (ai-map.j, AI_PLAN / AI_MAP): walls along the contour of
 // a building cluster on the AI's map of tiles, turrets where the walls end at its roads. Of the 17
 // skill rolls (0x46c5d0) the

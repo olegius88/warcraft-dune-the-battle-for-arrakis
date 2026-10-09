@@ -10,9 +10,8 @@
 // Tactics: scouts once UnitsToBuildBeforeCreatingScoutTactic units were made (NumberOfScoutTeams,
 // one unit each, roaming; the first player building they see becomes the attack target, after
 // TicksUntilAISeesIntoShroud the player's base is known anyway); base defence chases enemies within
-// DefenceTacticWanderDistance; harvester escorts after TicksBeforeDefendHarvesterTactic; the whole
-// home guard to the construction yard when it is hit (after TicksBeforeDefendCYTactic, from tech
-// FirstTechLevelForDefendCYTactic); attack waves gather at a staging point and attack when formed or
+// DefenceTacticWanderDistance; a harvester guard and a construction yard guard as Game.exe starts them
+// (AI_DEFEND_HARVESTER, AI_DEFEND_CY); scouts round five points (AI_SCOUT); crate runs (AI_CRATE); attack waves gather at a staging point and attack when formed or
 // after TicksUntilAbandonForming. Sites: ai-map.j EmpAiPlace (Game.exe's square rings and weights;
 // WC3 buildings do not turn, so the rotation terms take the fixed facing).
 {{dataFunction}}
@@ -591,15 +590,67 @@ function EmpAiHomeUnit takes unit u returns boolean
 endfunction
 
 // a random point of the map
-function EmpAiRoam takes unit u returns nothing
-    call IssuePointOrder(u, "move", GetRandomReal(EmpMapMinX, EmpMapMaxX), GetRandomReal(EmpMapMinY, EmpMapMaxY))
+// scout route point k (0x4584a0): NW, NE, SE, SW, the centre, AI_SCOUT.edge tiles in, into EmpAiPtX / Y
+function EmpAiScoutPoint takes integer k returns nothing
+    local integer x = EmpAiMapW / 2
+    local integer y = EmpAiMapH / 2
+    if k == 0 or k == 3 then
+        set x = {{C.AI_SCOUT.edge}}
+    elseif k == 1 or k == 2 then
+        set x = EmpAiMapW - {{C.AI_SCOUT.edge}}
+    endif
+    if k == 0 or k == 1 then
+        set y = {{C.AI_SCOUT.edge}}
+    elseif k == 2 or k == 3 then
+        set y = EmpAiMapH - {{C.AI_SCOUT.edge}}
+    endif
+    if EmpAiMapW == 0 then
+        set EmpAiPtX = EmpMapMinX + (EmpMapMaxX - EmpMapMinX) * x / 8.0
+        set EmpAiPtY = EmpMapMaxY - (EmpMapMaxY - EmpMapMinY) * y / 8.0
+        return
+    endif
+    set EmpAiPtX = EmpAiTileWX(x)
+    set EmpAiPtY = EmpAiTileWY(y)
 endfunction
 
-// the CY was hit (attacked event of the AI's units)
-function EmpAiOnAttacked takes nothing returns nothing
-    if GetTriggerUnit() == EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}] then
-        set EmpAiCYHit = EmpTick
+// a scout's next point (0x4582a0): the route in order, then a point no other scout heads for, else random
+function EmpAiScoutNext takes unit u returns nothing
+    local integer k = LoadInteger(EmpWaveTab, GetHandleId(u), {{C.AI_SCOUT.key}})
+    local group g
+    local unit o
+    local integer p
+    local integer free = -1
+    local boolean used
+    if k >= {{C.AI_SCOUT.points}} then
+        set p = 0
+        loop
+            exitwhen p >= {{C.AI_SCOUT.points}} or free >= 0
+            set used = false
+            set g = CreateGroup()
+            call GroupEnumUnitsOfPlayer(g, Player(1), null)
+            loop
+                set o = FirstOfGroup(g)
+                exitwhen o == null
+                call GroupRemoveUnit(g, o)
+                if o != u and EmpAlive(o) and EmpAiRole(o) == 1 and ModuloInteger(LoadInteger(EmpWaveTab, GetHandleId(o), {{C.AI_SCOUT.key}}) - 1, {{C.AI_SCOUT.points}}) == p then
+                    set used = true
+                endif
+            endloop
+            call DestroyGroup(g)
+            if not used then
+                set free = p
+            endif
+            set p = p + 1
+        endloop
+        set g = null
+        if free < 0 then
+            set free = GetRandomInt(0, {{C.AI_SCOUT.points}} - 1)
+        endif
+        set k = {{C.AI_SCOUT.points}} + free
     endif
+    call EmpAiScoutPoint(ModuloInteger(k, {{C.AI_SCOUT.points}}))
+    call SaveInteger(EmpWaveTab, GetHandleId(u), {{C.AI_SCOUT.key}}, k + 1)
+    call IssuePointOrder(u, "move", EmpAiPtX, EmpAiPtY)
 endfunction
 
 // the palace super weapon (src/emperor/superweapons.ts): charged for its BuildTime while the AI's
@@ -768,6 +819,10 @@ function EmpAiTactics takes nothing returns nothing
     local integer b = EmpBaseOfSide(1)
     local integer scouts = 0
     local integer escorts = 0
+    local integer guards = 0
+    local integer units = 0
+    local unit yard = EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]
+    local integer k
     local unit harv = null
     local unit threat = null
     local real r
@@ -837,10 +892,25 @@ function EmpAiTactics takes nothing returns nothing
             elseif EmpAiRole(u) == 1 then
                 set scouts = scouts + 1
                 if GetUnitCurrentOrder(u) == 0 then
-                    call EmpAiRoam(u)
+                    call EmpAiScoutNext(u)
                 endif
             elseif EmpAiRole(u) == 2 then
                 set escorts = escorts + 1
+            elseif EmpAiRole(u) == 5 then
+                // the construction yard guard keeps by the yard (GuardObject)
+                set guards = guards + 1
+                if EmpAlive(yard) and GetUnitCurrentOrder(u) == 0 and not IsUnitInRangeXY(u, GetUnitX(yard), GetUnitY(yard), 4.0 * tile) then
+                    call IssuePointOrder(u, "attack", GetUnitX(yard), GetUnitY(yard))
+                endif
+            elseif EmpAiRole(u) == 6 then
+                // a crate run (Move): it ends with the crate
+                set k = LoadInteger(EmpWaveTab, GetHandleId(u), {{C.AI_CRATE.key}}) - 1
+                if k < 0 or EmpCrateItem[k] == null then
+                    call SaveInteger(EmpWaveTab, GetHandleId(u), 1, 0)
+                    call SaveInteger(EmpWaveTab, GetHandleId(u), {{C.AI_CRATE.key}}, 0)
+                elseif GetUnitCurrentOrder(u) == 0 then
+                    call IssuePointOrder(u, "move", GetItemX(EmpCrateItem[k]), GetItemY(EmpCrateItem[k]))
+                endif
             elseif EmpAiRole(u) == 3 and EmpAiForming then
                 set waveUnits = waveUnits + 1
                 if not IsUnitInRangeXY(u, EmpAiStageX, EmpAiStageY, {{real C.AI_FORMED_TILES}} * tile) then
@@ -865,23 +935,54 @@ function EmpAiTactics takes nothing returns nothing
                     call SaveBoolean(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_POSTED}}, true)
                 elseif not LoadBoolean(EmpWaveTab, GetHandleId(u), {{C.AI_TAB_RESERVE_POSTED}}) and not IsUnitInRangeXY(u, EmpBaseX[b], EmpBaseY[b], I2R(EmpAiWander) * tile) then
                     call IssuePointOrder(u, "move", EmpBaseX[b], EmpBaseY[b])
-                elseif EmpAiCYHit > 0 and EmpTick - EmpAiCYHit < R2I({{real C.AI_CY_ALARM_SECONDS}} * {{TPS}}) and EmpTick >= {{ai.ticksDefendCY}} and EmpTechLevel >= {{ai.firstTechDefendCY}} then
-                    call IssuePointOrder(u, "attack", GetUnitX(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]), GetUnitY(EmpTplUnit[EmpEnemyHouse * {{C.TEMPLATE_SLOTS}}]))
                 endif
             endif
         endif
     endloop
     call DestroyGroup(g)
     set g = null
+    set units = EmpAiUnitCount()
     // a new scout (one unit per team) once enough units were made
     if EmpAiProduced >= {{ai.unitsBeforeScout}} and scouts < EmpAiScoutTeams and best != null then
         call SaveInteger(EmpWaveTab, GetHandleId(best), 1, 1)
-        call EmpAiRoam(best)
+        call EmpAiScoutNext(best)
         call EmpAiLog("scout " + GetUnitName(best))
         set best = null
     endif
+    // the harvester guard starts (0x450020): a strength, the skill, units, its time, 1 in 3000 updates
+    if not EmpAiGuardHarv and EmpAiStrength != 0 and EmpAiSkill >= {{C.AI_DEFEND_HARVESTER.skill}} and units >= {{C.AI_DEFEND_HARVESTER.units}} and EmpTick >= {{ai.ticksDefendHarvester}} and GetRandomInt(0, {{C.AI_DEFEND_HARVESTER.rollMax}}) < {{C.AI_UPDATES_PER_TACTIC}} then
+        set EmpAiGuardHarv = true
+        call EmpAiLog("tactic: defend harvester")
+    endif
+    // the construction yard guard starts (0x4500d0): DEFENSIVE, its tech, units, its time by the skill
+    if not EmpAiGuardCY and EmpAiPersonality == {{C.AI_BEHAVIOUR.defensive}} and EmpTechLevel >= {{ai.firstTechDefendCY}} and units >= {{C.AI_DEFEND_CY.units}} and EmpTick >= {{ai.ticksDefendCY}} + ({{C.AI_DEFEND_CY.skillTop}} - EmpAiSkill) * {{C.AI_DEFEND_CY.perSkill}} and GetRandomInt(0, {{C.AI_DEFEND_CY.rollMax}}) < {{C.AI_UPDATES_PER_TACTIC}} then
+        set EmpAiGuardCY = true
+        call EmpAiLog("tactic: defend construction yard")
+    endif
+    if EmpAiGuardCY and guards < {{C.AI_DEFEND_CY.team}} and best != null and EmpAlive(yard) then
+        call SaveInteger(EmpWaveTab, GetHandleId(best), 1, 5)
+        call IssuePointOrder(best, "attack", GetUnitX(yard), GetUnitY(yard))
+        call EmpAiLog("yard guard " + GetUnitName(best))
+        set best = null
+    endif
+    // a crate run (0x450530): crates it sees, units, rand % 350 < skill, nobody on its way there
+    if units >= {{C.AI_CRATE.units}} and best != null and GetRandomInt(0, {{C.AI_CRATE.rollMax}}) < EmpAiSkill then
+        set k = 0
+        loop
+            exitwhen k >= EmpCrateCount or best == null
+            if EmpCrateItem[k] != null and IsVisibleToPlayer(GetItemX(EmpCrateItem[k]), GetItemY(EmpCrateItem[k]), Player(1)) and not LoadBoolean(EmpWaveTab, GetHandleId(EmpCrateItem[k]), 1) then
+                call SaveBoolean(EmpWaveTab, GetHandleId(EmpCrateItem[k]), 1, true)
+                call SaveInteger(EmpWaveTab, GetHandleId(best), 1, 6)
+                call SaveInteger(EmpWaveTab, GetHandleId(best), {{C.AI_CRATE.key}}, k + 1)
+                call IssuePointOrder(best, "move", GetItemX(EmpCrateItem[k]), GetItemY(EmpCrateItem[k]))
+                call EmpAiLog("crate run " + GetUnitName(best))
+                set best = null
+            endif
+            set k = k + 1
+        endloop
+    endif
     // harvester escort
-    if harv != null and EmpTick >= {{ai.ticksDefendHarvester}} then
+    if harv != null and EmpAiGuardHarv then
         if escorts < {{C.AI_ESCORTS}} and best != null then
             call SaveInteger(EmpWaveTab, GetHandleId(best), 1, 2)
             call EmpAiLog("escort " + GetUnitName(best))
@@ -919,6 +1020,7 @@ function EmpAiTactics takes nothing returns nothing
     set harv = null
     set threat = null
     set best = null
+    set yard = null
 endfunction
 
 // an attack wave: the home units but the defence share gather at the staging point (a share of the
@@ -1062,11 +1164,9 @@ function EmpAiHarvTick takes nothing returns nothing
 endfunction
 
 function EmpAiInit takes nothing returns nothing
-    local trigger tr = CreateTrigger()
+    local trigger tr
     call EmpAiData()
     call EmpAiMapInit()
-    call TriggerRegisterPlayerUnitEvent(tr, Player(1), EVENT_PLAYER_UNIT_ATTACKED, null)
-    call TriggerAddAction(tr, function EmpAiOnAttacked)
     set EmpAiHarvHitTrig = CreateTrigger()
     call TriggerRegisterPlayerUnitEvent(EmpAiHarvHitTrig, Player(1), EVENT_PLAYER_UNIT_DAMAGED, null)
     call TriggerAddAction(EmpAiHarvHitTrig, function EmpAiHarvHurt)

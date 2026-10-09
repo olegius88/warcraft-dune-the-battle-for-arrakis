@@ -151,14 +151,30 @@ export const AI_SITE = {
 } as const;
 /** Tactics tick (seconds): scouts, base defence, harvester escort, construction yard defence, waves. */
 export const AI_TACTIC_PERIOD = 2;
+/** Game.exe 1.09 updates an AI side every second tick (0x428370); its 1-in-n starts (rand % n == 0 per
+ * update) are a roll of AI_UPDATES_PER_TACTIC in n here, once a tactics tick. */
+export const AI_UPDATES_PER_TACTIC = (AI_TACTIC_PERIOD * 25) / 2;
+/** Scouts (0x4582a0): the route's points NW, NE, SE, SW and the centre, `edge` tiles in (table 0x4584a0);
+ * a scout at its point within `arrive` tiles, or idle, takes the next one; past the fifth one a point
+ * no other scout heads for, else a random one. EmpWaveTab child `key`: its next point. */
+export const AI_SCOUT = { edge: 4, points: 5, arrive: 2, key: 6 } as const;
+/** Game.exe 1.09 0x450020, the harvester guard (GuardObject): with a strength, skill >= `skill`,
+ * `units` units, past TicksBeforeDefendHarvesterTactic, on rand % `oneIn` == 0. */
+export const AI_DEFEND_HARVESTER = { skill: 4, units: 10, oneIn: 3000, rollMax: 3000 - 1 } as const;
+/** Game.exe 1.09 0x4500d0, the construction yard guard (GuardObject): a DEFENSIVE AI, tech >=
+ * FirstTechLevelForDefendCYTactic, `units` units, past TicksBeforeDefendCYTactic + (`skillTop` - skill)
+ * * `perSkill` ticks, on rand % `oneIn` == 0. Its team: `team` units (GuardObject's size not traced). */
+export const AI_DEFEND_CY = { units: 10, skillTop: 11, perSkill: 400, oneIn: 1500, rollMax: 1500 - 1, team: 2 } as const;
+/** Game.exe 1.09 0x450530, a crate run (Move): crates on, `units` units, rand % (`roll` * 10) < skill
+ * (0x46c5d0), a crate it sees nobody runs for; one unit (the Move team's size not traced). EmpWaveTab
+ * child `key`: the crate's index + 1. */
+export const AI_CRATE = { units: 10, roll: 35, rollMax: 35 * 10 - 1, key: 7 } as const;
 /** Attack waves gather this far from their base towards the target (share of the way) before attacking. */
 export const AI_STAGING_SHARE = 0.33;
 /** A wave is formed when all its units are within this many tiles of the staging point. */
 export const AI_FORMED_TILES = 6;
 /** Harvester escort: units that follow the AI's harvesters (DefendHarvester tactic). */
 export const AI_ESCORTS = 2;
-/** Construction yard defence: the yard counts as attacked for this long after a hit (seconds). */
-export const AI_CY_ALARM_SECONDS = 15;
 /** Debug report of the AI (DuneTest\<map>_AI.pld): lines kept. */
 export const AI_REPORT_LINES = 60;
 /** ai_difficulty.ini has [Tech1]..[Tech8]. */
