@@ -47,6 +47,7 @@ const hkYard = all.units.rawcode.get('HKConYard') as string;
 const dustScout = all.units.rawcode.get('ORDustScout') as string;
 const orAdp = all.units.rawcode.get('ORADP') as string;
 const niab = all.units.rawcode.get('GUNIABTank') as string;
+const projector = all.units.rawcode.get('IXProjector') as string;
 const advFremen = all.units.rawcode.get('FRADVFremen') as string;
 const wormRider = all.units.rawcode.get('WormRider') as string;
 const wormButton = all.units.wormCallers[0]?.button ?? '';
@@ -726,6 +727,70 @@ endfunction`,
     call Preload(s2)
     call Preload(s3)
     call PreloadGenEnd("DuneSmoke\\\\worm.pld")
+endfunction`,
+  } : {}),
+  // --proj: a projector deploys, projects an enemy trike (a replica for the player), the replica is
+  // shot at and vanishes; another one vanishes with its projector (the report is written at each step)
+  ...(flag('--proj') ? {
+    extraStart: 'ProjRun',
+    extraFunctions: `function ProjCountEnum takes nothing returns nothing
+    if EmpAlive(GetEnumUnit()) then
+        call SaveInteger(EmpProjTab, -1, 0, LoadInteger(EmpProjTab, -1, 0) + 1)
+    endif
+endfunction
+
+function ProjCount takes nothing returns integer
+    call SaveInteger(EmpProjTab, -1, 0, 0)
+    call ForGroup(EmpProjAll, function ProjCountEnum)
+    return LoadInteger(EmpProjTab, -1, 0)
+endfunction
+
+function ProjSave takes string a, string b, string c returns nothing
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(a)
+    call Preload(b)
+    call Preload(c)
+    call PreloadGenEnd("DuneSmoke\\\\proj.pld")
+endfunction
+
+function ProjRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit p
+    local unit t
+    local unit r
+    local boolean cast
+    local string s1 = "start"
+    local string s2 = ""
+    local string s3 = ""
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    set p = CreateUnit(Player(0), '${projector}', x, y, 0.0)
+    set t = CreateUnit(Player(1), '${trike}', x + 900.0, y, 180.0)
+    call PauseUnit(t, true)
+    call ProjSave("created", "", "")
+    call TriggerSleepAction(0.5)
+    call EmpDeploySet(p, true)
+    call TriggerSleepAction(1.5)
+    set cast = IssueTargetOrder(p, "absorb", t)
+    call TriggerSleepAction(1.5)
+    set s1 = "deployed " + I2S(IntegerTertiaryOp(EmpDeployed(p), 1, 0)) + " cast " + I2S(IntegerTertiaryOp(cast, 1, 0)) + " replicas " + I2S(ProjCount())
+    call ProjSave(s1, "", "")
+    set r = FirstOfGroup(EmpProjAll)
+    if r != null then
+        call UnitDamageTarget(t, r, 10.0, true, false, ATTACK_TYPE_NORMAL, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS)
+    endif
+    call TriggerSleepAction(0.5)
+    set s2 = "after a hit: replicas " + I2S(ProjCount())
+    call ProjSave(s1, s2, "")
+    set cast = IssueTargetOrder(p, "absorb", t)
+    call TriggerSleepAction(1.5)
+    call KillUnit(p)
+    call TriggerSleepAction(1.0)
+    set s3 = "second one " + I2S(IntegerTertiaryOp(cast, 1, 0)) + ", projector killed: replicas " + I2S(ProjCount())
+    call ProjSave(s1, s2, s3)
 endfunction`,
   } : {}),
   // --tele: a NIAB tank teleports 3000 units off (explored: the fog is off), sleeps, acts again

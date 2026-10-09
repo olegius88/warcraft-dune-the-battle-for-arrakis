@@ -58,6 +58,9 @@
     hashtable EmpRideTab = null
     // NIAB teleports (mission teleport.j)
     hashtable EmpTeleTab = null
+    // projector replicas (mission projector.j)
+    hashtable EmpProjTab = null
+    group EmpProjAll = null
     group EmpRideAll = null
     // carryalls at work, their harvesters, a destination (battle carryall.j)
     hashtable EmpCarryTab = null

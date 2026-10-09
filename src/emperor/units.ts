@@ -17,7 +17,7 @@ import type { Wc3Race } from '../config/houses.ts';
 import { UNIT_FIELD as F, ABILITY_FIELD, UPGRADE_FIELD as G, ABILITY, UNIT, CUSTOM_ID } from '../config/wc3.ts';
 import * as S from '../config/scale.ts';
 import * as U from '../config/units.ts';
-import { DEPLOY_BUTTON_ORDER as RT_DEPLOY_ORDER } from '../config/runtime.ts';
+import { DEPLOY_BUTTON_ORDER as RT_DEPLOY_ORDER, PROJECTION_ORDER as RT_PROJECTION_ORDER } from '../config/runtime.ts';
 import { superweaponKind } from './superweapons.ts';
 import type { EffectUse, EffectSet } from './effects.ts';
 import { EFFECT_PLAYED, EFFECT_MAX_RADIUS, EFFECT_MIN_SCALE, MUZZLE_FALLBACK } from '../config/models.ts';
@@ -121,6 +121,8 @@ export interface UnitData {
   detonators: Detonator[];
   /** ADV Fremen: the worm call button, the WormRider it becomes (Resource) */
   wormCallers: { type: string; button: string; rider: string }[];
+  /** projectors: the projection button their deployed copy has, the replicas' lifespan (s) */
+  projectors: { type: string; deployed: string; button: string; lifespan: number }[];
   /** NIAB tanks: the teleport button, seconds before the jump (deploy + Enter Portal) and after it
    * (Exit Portal + TeleportSleepTime) */
   teleporters: { type: string; button: string; before: number; after: number }[];
@@ -201,13 +203,12 @@ function weaponOf(o: RulesObject, deployed = false): Turret | undefined {
  * unit classes (0x10 / 0xb, unit parser 0x527d81 / 0x527d3d) and the AI's "Deployable" set
  * (objectsets.txt). The flags of IMSardaukar, ATGeneral, DukeAchillus, HKEngineer and WormRider do
  * nothing there (their IsDeployed is always false, 0x568350).
- * IMADVSardaukar / IMGeneral switch to the knife by themselves (knifeRange).
- * TODO(deploy): two more classes switch turrets by a state of their own: FRADVFremen (class 0x11,
- * deploys like DeployInf where a map condition holds, 0x566e90 -> 0x5991a0, not identified) and
- * GUNIABTank (its byte +0x258 while it teleports, 0x56ecb0). They keep their first turret here; risk:
- * the ADV Fremen never deploys, a NIAB fires while teleporting. */
+ * IMADVSardaukar / IMGeneral switch to the knife by themselves (knifeRange); IXProjector (class 0x17)
+ * deploys as these do (its projection button: projectors). The ADV Fremen's deploy calls a worm
+ * (wormCallers, mission wormride.j) and the NIAB's teleports (teleporters, mission teleport.j): it is
+ * paused all through, so its "deployed" gun state does not show. */
 function deployable(o: RulesObject): boolean {
-  return o.category === 'Unit' && (/^true$/i.test((o.raw.DeployInf ?? '').trim()) || /^true$/i.test((o.raw.Kobra ?? '').trim()));
+  return o.category === 'Unit' && ['DeployInf', 'Kobra', 'Projector'].some((k) => /^true$/i.test((o.raw[k] ?? '').trim()));
 }
 
 /** Rules.txt AdvancedSardaukar (IMADVSardaukar, IMGeneral; Game.exe class 0x12): "deployed" while its
@@ -574,6 +575,27 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     obj.mods = withAbility(obj.mods, button);
     wormCallers.push({ type: obj.id, button, rider });
   }
+  // Projectors (Rules.txt Projector, deployable above): the deployed copy's unit-target projection
+  // button (mission projector.j)
+  const projectors: { type: string; deployed: string; button: string; lifespan: number }[] = [];
+  for (const d of deploy) {
+    const obj = objects.find((x) => x.id === d.type);
+    const o = obj?.emperor;
+    if (!o || !flag(o, 'Projector')) continue;
+    const copy = objects.find((x) => x.id === d.deployed) as UnitObject;
+    const button = nextId(CUSTOM_ID.deployPrefix);
+    const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
+    const b = channelButton(button, U.PROJECTION.name, U.PROJECTION.tooltip, icon);
+    abilities.push({ ...b, mods: [...b.mods.filter((m) => !([ABILITY_FIELD.buttonX, ABILITY_FIELD.buttonY, ABILITY_FIELD.channelTarget, ABILITY_FIELD.channelOrder] as string[]).includes(m.field)),
+      { field: ABILITY_FIELD.buttonX, type: 'int', value: U.PROJECTION.button[0] }, { field: ABILITY_FIELD.buttonY, type: 'int', value: U.PROJECTION.button[1] },
+      // its own order: the undeploy button beside it on the deployed copy has "channel"
+      { field: ABILITY_FIELD.channelOrder, type: 'string', value: RT_PROJECTION_ORDER, level: 1, column: 6 },
+      // a unit target (ChannelAbilityPreset.wurst Targettype UNIT = 1)
+      { field: ABILITY_FIELD.channelTarget, type: 'int', value: 1, level: 1, column: 2 },
+      { field: ABILITY_FIELD.castRange, type: 'unreal', value: U.PROJECTION.castRange, level: 1 }] });
+    copy.mods = withAbility(copy.mods, button);
+    projectors.push({ type: d.type, deployed: d.deployed, button, lifespan: (Number(o.raw.Lifespan) || 0) / S.TICKS_PER_SECOND });
+  }
   // NIAB tanks (Rules.txt NiabTank): a point-target teleport button (mission teleport.j)
   const teleporters: { type: string; button: string; before: number; after: number }[] = [];
   for (const obj of objects.filter((x) => x.emperor && flag(x.emperor as RulesObject, 'NiabTank'))) {
@@ -619,7 +641,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers, teleporters,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers, teleporters, projectors,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),

@@ -363,6 +363,19 @@ function buildMission(p: MissionParams): BuiltMission {
     const back = p.units.rawcode.get((o.raw.Resource ?? '').split(',')[0]?.split('//')[0]?.trim() ?? '');
     if (id && back && /^true$/i.test((o.raw.WormRider ?? '').split('//')[0]?.trim() ?? '')) wormLines.push(`    call SaveInteger(EmpRideTab, '${id}', 0, '${back}')`, `    call SaveBoolean(EmpRideTab, '${id}', 2, true)`);
   }
+  // projectors (projector.j): replicas' lifespan under both forms; types not Projectable
+  const projLines: string[] = [];
+  for (const pr of p.units.projectors ?? []) {
+    projLines.push(`    call SaveReal(EmpProjTab, '${pr.type}', 0, ${real(pr.lifespan)})`, `    call SaveReal(EmpProjTab, '${pr.deployed}', 0, ${real(pr.lifespan)})`, `    call SaveInteger(EmpProjTab, '${pr.button}', 2, 1)`);
+  }
+  if (projLines.length) {
+    for (const o of p.rules ? p.rules.objects.values() : []) {
+      const id = p.units.rawcode.get(o.name);
+      if (id && /^false$/i.test((o.raw.Projectable ?? '').split('//')[0]?.trim() ?? '')) projLines.push(`    call SaveBoolean(EmpProjTab, '${id}', 1, true)`);
+    }
+  }
+  const replicaFire = !/^false$/i.test(String(p.rules?.general.ReplicaShouldFire ?? 'TRUE').split('//')[0]?.trim() ?? '');
+  const replicaDamage = (Number(p.rules?.general.ReplicaBulletDamage ?? 0) || RT.FALLBACK_REPLICA_DAMAGE) / DAMAGE_DIVISOR;
   // NIAB teleports (teleport.j)
   const teleLines = (p.units.teleporters ?? []).flatMap((t) => [`    call SaveReal(EmpTeleTab, '${t.type}', 0, ${real(t.before)})`, `    call SaveReal(EmpTeleTab, '${t.type}', 1, ${real(t.after)})`,
     `    call SaveBoolean(EmpTeleTab, '${t.type}', 2, true)`, `    call SaveInteger(EmpTeleTab, '${t.button}', 3, 1)`]);
@@ -532,7 +545,7 @@ function buildMission(p: MissionParams): BuiltMission {
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), wormLines: wormLines.join('\n'), teleLines: teleLines.join('\n'), WORM, sandTile: TERRAIN.ground[TEX.SAND], spiceTile: TERRAIN.ground[TEX.SPICE], burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), wormLines: wormLines.join('\n'), teleLines: teleLines.join('\n'), projLines: projLines.join('\n'), replicaNoFire: !replicaFire, replicaDamage, WORM, sandTile: TERRAIN.ground[TEX.SAND], spiceTile: TERRAIN.ground[TEX.SPICE], burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -558,6 +571,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('burrow'),
     jass('wormride'),
     jass('teleport'),
+    jass('projector'),
     jass('apc'),
     jass('subhouse'),
     jass('specials'),

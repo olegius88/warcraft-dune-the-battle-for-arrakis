@@ -170,7 +170,7 @@ test('deployable units get a deployed type with the deployed turret and a morph 
   assert.strictEqual(weaponOf(k)?.bullet?.name, 'Pistol_B');
   assert.strictEqual(weaponOf(k, true)?.bullet?.name, 'Kindjal_B');
   const id = (n: string): string => all.units.rawcode.get(n) as string;
-  assert.deepStrictEqual(all.units.deploy.filter((d) => d.auto === 0).map((d) => d.type).sort(), ['ATKindjal', 'ORKobra', 'ORMortar'].map(id).sort(), 'deployed by button: DeployInf and Kobra types only');
+  assert.deepStrictEqual(all.units.deploy.filter((d) => d.auto === 0).map((d) => d.type).sort(), ['ATKindjal', 'IXProjector', 'ORKobra', 'ORMortar'].map(id).sort(), 'deployed by button: DeployInf, Kobra and the projector (class 0x17)');
   const kd = all.units.deploy.find((d) => d.type === id('ATKindjal'));
   assert.ok(kd);
   const obj = (i: string) => all.units.objects.find((o) => o.id === i);
@@ -1739,6 +1739,25 @@ test('carryalls carry harvesters, and the AI builds them', opts, () => {
   const want = body('EmpAiCarryallWanted');
   assert.ok(want.includes('harv > 2 * carry') && want.includes('EmpEnemyGold() <= 2000') && want.includes('EmpCount(1, 1) <= 10'), 'Game.exe 0x467b00: none unless over 2000 credits and 10 units');
   assert.ok(body('EmpEnemyProduce').includes('EmpAiCarryallWanted()'), 'the AI builds them');
+});
+
+// The Ix projector made no holograms. Game.exe 1.09 class 0x17: deployed, its order on a visible ground
+// unit of any side (Projectable) makes a replica of that type for its owner (0x570a70); a replica lives
+// the projector's Lifespan, vanishes at any hit or with its projector, its shots do ReplicaBulletDamage
+// (0x571b20, 0x59874c). Guaranteed now: a projection button on the deployed projector, the same rules.
+test('the Ix projector projects replicas that vanish at a hit', opts, () => {
+  const all = loadAll();
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const pr = all.units.projectors.find((x) => x.type === id('IXProjector'));
+  assert.ok(pr && pr.lifespan === 240, 'Lifespan 6000 ticks');
+  const field = (i: string, f: string): string => all.units.objects.find((o) => o.id === i)?.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  assert.ok(field(pr.deployed, 'uabi').split(',').includes(pr.button), 'on the deployed projector');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'proj', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call SaveBoolean(EmpProjTab, '${id('Carryall')}', 1, true)`), 'Projectable = FALSE');
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpProjDamage').includes('call KillUnit(v)') && body('EmpProjDamage').includes('BlzSetEventDamage(50.0)'), 'a hit ends it; its shots do 100 / 2');
+  assert.ok(body('EmpProjCast').includes('UnitApplyTimedLife(r'), 'its lifespan');
 });
 
 // The NIAB tank could not teleport. Game.exe 1.09 class 0x15 (0x56ecb0): deploy, then to a revealed

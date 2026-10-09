@@ -254,3 +254,14 @@ export const FALLBACK_WORM_WAIT = [100, 2000] as const;
 export const FALLBACK_WORM_LIFESPAN = 1000;
 /** The NIAB cannot teleport to ground its owner has not explored (mission teleport.j). */
 export const TELEPORT_UNSEEN = 'Телепорт возможен только в разведанную точку.';
+/** Projector replicas (mission projector.j): how far beside the projector one appears and walks (WC3
+ * units), its transparency (0..255), the check for a projector gone (s); ReplicaBulletDamage when
+ * Rules.txt has none (Game.exe default, 0x52566e; likely 100). */
+export const PROJ_OFFSET = 200;
+export const PROJ_ALPHA = 170;
+export const PROJ_TICK = 0.5;
+export const FALLBACK_REPLICA_DAMAGE = 100;
+/** Base order of the projector's projection button (units.ts): not "channel", which the undeploy button
+ * on the same unit has (two abilities with one order id clash); an order no ability of ours uses
+ * (WurstStdlib2 objediting/presets/OrderStringFactory.wurst lists it). */
+export const PROJECTION_ORDER = 'absorb';

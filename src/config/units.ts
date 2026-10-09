@@ -151,3 +151,10 @@ export const TELEPORT = {
   button: [1, 2] as const,
   castRange: 99999,
 } as const;
+/** The deployed projector's projection button (units.ts projectors, mission projector.j): a unit target. */
+export const PROJECTION = {
+  name: 'Проекция',
+  tooltip: 'Создать голограмму выбранного наземного юнита. Голограмма исчезает от любого попадания.',
+  button: [1, 2] as const,
+  castRange: 99999,
+} as const;
