@@ -51,6 +51,8 @@
     boolean EmpDeployAutoAny = false
     // the defending AI got a kept base with a construction yard (battle forces.j EmpBaseRestore)
     boolean EmpBaseRestored = false
+    // the row battle explored.j saves / restores in its own thread
+    integer EmpExploreRow = 0
     // attack damage by warhead (mission damage.j)
     hashtable EmpDmgTab = null
     // palace super weapons (helpers.j EmpSwStrike; data from mission superweapon.j)

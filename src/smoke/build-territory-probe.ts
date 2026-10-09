@@ -298,6 +298,61 @@ endfunction`,
     call PreloadGenEnd("DuneSmoke\\\\basesave.pld")
 endfunction`,
   } : {}),
+  // --explore: after the start the player's explored tiles are saved, the whole map masked black, and
+  // the saved tiles given back: how many sample points are masked at each step
+  ...(flag('--explore') ? {
+    extraStart: 'ExploreRun',
+    extraFunctions: `function ExploreMasked takes nothing returns integer
+    local integer n = 0
+    local real x = EmpMapMinX + 64.0
+    local real y
+    loop
+        exitwhen x > EmpMapMaxX
+        set y = EmpMapMinY + 64.0
+        loop
+            exitwhen y > EmpMapMaxY
+            if IsMaskedToPlayer(x, y, Player(0)) then
+                set n = n + 1
+            endif
+            set y = y + 512.0
+        endloop
+        set x = x + 512.0
+    endloop
+    return n
+endfunction
+
+function ExploreRun takes nothing returns nothing
+    local integer i
+    local string s1
+    local string s2
+    local string s3
+    call TriggerSleepAction(10.0)
+    set EmpInCampaign = true
+    set s1 = "explored by now: masked samples " + I2S(ExploreMasked())
+    call EmpExploreSave()
+    set s2 = "saved rows " + I2S(GetStoredInteger(EmpCache, ${JSON.stringify(CACHE_CATEGORY)}, EmpExploreKey(-1, 0))) + ", now every tile marked explored"
+    set EmpExploreRow = 0
+    loop
+        exitwhen EmpExploreRow >= EmpExploreRows()
+        set i = 0
+        loop
+            exitwhen i * 30 >= EmpExploreCols()
+            call StoreInteger(EmpCache, ${JSON.stringify(CACHE_CATEGORY)}, EmpExploreKey(EmpExploreRow, i), 1073741823)
+            set i = i + 1
+        endloop
+        set EmpExploreRow = EmpExploreRow + 1
+    endloop
+    call EmpExploreRestore()
+    call TriggerSleepAction(1.0)
+    set s3 = "restored: masked samples " + I2S(ExploreMasked())
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload(s3)
+    call PreloadGenEnd("DuneSmoke\\\\explore.pld")
+endfunction`,
+  } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,
   // it walks up and stabs), then none (the gun again)
   ...(flag('--knife') ? {

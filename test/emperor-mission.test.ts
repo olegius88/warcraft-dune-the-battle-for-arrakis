@@ -1679,6 +1679,21 @@ test('a territory keeps its spice for its next battle', opts, () => {
   assert.ok(fields.indexOf('if not EmpSpiceRestore() then') < fields.indexOf(`'${all.units.ids.spiceField}'`), 'kept fields replace the map\'s');
 });
 
+// The player's explored map started black at every battle on a territory. Game.exe 1.09 saves each
+// house's explored cells after every battle there (0x47fd50 -> 0x495ea0) and gives them back at the
+// next one (0x490bf0 -> 0x47fbf0). Guaranteed now: the player's explored tiles are kept per territory
+// (a bit each, IsMaskedToPlayer) and come back as fogged ground (SetFogStateRect).
+test('a territory keeps the player\'s explored map', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'explored', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpCampaignResult').includes('call EmpExploreSave()'));
+  assert.ok(body('EmpExploreSaveRow').includes('IsMaskedToPlayer'));
+  assert.ok(body('EmpExploreRestoreRow').includes('SetFogStateRect(Player(0), FOG_OF_WAR_FOGGED'));
+  assert.ok(body('EmpBattleInit').includes('call EmpExploreRestore()'));
+});
+
 // In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an
 // invention) with nothing to build with: once it was beaten the battle was won. Game.exe 1.09 0x47f170
 // gives the side that attacks (and kept no base) an MCV at its start position (0x47f255) besides its

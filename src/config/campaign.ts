@@ -110,6 +110,9 @@ export const CACHE_KEY = {
   /** spicePrefix + territory + "_" + field + k: the spice fields the territory keeps (battle
    * spice-fields.j EmpSpiceSave / EmpSpiceRestore; n count, x / y position, a amount) */
   spicePrefix: 'spice',
+  /** explorePrefix + territory + "_" + row + "_" + chunk: the player's explored tiles there, a bit each
+   * (battle explored.j; row -1: the row count) */
+  explorePrefix: 'expl',
   /** enemy house of the home-world attack */
   homeAttackEnemy: 'haenemy',
   /** 1 = the last hub visit offered a counter-attack */

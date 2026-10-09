@@ -47,13 +47,15 @@
 | `mission/autowin.j` | `src/emperor/mission.ts` | автотест: победа через заданное время |
 | `mission/start.j` | `src/emperor/mission.ts` | `EmpStart`: порядок запуска, триггеры, таймеры, музыка, цвета игроков |
 | `battle/tech-limits.j` | `src/emperor/battle.ts` | запрет построек и юнитов выше текущего тех-уровня (`{{limitLines}}` из данных юнитов) |
-| `battle/spice-fields.j` | `src/emperor/battle.ts` | поля спайса по кластерам карты |
+| `mission/deploy.j` | `src/emperor/mission.ts` | развёртывание Kindjal / Mortar / Kobra (кнопки, смена типа через Chaos, ожидание анимации) и нож ADV Sardaukar (`{{deployLines}}`) |
+| `battle/spice-fields.j` | `src/emperor/battle.ts` | поля спайса по кластерам карты; спайс, сохранённый территорией с прошлой битвы |
+| `battle/explored.j` | `src/emperor/battle.ts` | разведанная игроком карта территории: сохранение после битвы, возврат в следующей |
 | `battle/economy.j` | `src/emperor/battle.ts` | харвестеры, строитель от ConYard, харвестер от очистителя, расход MCV |
 | `battle/power.j` | `src/emperor/battle.ts` | энергия (Rules.txt): баланс по сторонам, отключение турелей при нехватке |
 | `battle/worms.j` | `src/emperor/battle.ts` | песчаные черви: всплытие, охота, удар снизу |
 | `battle/ai-map.j` | `src/emperor/battle.ts` (через `battle/ai.j`) | карта тайлов ИИ, кластеры зданий, дороги к рампам, контур и план обороны (стены, турели у дорог) — Game.exe AiMap |
 | `battle/pads.j` | `src/emperor/battle.ts` | площадки НПЗ: заказ НПЗ, два слота, +здоровье, харвестер; счёт площадок для ИИ |
-| `battle/forces.j` | `src/emperor/battle.ts` | стартовые силы, база врага, производство и волны, оборонительные битвы |
+| `battle/forces.j` | `src/emperor/battle.ts` | стартовые силы, база врага, производство и волны, оборонительные битвы (атакующий ИИ с MCV), база, сохранённая территорией, экстренный MCV |
 | `battle/init.j` | `src/emperor/battle.ts` | `EmpBattleInit`: триггеры и таймеры битвы за территорию |
 | `preview/init.j` | `src/emperor/preview-map.ts` | превью рельефа: отряд на базе, маркеры точек GameElements, камера |
 | `smoke/*.j` | `src/smoke/build-smoke.ts`, `build-hop.ts`, `build-bg-probe.ts`, `src/emperor/build-contest.ts --killwin` | дымовые тестовые карты: game cache, `SmokeLog`, смена уровня, `PlayCinematic`; `kill-win.j` — проверка победы по условию сценария |

@@ -334,3 +334,6 @@ export const AI_MCV = { freeTiles: 3, ringStep: 2, rings: 40 } as const;
  * winner's buildings of these types (house prefix + name; lists at 0x4802af / 0x48035c / 0x4803f6), one
  * of each, at their positions; an MCV alone is kept as the house's construction yard (0x481160). */
 export const SAVED_BASE = { types: ['Barracks', 'Refinery', 'SmWindtrap', 'ConYard', 'Factory', 'Hanger', 'Outpost'] as readonly string[] } as const;
+/** The explored map a territory keeps for the player (battle explored.j; Game.exe 0x47fd50 -> 0x495ea0
+ * -> 0x47fbf0): tiles per stored integer (below the sign bit). */
+export const EXPLORED = { bits: 30 } as const;

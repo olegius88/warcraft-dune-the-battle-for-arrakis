@@ -38,8 +38,8 @@
 // house units, two veterancy levels up, at the entrance for every army stack the player selected on
 // neighbouring territories (0x4809b0, stacks counted by 0x490d60; the AI has none), and moves / removes
 // the stacks after the battle (0x491522). The hub has no army stacks (where they come from is not
-// traced). Also not kept: the explored map per house (0x47fd50 -> 0x495ea0) and the battle scorch
-// (0x534420 -> 0x495f60). Risk: the player fights without reserves. In a defence battle the attacking AI starts with Game.exe's MCV (0x47f255),
+// traced). The player's explored map is kept (explored.j), the AI's and the battle scorch (0x534420 ->
+// 0x495f60, ground marks) are not. Risk: the player fights without reserves. In a defence battle the attacking AI starts with Game.exe's MCV (0x47f255),
 // UnitValueAttacker units and CampaignAttackMoney (forces.j EmpDefendAttacker) and builds its base.
 // Builder state 3 is Game.exe's defence plan (ai-map.j, AI_PLAN / AI_MAP): walls along the contour of
 // a building cluster on the AI's map of tiles, turrets where the walls end at its roads. Of the 17
@@ -214,6 +214,7 @@ function battleSetup(o: BattleOptions): BattleSetup {
     padLines: (o.units.padOrders ?? []).map((p) => [`    call SaveInteger(EmpPadTab, '${p.id}', 0, '${p.refinery}')`, `    call SaveInteger(EmpPadTab, '${p.id}', 1, ${p.health})`,
       `    call SaveInteger(EmpPadTab, '${p.id}', 2, ${p.unit ? `'${p.unit}'` : 0})`, `    call SaveInteger(EmpPadTab, '${p.id}', 3, ${p.cost})`].join('\n')).join('\n'),
   }));
+  fns.push(jass('explored', { CAT: J_CACHE_CATEGORY, KE: str(CACHE_KEY.explorePrefix), WC3_UNITS_PER_TILE }));
   fns.push(jass('spice-fields', {
     CAT: J_CACHE_CATEGORY, KS: str(CACHE_KEY.spicePrefix),
     fieldLines: clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, ${FACING})\n    call SetResourceAmount(m, ${c.tiles * spiceValue})`; }).join('\n'),
