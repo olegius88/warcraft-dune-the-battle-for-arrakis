@@ -2026,7 +2026,8 @@ test('ornithopters run out of rounds and rearm at helipads', opts, () => {
 // Game.exe 1.09 runs script tactics (0x44e410 -> 0x45b5f0 -> 0x458b60) from 217 STRATEGY files: a
 // priority roll 51 / 30 / 15 / 4 %, strategies of the AI's house and tech whose teams fill from the home
 // units by object set, SEND / WAIT / GOTO steps to targets and staging points, the end rules.
-// Guaranteed now: the pro-active part of that (ai-scripts.j; reactive and build on demand are TODO).
+// Guaranteed now: the pro-active part of that (ai-scripts.j; the reactive one: the next test; build on
+// demand is TODO).
 test('AI script tactics replace the invented waves', opts, () => {
   const all = loadAll();
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
@@ -2043,6 +2044,35 @@ test('AI script tactics replace the invented waves', opts, () => {
   assert.ok(m.script.includes(`call SaveBoolean(EmpScrSetTab, `) && m.script.includes(`'${all.units.rawcode.get('ATMongoose')}', true)`), 'object sets');
   assert.ok(body('EmpAiTactics').includes('call EmpScrTick()'), 'the steps run every tactics tick');
   assert.ok(!m.script.includes('EmpAiTGap[1] = ') || /set EmpAiTGap\[1\] = 52\.0/.test(m.script), 'GapBetweenNewScripts unscaled (1300 ticks)');
+});
+
+// Regression: the 44 reactive strategies were dropped, so the AI never answered a threat with a script,
+// and the pro-active picker lacked them too. Game.exe 1.09: the pro-active picker (0x45b5f0) does not look
+// at the reactive flag (strategy +0x5c, read only at 0x44ea95); the reactive picker 0x44e100 (from 0x44e562,
+// when its step counter passes 200: reset to 0 after a start, to rand 100..199 after none, 0x44e4d4; under
+// MaxScriptsToRunAtOnce + 2 scripts, past FirstAttackDelay, once the AI scouts) walks the threat list (the
+// enemy's AIThreat summed by megatiles of 8 x 8 tiles, 0x462e40; cells of at least
+// MinimumThreatValueDefiningATarget, strongest first, at most MaxTargetsToFind - 1; the AI sees through the
+// shroud after TicksUntilAISeesIntoShroud), takes a threat within 4 megatiles of its base or by its
+// harvesters (0x45eb40) that no script is after (0x44d4c0), and starts one of up to 16 reactive strategies
+// whose first TARGET matches it (threat / any always, an object set when the cell holds one, 0x45e810) and
+// whose teams fill (0x44ea40), its first target that cell (0x44dae0). Guaranteed now: the same.
+test('reactive AI scripts answer threats near the base', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'react', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.strictEqual(m.script.split('call EmpScrAdd("').length - 1, 217, 'every strategy, the reactive ones too');
+  assert.strictEqual(m.script.split('set EmpScrReactive[').length - 1, 44, 'the reactive ones marked');
+  const build = body('EmpScrThreatBuild');
+  assert.ok(build.includes('LoadInteger(EmpThreat, EmpType(u), 0)') && build.includes('EmpTick >= 3000'), 'AIThreat; TicksUntilAISeesIntoShroud');
+  assert.ok(build.includes('>= 3') && build.includes('EmpScrTgtN < 31'), 'MinimumThreatValueDefiningATarget, MaxTargetsToFind - 1');
+  assert.ok(body('EmpScrShouldReact').includes('< 16'), 'within 4 megatiles of the base');
+  const react = body('EmpScrReact');
+  assert.ok(react.includes('EmpScrCount() < EmpAiTScripts[EmpAiT()] + 2'), 'MaxScriptsToRunAtOnce + 2');
+  assert.ok(react.includes('GetRandomInt(100, 199)') && react.includes('201'), 'the step counter');
+  assert.ok(body('EmpScrReactPick').includes('n < 16'), 'up to 16 candidates');
+  assert.ok(body('EmpAiTactics').includes('call EmpScrThreatBuild()'), 'the threat map every tactics tick');
 });
 
 // The player had no reserves: the hub had no army stacks. Game.exe 1.09: a stack comes after every

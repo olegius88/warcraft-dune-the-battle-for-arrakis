@@ -1203,6 +1203,8 @@ function EmpAiTactics takes nothing returns nothing
     // count, 0x44c670; bug fixed 2026-10-09: the units made in all were counted)
     if units >= {{ai.unitsBeforeScout}} and scouts < EmpAiScoutTeams and best != null then
         call SaveInteger(EmpWaveTab, GetHandleId(best), 1, 1)
+        // the scout tactic exists: the reactive picker may run (Game.exe 0x44d970 -> [this+0x10])
+        set EmpAiScouted = true
         call EmpAiScoutNext(best)
         call EmpAiLog("scout " + GetUnitName(best))
         set best = null
@@ -1242,8 +1244,9 @@ function EmpAiTactics takes nothing returns nothing
         call DestroyGroup(g)
         set g = null
     endif
-    // the running script tactics' steps (ai-scripts.j)
+    // the threat map of the reactive scripts, the running script tactics' steps (ai-scripts.j)
     set EmpAiThreat = threat
+    call EmpScrThreatBuild()
     call EmpScrTick()
     call EmpAiDeployTick()
     call EmpAiMcvTick()
@@ -1383,6 +1386,7 @@ function EmpAiInit takes nothing returns nothing
     local trigger tr
     call EmpAiData()
     set EmpScrTab = InitHashtable()
+    set EmpScrThreatTab = InitHashtable()
     set EmpScrPool = CreateGroup()
     set EmpScrUnits = CreateGroup()
     call EmpScrData()
@@ -1393,6 +1397,7 @@ function EmpAiInit takes nothing returns nothing
     call TriggerAddAction(EmpAiHarvHitTrig, function EmpAiHarvHurt)
     call TimerStart(CreateTimer(), {{real TICK_SECONDS}}, true, function EmpAiHarvTick)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiTactics)
+    call TimerStart(CreateTimer(), {{real C.AI_REACT.tick}}, true, function EmpScrReact)
     call TimerStart(CreateTimer(), {{real C.AI_TACTIC_PERIOD}}, true, function EmpAiSuperweapon)
     set EmpAiWaveTimer = CreateTimer()
     call TimerStart(EmpAiWaveTimer, EmpAiTGap[EmpAiT()], true, function EmpAiWave)

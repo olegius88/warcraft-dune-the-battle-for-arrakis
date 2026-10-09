@@ -369,6 +369,15 @@ export const AI_SCRIPT = {
   sides: { front: 0, lflank: 1, rflank: 2, rear: 3 } as Readonly<Record<string, number>>,
   tiles: { verynear: 6, near: 12, medium: 20, far: 30 } as Readonly<Record<string, number>>,
 } as const;
+/** Reactive AI scripts (battle ai-scripts.j EmpScrReact; Game.exe 1.09 0x44e410 -> 0x44e100). The AI
+ * manager steps a side every stepTicks ticks; the reactive picker runs when its step counter passes
+ * periodSteps (8 * 25, 0x46c1a0), the counter set to 0 after a start and to rand retryMin..retryMax
+ * after none (0x44e4d4); under MaxScriptsToRunAtOnce + extraScripts scripts (0x44e4b3). Threats: the
+ * enemy's AIThreat summed by megatiles of cellTiles x cellTiles tiles (0x46b5c0, 0x462e40); one is
+ * answered within nearCells megatiles of the AI's base (squared distance below nearCells^2, 0x45eb96) or
+ * with a harvester of the AI within harvesterTiles of its megatile (0x45ecc3); at most maxCandidates
+ * strategies are drawn from (0x44eb06); tick (s): how often the counter is looked at. */
+export const AI_REACT = { stepTicks: 2, periodSteps: 200, retryMin: 100, retryMax: 199, extraScripts: 2, cellTiles: 8, nearCells: 4, harvesterTiles: 8, maxCandidates: 16, tick: 0.16 } as const;
 /** EmpWaveTab children of a unit in a script: its slot + 1, its team, its last order (kind, x, y). */
 export const AI_TAB_SCRIPT = 20;
 export const AI_TAB_SCRIPT_TEAM = 21;

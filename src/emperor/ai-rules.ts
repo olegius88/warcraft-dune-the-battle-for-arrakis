@@ -65,6 +65,10 @@ export interface AiRules {
   reservePerTeam: number;
   ticksSeesIntoShroud: number;
   ticksAbandonForming: number;
+  /** MinimumThreatValueDefiningATarget / MaxTargetsToFind: the threat list of the reactive scripts (a
+   * megatile's summed AIThreat at least this, at most MaxTargetsToFind - 1 cells; Game.exe 0x45e610) */
+  minThreatTarget: number;
+  maxTargets: number;
   /** NumTicksStandingStillUntilDeploy: a deployable unit of the AI stands still this long, then deploys (Game.exe 0x465bf1) */
   ticksUntilDeploy: number;
   /** [StartScript] Next= entries in order: the building groups built first (lower case) */
@@ -161,6 +165,8 @@ function parseAiRules(text: string, difficulty = ''): AiRules {
     reserveTeams: s('NumReserveTeams', 0),
     reservePerTeam: s('MaxUnitsPerReserveTeam', 0),
     ticksSeesIntoShroud: s('TicksUntilAISeesIntoShroud', 0),
+    minThreatTarget: s('MinimumThreatValueDefiningATarget', 0),
+    maxTargets: s('MaxTargetsToFind', 0),
     ticksAbandonForming: s('TicksUntilAbandonForming', 0),
     ticksUntilDeploy: get('UnitLevel', 'NumTicksStandingStillUntilDeploy', 0),
     startScript: (sections.get('startscript')?.entries ?? []).filter(([k]) => k.toLowerCase() === 'next').map(([, v]) => (v.split('//')[0] ?? '').trim().toLowerCase()).filter(Boolean),

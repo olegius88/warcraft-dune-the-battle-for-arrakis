@@ -52,6 +52,7 @@ const atAdv = all.units.rawcode.get('ATADVCarryall') as string;
 // --scripts: an army of the AI's house (Harkonnen here) of the kinds the scripts' teams name
 const scriptArmy = ([['HKBuzzsaw', 6], ['HKAssault', 6], ['HKInfantry', 6], ['HKTrooper', 4], ['HKFlame', 3], ['HKMissile', 2]] as const).map(([n, k]) => [all.units.rawcode.get(n) ?? '', k] as const).filter(([id]) => id);
 const advFremen = all.units.rawcode.get('FRADVFremen') as string;
+const atInfantry = all.units.rawcode.get('ATInfantry') as string;
 const wormRider = all.units.rawcode.get('WormRider') as string;
 const wormButton = all.units.wormCallers[0]?.button ?? '';
 const sandTile = TERRAIN.ground[TEX.SAND];
@@ -944,6 +945,66 @@ ${scriptArmy.map(([id, n]) => `    call ScriptsArmy('${id}', ${n})`).join('\n')}
         exitwhen i >= 12
         call TriggerSleepAction(5.0)
         call EmpScrPick()
+        set i = i + 1
+    endloop
+endfunction`,
+  } : {}),
+  // --react: the AI's army at home and a party of the player's trikes 6 tiles from the AI's base (kept), the AI
+  // scouting, no pro-active picks: a reactive script answers (the AI log, DuneTest\Territory9_AI.pld)
+  ...(flag('--react') ? {
+    extraStart: 'ReactRun',
+    extraFunctions: `function ScriptsArmy takes integer t, integer n returns nothing
+    local integer b = EmpBaseOfSide(1)
+    local integer i = 0
+    loop
+        exitwhen i >= n
+        call CreateUnit(Player(1), t, EmpBaseX[b] + GetRandomReal(-600.0, 600.0), EmpBaseY[b] + GetRandomReal(-600.0, 600.0), 0.0)
+        set i = i + 1
+    endloop
+endfunction
+
+function EmpReactNear takes group g, unit u returns group
+    call GroupClear(g)
+    call GroupEnumUnitsInRange(g, GetUnitX(u), GetUnitY(u), 800.0, null)
+    call GroupRemoveUnit(g, u)
+    return g
+endfunction
+
+function ReactRun takes nothing returns nothing
+    local integer b
+    local unit inf
+    local group g = CreateGroup()
+    local integer i = 0
+    call TriggerSleepAction(2.0)
+    set b = EmpBaseOfSide(1)
+${scriptArmy.map(([id, n]) => `    call ScriptsArmy('${id}', ${n})`).join('\n')}
+    loop
+        exitwhen i >= 8
+        // kept alive and in place: the threat stays
+        set EmpTmpUnit = CreateUnit(Player(0), '${trike}', EmpBaseX[b] + 768.0 + GetRandomReal(-100.0, 100.0), EmpBaseY[b] + GetRandomReal(-100.0, 100.0), 180.0)
+        call SetUnitInvulnerable(EmpTmpUnit, true)
+        call PauseUnit(EmpTmpUnit, true)
+        set inf = EmpTmpUnit
+        set i = i + 1
+    endloop
+    set EmpAiKnown = true
+    set EmpAiKnownX = EmpBaseX[EmpBaseOfSide(0)]
+    set EmpAiKnownY = EmpBaseY[EmpBaseOfSide(0)]
+    set EmpAiScouted = true
+    set i = 0
+    loop
+        exitwhen i >= 8
+        set EmpAiTFirst[i] = 0
+        set i = i + 1
+    endloop
+    call EmpAiLog("react probe: threats " + I2S(EmpScrTgtN))
+    set i = 0
+    loop
+        exitwhen i >= 2
+        call TriggerSleepAction(10.0)
+        call EmpAiLog("react probe: infantry alive " + I2S(IntegerTertiaryOp(EmpAlive(inf), 1, 0)) + " enemy " + I2S(IntegerTertiaryOp(IsUnitEnemy(inf, Player(1)), 1, 0)) + " visible " + I2S(IntegerTertiaryOp(IsUnitVisible(inf, Player(1)), 1, 0)) + " owner " + I2S(GetPlayerId(GetOwningPlayer(inf))) + " type threat " + I2S(LoadInteger(EmpThreat, EmpType(inf), 0)) + " cell " + I2S(EmpScrCellOf(GetUnitX(inf), GetUnitY(inf))) + " base dist " + R2S(SquareRoot((GetUnitX(inf) - EmpBaseX[b]) * (GetUnitX(inf) - EmpBaseX[b]) + (GetUnitY(inf) - EmpBaseY[b]) * (GetUnitY(inf) - EmpBaseY[b]))) + " ai units within 800 " + I2S(CountUnitsInGroup(EmpReactNear(g, inf))))
+        call EmpScrThreatBuild()
+        call EmpAiLog("react probe: threats " + I2S(EmpScrTgtN) + " first " + I2S(EmpScrTgt[0]) + " value " + I2S(LoadInteger(EmpScrThreatTab, EmpScrTgt[0], 0)) + " answer " + I2S(IntegerTertiaryOp(EmpScrTgtN > 0 and EmpScrShouldReact(EmpScrTgt[0]), 1, 0)) + " running " + I2S(EmpScrCount()) + " max " + I2S(EmpAiTScripts[EmpAiT()]) + " next " + I2S(EmpScrReactNext) + " tick " + I2S(EmpTick) + " infantry threat " + I2S(LoadInteger(EmpThreat, '${atInfantry}', 0)) + " pick " + I2S(IntegerTertiaryOp(EmpScrTgtN > 0, EmpScrReactPick(EmpScrTgt[0], EmpScrPoolFill()), -9)))
         set i = i + 1
     endloop
 endfunction`,

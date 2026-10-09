@@ -493,17 +493,21 @@ endfunction`;
   const aiMapFunctions = renderFile(jassFile('battle/ai-map'), {
     M: C.AI_MAP, P: C.AI_PLAN, S: C.AI_SITE, C, ai, WC3_UNITS_PER_TILE, planTech: ai.firstCampaignTech + 1, mapData: chunks.join('\n'), mapInit: mapInit.join('\n'),
   });
-  // the AI script tactics (ai-scripts.j): the object sets the strategies name, each pro-active strategy's
-  // numbers (reactive ones are not ported: TODO there)
+  // the AI script tactics (ai-scripts.j): the object sets the strategies name, every strategy's numbers
+  // (the pro-active picker takes the reactive ones too, Game.exe 0x45b5f0 does not look at the flag) and
+  // the reactive ones marked (EmpScrReactive, the reactive picker)
   const { sets: objSets, strategies } = o.rules ? loadAiScripts(RAW_DIR) : { sets: [], strategies: [] };
   const setIdx = new Map(objSets.map((s2, i) => [s2.name.toLowerCase(), i]));
-  const proactive = strategies.filter((s2) => !s2.reactive);
   const scriptSetLines = objSets.flatMap((s2, i) => s2.objects.map((n) => rc(n)).filter(isId).map((id) => `    call SaveBoolean(EmpScrSetTab, ${i}, '${id}', true)`));
-  const scriptLines = proactive.flatMap((s2, i) => [`    call SaveStr(EmpScrSetTab, -1, ${i}, ${str(s2.name)})`,
+  const scriptLines = strategies.flatMap((s2, i) => [`    call SaveStr(EmpScrSetTab, -1, ${i}, ${str(s2.name)})`, ...(s2.reactive ? [`    set EmpScrReactive[${i}] = true`] : []),
     `    call EmpScrAdd("${encodeStrategy(s2, (n) => setIdx.get(n) ?? -1, { houseId: (h) => ({ atreides: 0, harkonnen: 1, ordos: 2 } as Record<string, number>)[h] ?? -1, builtinTeam: C.AI_SCRIPT.builtinTeam,
       target: { base: C.AI_SCRIPT.targetBase, threat: C.AI_SCRIPT.targetThreat, any: C.AI_SCRIPT.targetAny, harvester: C.AI_SCRIPT.targetHarvester, set: C.AI_SCRIPT.targetSet },
       sides: C.AI_SCRIPT.sides, tiles: C.AI_SCRIPT.tiles }).join(',')}")`]);
-  const aiScriptFunctions = renderFile(jassFile('battle/ai-scripts'), { C, ai, harvester, WC3_UNITS_PER_TILE, scriptSetLines: scriptSetLines.join('\n'), scriptLines: scriptLines.join('\n') });
+  const aiScriptFunctions = renderFile(jassFile('battle/ai-scripts'), { C, ai, harvester, WC3_UNITS_PER_TILE, scriptSetLines: scriptSetLines.join('\n'), scriptLines: scriptLines.join('\n'),
+    // the reactive picker (C.AI_REACT): the threat list's length, a harvester's reach from a megatile's
+    // centre (tiles), the squared megatile distance to the base, the step counter's limit + 1
+    reactListMax: Math.max(0, ai.maxTargets - 1), reactHarvTiles: C.AI_REACT.cellTiles / 2 + C.AI_REACT.harvesterTiles,
+    reactNear2: C.AI_REACT.nearCells * C.AI_REACT.nearCells, reactAfter: C.AI_REACT.periodSteps + 1 });
   const aiFunctions = renderFile(jassFile('battle/ai'), {
     aiMapFunctions, aiScriptFunctions, minBaseLines, attackBattle: o.territoryBattle && !o.defend,
     C, UI, FACING, ai, harvester, WC3_UNITS_PER_TILE, TPS: TICKS_PER_SECOND, TICK_SECONDS, ABILITY,

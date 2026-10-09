@@ -14,8 +14,13 @@
 // side, tiles), steps (n; actions (n; kind, a, b, c, d each)). Slots: EmpScrSlot* arrays; a unit's
 // EmpWaveTab children AI_TAB_SCRIPT (slot + 1) and AI_TAB_SCRIPT_TEAM (team), its last order at
 // AI_TAB_SCRIPT_ORDER .. + 2 (kind, x, y; the deploy tick sends it on after undeploying).
-// TODO(ai): not ported: reactive scripts (0x44e100: reactive=1, against threats near the base, every
-// 200 manager steps), build on demand (0x45d010: a script short of units steers production), the
+// Reactive scripts (0x44e100; EmpScrReact, C.AI_REACT): the threat map (EmpScrThreatBuild, every tactics
+// tick: the enemy's AIThreat by megatiles), its strongest cells near the AI's base or harvesters that no
+// script is after, a reactive strategy whose first TARGET matches the cell, its first target that cell.
+// Test "reactive AI scripts answer threats near the base".
+// TODO(ai): the reactive picker's "strategic points" (0x44b7a0 / 0x46b470: a threat near one is answered
+// too) and the second threat map (sidedata+0x18) are not traced; the veteran +10% of a unit's threat
+// (0x43a300, [obj+0x6e]) is left out. Not ported either: build on demand (0x45d010: a script short of units steers production), the
 // fuzzy unit match (0.7, then 1.0 / 0.9 / 0.8, 0x45bae0 / 0x45d820: here the exact set), extra units
 // (0x45bf40), the staging geometry (0x44d390, AI_SCRIPT.tiles / sides here), route (threat-avoiding
 // paths), MONITOR / RUN / TAUNT, re-rolling a script picked before, the LARGE attack (0x44d1b5 ->
@@ -233,6 +238,176 @@ function EmpScrNearestOf takes integer setk, integer kind, real x, real y return
     return found
 endfunction
 
+// ---- the threat map (Game.exe 0x462e40): cell key = megatile x * 1000 + y; EmpScrThreatTab[key] 0 the
+// summed AIThreat, 1 the units listed, 2.. those units (at most 31, 0x9c-byte cells)
+function EmpScrCellX takes integer key returns real
+    return EmpMapMinX + (key / 1000 + 0.5) * {{C.AI_REACT.cellTiles}} * {{real WC3_UNITS_PER_TILE}}
+endfunction
+
+function EmpScrCellY takes integer key returns real
+    return EmpMapMinY + (ModuloInteger(key, 1000) + 0.5) * {{C.AI_REACT.cellTiles}} * {{real WC3_UNITS_PER_TILE}}
+endfunction
+
+function EmpScrCellOf takes real x, real y returns integer
+    return R2I((x - EmpMapMinX) / ({{C.AI_REACT.cellTiles}} * {{real WC3_UNITS_PER_TILE}})) * 1000 + R2I((y - EmpMapMinY) / ({{C.AI_REACT.cellTiles}} * {{real WC3_UNITS_PER_TILE}}))
+endfunction
+
+// the enemy's units the AI sees (all of them past TicksUntilAISeesIntoShroud), their AIThreat by megatile;
+// the cells of at least MinimumThreatValueDefiningATarget into EmpScrTgt, strongest first, at most
+// MaxTargetsToFind - 1 (0x45e610, 0x45ed90)
+function EmpScrThreatBuild takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local integer c
+    local integer v
+    local integer n
+    local integer k = 0
+    local integer j
+    loop
+        exitwhen k >= EmpScrCellN
+        call FlushChildHashtable(EmpScrThreatTab, EmpScrCellKey[k])
+        set k = k + 1
+    endloop
+    set EmpScrCellN = 0
+    set EmpScrTgtN = 0
+    call GroupEnumUnitsInRect(g, bj_mapInitialPlayableArea, null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        set v = LoadInteger(EmpThreat, EmpType(u), 0)
+        if v > 0 and EmpAlive(u) and GetPlayerId(GetOwningPlayer(u)) < bj_MAX_PLAYERS and IsUnitEnemy(u, Player(1)) and (EmpTick >= {{ai.ticksSeesIntoShroud}} or IsUnitVisible(u, Player(1))) then
+            set c = EmpScrCellOf(GetUnitX(u), GetUnitY(u))
+            if not HaveSavedInteger(EmpScrThreatTab, c, 0) then
+                set EmpScrCellKey[EmpScrCellN] = c
+                set EmpScrCellN = EmpScrCellN + 1
+            endif
+            call SaveInteger(EmpScrThreatTab, c, 0, LoadInteger(EmpScrThreatTab, c, 0) + v)
+            set n = LoadInteger(EmpScrThreatTab, c, 1)
+            if n < 31 then
+                call SaveUnitHandle(EmpScrThreatTab, c, 2 + n, u)
+                call SaveInteger(EmpScrThreatTab, c, 1, n + 1)
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    set k = 0
+    loop
+        exitwhen k >= EmpScrCellN
+        set c = EmpScrCellKey[k]
+        set v = LoadInteger(EmpScrThreatTab, c, 0)
+        if v >= {{ai.minThreatTarget}} then
+            // insert by falling threat; the list keeps MaxTargetsToFind - 1
+            set j = EmpScrTgtN
+            loop
+                exitwhen j == 0 or LoadInteger(EmpScrThreatTab, EmpScrTgt[j - 1], 0) >= v
+                set EmpScrTgt[j] = EmpScrTgt[j - 1]
+                set j = j - 1
+            endloop
+            set EmpScrTgt[j] = c
+            if EmpScrTgtN < {{reactListMax}} then
+                set EmpScrTgtN = EmpScrTgtN + 1
+            endif
+        endif
+        set k = k + 1
+    endloop
+endfunction
+
+// a threat worth an answer (0x45eb40): within C.AI_REACT.nearCells megatiles of the AI's base, or a
+// harvester of the AI within C.AI_REACT.harvesterTiles of the megatile
+function EmpScrShouldReact takes integer c returns boolean
+    local integer b = EmpBaseOfSide(1)
+    local integer bc
+    local integer dx
+    local integer dy
+    local group g
+    local unit u
+    local boolean near = false
+    local real r = {{reactHarvTiles}} * {{real WC3_UNITS_PER_TILE}}
+    if b >= 0 then
+        set bc = EmpScrCellOf(EmpBaseX[b], EmpBaseY[b])
+        set dx = bc / 1000 - c / 1000
+        set dy = ModuloInteger(bc, 1000) - ModuloInteger(c, 1000)
+        if dx * dx + dy * dy < {{reactNear2}} then
+            return true
+        endif
+    endif
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if not near and EmpAlive(u) and EmpType(u) == '{{harvester}}' and RAbsBJ(GetUnitX(u) - EmpScrCellX(c)) <= r and RAbsBJ(GetUnitY(u) - EmpScrCellY(c)) <= r then
+            set near = true
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return near
+endfunction
+
+// a script is already after that cell (0x44d4c0)
+function EmpScrCellTaken takes integer c returns boolean
+    local integer s = 0
+    loop
+        exitwhen s >= {{C.AI_SCRIPT.slots}}
+        if EmpScrSlotOn[s] and EmpScrSlotCell[s] == c + 1 then
+            return true
+        endif
+        set s = s + 1
+    endloop
+    return false
+endfunction
+
+// does the first TARGET kind of strategy i match the threat cell c (0x45e810): threat / any always, an
+// object set when one of its units is in the cell, the enemy base / a harvester never
+function EmpScrMatches takes integer i, integer c returns boolean
+    local integer p = EmpScrTargetsAt(i)
+    local integer kind = EmpScrD[p + 1]
+    local integer n
+    local integer k = 0
+    if EmpScrD[p] == 0 then
+        return false
+    endif
+    if kind == {{C.AI_SCRIPT.targetThreat}} or kind == {{C.AI_SCRIPT.targetAny}} then
+        return true
+    elseif kind == {{C.AI_SCRIPT.targetSet}} then
+        set n = LoadInteger(EmpScrThreatTab, c, 1)
+        loop
+            exitwhen k >= n
+            if EmpAlive(LoadUnitHandle(EmpScrThreatTab, c, 2 + k)) and LoadBoolean(EmpScrSetTab, EmpScrD[p + 2], EmpType(LoadUnitHandle(EmpScrThreatTab, c, 2 + k))) then
+                return true
+            endif
+            set k = k + 1
+        endloop
+    endif
+    return false
+endfunction
+
+// a reactive strategy for the cell (0x44ea40): the AI's house and tech, its first target matching, its
+// teams filling; one of at most C.AI_REACT.maxCandidates at random; -1 none
+function EmpScrReactPick takes integer c, integer free returns integer
+    local integer i = 0
+    local integer o
+    local integer n = 0
+    local integer array cand
+    loop
+        exitwhen i >= EmpScrN or n >= {{C.AI_REACT.maxCandidates}}
+        set o = EmpScrOff[i]
+        if EmpScrReactive[i] and n < {{C.AI_REACT.maxCandidates}} and EmpScrD[o + 1] <= EmpTechLevel and EmpTechLevel <= EmpScrD[o + 2] and (EmpScrD[o + 3] < 0 or EmpScrD[o + 3] == EmpEnemyHouse) and EmpScrMatches(i, c) and EmpScrFill(i, free, false, 0) then
+            set cand[n] = i
+            set n = n + 1
+        endif
+        set i = i + 1
+    endloop
+    if n == 0 then
+        return -1
+    endif
+    return cand[GetRandomInt(0, n - 1)]
+endfunction
+
 function EmpScrResolve takes integer s returns nothing
     local integer i = EmpScrSlotScript[s]
     local integer p = EmpScrTargetsAt(i)
@@ -252,7 +427,11 @@ function EmpScrResolve takes integer s returns nothing
         set kind = EmpScrD[p + 1 + k * 2]
         set EmpScrPtX = EmpAiKnownX
         set EmpScrPtY = EmpAiKnownY
-        if kind == {{C.AI_SCRIPT.targetThreat}} and EmpAiThreat != null and EmpAlive(EmpAiThreat) then
+        if k == 0 and EmpScrSlotCell[s] > 0 then
+            // a reactive script: its first target is the threat's megatile (Game.exe 0x44dcd8)
+            set EmpScrPtX = EmpScrCellX(EmpScrSlotCell[s] - 1)
+            set EmpScrPtY = EmpScrCellY(EmpScrSlotCell[s] - 1)
+        elseif kind == {{C.AI_SCRIPT.targetThreat}} and EmpAiThreat != null and EmpAlive(EmpAiThreat) then
             set EmpScrPtX = GetUnitX(EmpAiThreat)
             set EmpScrPtY = GetUnitY(EmpAiThreat)
         elseif kind != {{C.AI_SCRIPT.targetBase}} and kind != {{C.AI_SCRIPT.targetThreat}} then
@@ -349,6 +528,7 @@ endfunction
 // slot s ends: its units go home
 function EmpScrEnd takes integer s, string why returns nothing
     local unit u
+    set EmpScrSlotCell[s] = 0
     call EmpScrUnitsOf(s, -1)
     loop
         set u = FirstOfGroup(EmpScrUnits)
@@ -462,6 +642,20 @@ function EmpScrTick takes nothing returns nothing
     endloop
 endfunction
 
+// strategy i starts in slot s with the free home units; c: the threat cell of a reactive start, -1 none
+function EmpScrStart takes integer i, integer free, integer s, integer c returns nothing
+    set EmpScrSlotOn[s] = true
+    set EmpScrSlotScript[s] = i
+    set EmpScrSlotStep[s] = 0
+    set EmpScrSlotStart[s] = EmpTick
+    set EmpScrSlotCell[s] = c + 1
+    call EmpScrFill(i, free, true, s)
+    set EmpScrSlotUnits[s] = EmpScrUnitsOf(s, -1)
+    call EmpScrResolve(s)
+    call EmpAiLog("script starts: " + LoadStr(EmpScrSetTab, -1, i) + ", units " + I2S(EmpScrSlotUnits[s]))
+    call EmpScrStepStart(s)
+endfunction
+
 // the proactive picker, every GapBetweenNewScripts (EmpAiWave)
 function EmpScrPick takes nothing returns nothing
     local integer roll = GetRandomInt(0, 99)
@@ -503,14 +697,42 @@ function EmpScrPick takes nothing returns nothing
     if s >= {{C.AI_SCRIPT.slots}} then
         return
     endif
-    set i = cand[GetRandomInt(0, n - 1)]
-    set EmpScrSlotOn[s] = true
-    set EmpScrSlotScript[s] = i
-    set EmpScrSlotStep[s] = 0
-    set EmpScrSlotStart[s] = EmpTick
-    call EmpScrFill(i, free, true, s)
-    set EmpScrSlotUnits[s] = EmpScrUnitsOf(s, -1)
-    call EmpScrResolve(s)
-    call EmpAiLog("script starts: " + LoadStr(EmpScrSetTab, -1, i) + ", units " + I2S(EmpScrSlotUnits[s]))
-    call EmpScrStepStart(s)
+    call EmpScrStart(cand[GetRandomInt(0, n - 1)], free, s, -1)
+endfunction
+
+// the reactive picker (0x44e410 -> 0x44e100), looked at every C.AI_REACT.tick: when its step counter
+// passed C.AI_REACT.periodSteps, under MaxScriptsToRunAtOnce + 2 scripts, past FirstAttackDelay and once
+// the AI scouts; the strongest threat worth an answer that no script is after gets a reactive script.
+// Started: the counter from 0; none: from rand 100..199 (0x44e4d4); here as the next tick to look.
+function EmpScrReact takes nothing returns nothing
+    local integer k = 0
+    local integer c
+    local integer i
+    local integer s = 0
+    local integer free
+    if EmpTick < EmpScrReactNext or not EmpAiScouted or EmpTick < EmpAiTFirst[EmpAiT()] then
+        return
+    endif
+    if EmpScrCount() < EmpAiTScripts[EmpAiT()] + {{C.AI_REACT.extraScripts}} then
+        loop
+            exitwhen s >= {{C.AI_SCRIPT.slots}} or not EmpScrSlotOn[s]
+            set s = s + 1
+        endloop
+        set free = EmpScrPoolFill()
+        loop
+            exitwhen k >= EmpScrTgtN or s >= {{C.AI_SCRIPT.slots}}
+            set c = EmpScrTgt[k]
+            if not EmpScrCellTaken(c) and EmpScrShouldReact(c) then
+                set i = EmpScrReactPick(c, free)
+                if i >= 0 then
+                    call EmpAiLog("reactive: threat " + I2S(LoadInteger(EmpScrThreatTab, c, 0)) + " at " + I2S(c))
+                    call EmpScrStart(i, free, s, c)
+                    set EmpScrReactNext = EmpTick + {{reactAfter}} * {{C.AI_REACT.stepTicks}}
+                    return
+                endif
+            endif
+            set k = k + 1
+        endloop
+    endif
+    set EmpScrReactNext = EmpTick + ({{reactAfter}} - GetRandomInt({{C.AI_REACT.retryMin}}, {{C.AI_REACT.retryMax}})) * {{C.AI_REACT.stepTicks}}
 endfunction

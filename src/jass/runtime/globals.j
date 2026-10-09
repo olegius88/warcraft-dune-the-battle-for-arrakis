@@ -395,6 +395,17 @@
     integer array EmpScrSlotStepAt
     integer array EmpScrSlotStart
     integer array EmpScrSlotUnits
+    // reactive scripts (battle ai-scripts.j): the reactive strategies, a slot's threat cell + 1 (0 none),
+    // the next tick the picker looks; the threat map's cells used, the threat list (cell keys)
+    boolean array EmpScrReactive
+    integer array EmpScrSlotCell
+    integer EmpScrReactNext = 0
+    hashtable EmpScrThreatTab = null
+    integer array EmpScrCellKey
+    integer EmpScrCellN = 0
+    integer array EmpScrTgt
+    integer EmpScrTgtN = 0
+    boolean EmpAiScouted = false
     integer array EmpAiTScripts
     unit EmpAiThreat = null
     timer EmpAiBuildTimer = null
