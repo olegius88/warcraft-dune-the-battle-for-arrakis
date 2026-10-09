@@ -31,6 +31,8 @@ export const UNIT_FIELD = {
   cooldown: 'ua1c',
   attackType: 'ua1t',
   targets: 'ua1g',
+  /** unit classification (ancient, mechanical, ...) */
+  classification: 'utyp',
   abilities: 'uabi',
   builds: 'ubui',
   trains: 'utra',

@@ -1813,6 +1813,21 @@ test('ADV Fremen call worms and ride them for WormRiderLifespan', opts, () => {
   assert.ok(body('EF_ObjectDeploy').includes('EmpRideTab') && body('EmpDeployArgs').includes('ExecuteFunc("EmpRideArgs")'), 'ObjectDeploy calls a worm');
 });
 
+// Regression: a worm rider shot at sandworms and other riders. Game.exe 1.09's rider target filter
+// (0x5728d0) refuses a target of class 0x14 (Worm), 0x16 (BigWorm) or 0x13 (WormRider). Guaranteed now:
+// those types are WC3 "ancient" and the rider's weapon targets "nonancient" only (the other units' targets
+// leave the class open, so they still shoot worms and riders).
+test('a worm rider does not shoot worms or riders', opts, () => {
+  const all = loadAll();
+  const field = (i: string, f: string): string => all.units.objects.find((o) => o.id === i)?.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  const flagged = [...all.rules.objects.values()].filter((o) => ['Worm', 'BigWorm', 'WormRider'].some((k) => /^true$/i.test((o.raw[k] ?? '').split('//')[0]?.trim() ?? '')));
+  assert.ok(flagged.length >= 2, 'worm types in Rules.txt');
+  for (const o of flagged) assert.strictEqual(field(all.units.rawcode.get(o.name) as string, 'utyp'), 'ancient', o.name);
+  const rider = all.units.wormCallers[0]?.rider as string;
+  assert.ok(field(rider, 'ua1g').split(',').includes('nonancient'), 'the rider skips them');
+  assert.ok(!field(all.units.rawcode.get('ATTrooper') as string, 'ua1g').includes('ancient'), 'others do not');
+});
+
 // The dust scout (ORDustScout, Rules.txt DustScout) never burrowed. Game.exe 1.09 class 0xc (0x568d10):
 // idle on DustBowl it burrows, hidden, not firing; an order or a target within GuardTileRange brings it
 // up. Guaranteed now: the same, by a tick (mission burrow.j).

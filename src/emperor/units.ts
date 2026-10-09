@@ -631,6 +631,12 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   }
   const carriable = objects.filter((x) => x.emperor?.category === 'Unit' && !x.emperor.infantry && !x.emperor.canFly
     && !['WormRider', 'Worm', 'BigWorm'].some((k) => flag(x.emperor as RulesObject, k)) && !/worm/i.test(x.emperor.name)).map((x) => x.id);
+  // worms and riders are "ancient"; a rider's weapon targets "nonancient" only (Game.exe 0x5728d0: no
+  // worm, big worm or rider as a rider's target)
+  for (const obj of objects.filter((x) => x.emperor && ['Worm', 'BigWorm', 'WormRider'].some((k) => flag(x.emperor as RulesObject, k)))) {
+    obj.mods = [...obj.mods, str(F.classification, U.WORM_CLASSIFICATION)];
+    if (flag(obj.emperor as RulesObject, 'WormRider')) obj.mods = obj.mods.map((m) => m.field === F.targets && m.value !== '' ? { ...m, value: `${String(m.value)},${U.RIDER_TARGETS}` } : m);
+  }
   // NIAB tanks (Rules.txt NiabTank): a point-target teleport button (mission teleport.j)
   const teleporters: { type: string; button: string; before: number; after: number }[] = [];
   for (const obj of objects.filter((x) => x.emperor && flag(x.emperor as RulesObject, 'NiabTank'))) {

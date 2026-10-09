@@ -617,6 +617,20 @@ function BoomSent takes real x, real y returns string
     return "sent Infiltrator alive " + I2S(IntegerTertiaryOp(EmpAlive(u), 1, 0)) + " gap at blast " + R2S(gap) + " trike lost " + R2S(life - GetWidgetLife(v))
 endfunction
 
+// a worm rider of the player between an enemy rider and an enemy trike: it shoots the trike only
+// (Game.exe 0x5728d0; worms and riders are WC3 "ancient", a rider targets "nonancient")
+function BoomRider takes real x, real y returns string
+    local unit r = CreateUnit(Player(0), '${wormRider}', x, y, 0.0)
+    local unit e = CreateUnit(Player(1), '${wormRider}', x + 300.0, y, 180.0)
+    local unit v = CreateUnit(Player(1), '${trike}', x - 300.0, y, 0.0)
+    local real le = GetWidgetLife(e)
+    local real lv = GetWidgetLife(v)
+    call PauseUnit(e, true)
+    call PauseUnit(v, true)
+    call TriggerSleepAction(5.0)
+    return "rider ancient " + I2S(IntegerTertiaryOp(IsUnitType(r, UNIT_TYPE_ANCIENT), 1, 0)) + " enemy rider lost " + R2S(le - GetWidgetLife(e)) + " trike lost " + R2S(lv - GetWidgetLife(v))
+endfunction
+
 function BoomRun takes nothing returns nothing
     local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
     local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
@@ -630,13 +644,15 @@ function BoomRun takes nothing returns nothing
     set s1 = BoomOne('${hkDev}', x, y)
     set s2 = BoomOne('${ixInf}', x, y + 1500.0)
     set s3 = BoomOne('${orEits}', x, y - 1500.0) + " | " + BoomMine(x - 2500.0, y)
-    set s4 = BoomSent(x - 2500.0, y + 2500.0)
+    // the player slots the scripts register events for (orni.j: every one, the neutrals included?)
+    set s4 = BoomSent(x - 2500.0, y + 2500.0) + " | slots " + I2S(bj_MAX_PLAYER_SLOTS) + " neutral passive " + I2S(PLAYER_NEUTRAL_PASSIVE) + " aggressive " + I2S(PLAYER_NEUTRAL_AGGRESSIVE)
     call PreloadGenClear()
     call PreloadGenStart()
     call Preload(s1)
     call Preload(s2)
     call Preload(s3)
     call Preload(s4)
+    call Preload(BoomRider(x + 2500.0, y + 2500.0))
     call PreloadGenEnd("DuneSmoke\\\\boom.pld")
 endfunction`,
   } : {}),

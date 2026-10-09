@@ -24,6 +24,11 @@ export const DEFAULT_ATTACK_TYPE = 'normal';
 /** Weapon targets: anti-aircraft weapons hit air only. */
 export const TARGETS_AIR = 'air';
 export const TARGETS_GROUND = 'ground,structure,debris,item,ward';
+/** Worms and worm riders (Rules.txt Worm / BigWorm / WormRider) are WC3 "ancient" and a rider's weapon
+ * also targets RIDER_TARGETS: Game.exe 1.09's rider target filter 0x5728d0 refuses those three classes;
+ * the other weapons leave the class open (units.ts). */
+export const WORM_CLASSIFICATION = 'ancient';
+export const RIDER_TARGETS = 'nonancient';
 
 /** Stand-in unit model: first matching rule wins; the last rule matches everything. */
 export const UNIT_MODELS: ReadonlyArray<[(o: RulesObject) => boolean, string, number]> = [

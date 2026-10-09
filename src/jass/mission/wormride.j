@@ -7,10 +7,11 @@
 // (rider health * fremen max / rider max). The veterancy score and level go along.
 // EmpRideTab[type]: 0 the type it turns into, 1 = a caller (ADV Fremen), 2 = a rider; [button] 3 = 1;
 // [unit] 4 = waiting for a worm, 5 = rider's ticks left.
+// A rider does not shoot worms or other riders (0x5728d0: classes Worm, BigWorm, WormRider; units.ts makes
+// them WC3 "ancient" and the rider's weapon "nonancient"; probe --boom 2026-10-09).
 // TODO(units): Game.exe also needs 0x4e68d0 (global 0x8824e0, not identified) to let it call a worm,
-// shows WormSign0 in the last 100 ticks (an art object, not converted), plays the thumper / ride end
-// animations, and a rider cannot target worms or other riders (0x5728d0). Risk: a worm can be called
-// where Emperor would not allow it.
+// shows WormSign0 in the last 100 ticks (an art object, not converted) and plays the thumper / ride end
+// animations. Risk: a worm can be called where Emperor would not allow it.
 // Feature test: test/emperor-mission.test.ts "worm".
 function EmpRideData takes nothing returns nothing
     set EmpRideTab = InitHashtable()
