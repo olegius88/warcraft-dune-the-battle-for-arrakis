@@ -50,6 +50,7 @@
 | `mission/deploy.j` | `src/emperor/mission.ts` | развёртывание Kindjal / Mortar / Kobra (кнопки, смена типа через Chaos, ожидание анимации) и нож ADV Sardaukar (`{{deployLines}}`) |
 | `mission/apc.j` | `src/emperor/mission.ts` | APC: учёт пассажиров, гибель пассажиров вместе с APC |
 | `battle/spice-fields.j` | `src/emperor/battle.ts` | поля спайса по кластерам карты; спайс, сохранённый территорией с прошлой битвы |
+| `battle/carryall.j` | `src/emperor/battle.ts` | карриалы возят харвестеры к полю и к НПЗ; гибель груза со сбитым карриалом |
 | `battle/explored.j` | `src/emperor/battle.ts` | разведанная игроком карта территории: сохранение после битвы, возврат в следующей |
 | `battle/economy.j` | `src/emperor/battle.ts` | харвестеры, строитель от ConYard, харвестер от очистителя, расход MCV |
 | `battle/power.j` | `src/emperor/battle.ts` | энергия (Rules.txt): баланс по сторонам, отключение турелей при нехватке |

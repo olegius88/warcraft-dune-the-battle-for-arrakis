@@ -185,6 +185,40 @@ function EmpAiSpecialTurn takes nothing returns boolean
     return GetRandomInt(1, {{C.AI_SPECIAL_UNIT.superOneIn}}) != 1 or EmpTechLevel >= {{C.AI_SPECIAL_UNIT.superTech}}
 endfunction
 
+// Game.exe 0x467b00: a carryall while harvesters > AI_CARRYALL.perCarryall x carryalls, credits and
+// units over theirs; the hangar that builds it, else null (EmpAiCarryHangar)
+function EmpAiCarryallWanted takes nothing returns boolean
+    local group g
+    local unit u
+    local integer t
+    local integer harv = 0
+    local integer carry = 0
+    if '{{carryall}}' == 0 or EmpEnemyGold() <= {{C.AI_CARRYALL.credits}} or EmpCount(1, 1) <= {{C.AI_CARRYALL.units}} then
+        return false
+    endif
+    set EmpAiCarryHangar = null
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        set t = EmpType(u)
+        if EmpAlive(u) then
+            if t == '{{harvester}}' then
+                set harv = harv + 1
+            elseif t == '{{carryall}}' then
+                set carry = carry + 1
+            elseif {{isHangar}} then
+                set EmpAiCarryHangar = u
+            endif
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    return EmpAiCarryHangar != null and harv > {{C.AI_CARRYALL.perCarryall}} * carry
+endfunction
+
 function EmpEnemyProduce takes nothing returns nothing
     local group g
     local unit u
@@ -196,6 +230,14 @@ function EmpEnemyProduce takes nothing returns nothing
     local integer c
     local integer m
     if EmpCount(1, 1) >= EmpAiTMax[EmpAiT()]{{#if storyAi}} + {{C.STORY_AI_EXTRA_UNITS}}{{/if}} then
+        return
+    endif
+    // a carryall for the harvesters first (0x467b00)
+    if EmpAiCarryallWanted() then
+        call SetPlayerState(Player(1), PLAYER_STATE_RESOURCE_GOLD, EmpEnemyGold() - {{carryallCost}})
+        call CreateUnit(Player(1), '{{carryall}}', GetUnitX(EmpAiCarryHangar), GetUnitY(EmpAiCarryHangar) - {{real C.PRODUCED_VEHICLE_OFFSET}}, {{FACING}})
+        call EmpAiLog("carryall built")
+        set EmpAiCarryHangar = null
         return
     endif
     // the special units are vehicles (Devastator, Missile tank, Minotaurus, Kobra)

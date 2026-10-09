@@ -49,6 +49,12 @@
     // APC passengers (mission apc.j)
     hashtable EmpApcTab = null
     group EmpApcAll = null
+    // carryalls at work, their harvesters, a destination (battle carryall.j)
+    hashtable EmpCarryTab = null
+    group EmpCarryBusy = null
+    real EmpCarryX = 0.0
+    real EmpCarryY = 0.0
+    unit EmpAiCarryHangar = null
     unit EmpDeployArgUnit = null
     boolean EmpDeployArgOn = false
     boolean EmpDeployAutoAny = false

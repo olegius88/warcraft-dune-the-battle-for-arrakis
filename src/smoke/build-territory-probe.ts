@@ -38,6 +38,9 @@ const kindjalToggle = kindjalDeploy?.deploy ?? '';
 const advSard = all.units.rawcode.get('IMADVSardaukar') as string;
 const atInf = all.units.rawcode.get('ATInfantry') as string;
 const atApc = all.units.rawcode.get('ATAPC') as string;
+const harvesterId = all.units.rawcode.get('Harvester') as string;
+const carryallId = all.units.rawcode.get('Carryall') as string;
+const atRefinery = all.units.rawcode.get('ATRefinery') as string;
 // --mcvai: a factory of each house
 const factoryOf = { AT: all.units.rawcode.get('ATFactory') as string, HK: all.units.rawcode.get('HKFactory') as string, OR: all.units.rawcode.get('ORFactory') as string };
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
@@ -408,6 +411,100 @@ endfunction`,
     call Preload(s1)
     call Preload(s2)
     call PreloadGenEnd("DuneSmoke\\\\apc.pld")
+endfunction`,
+  } : {}),
+  // --carryall: a player harvester sent to a spice field far off, a carryall by it: carried there
+  ...(flag('--carryall') ? {
+    extraStart: 'CarryRun',
+    extraFunctions: `function CarryLine takes string at, unit h, unit c returns string
+    local unit m = EmpNearestMine(GetUnitX(h), GetUnitY(h))
+    return at + " field at " + R2S(SquareRoot((GetUnitX(m) - GetUnitX(h)) * (GetUnitX(m) - GetUnitX(h)) + (GetUnitY(m) - GetUnitY(h)) * (GetUnitY(m) - GetUnitY(h)))) + " hidden " + I2S(IntegerTertiaryOp(IsUnitHidden(h), 1, 0)) + " carryall state " + I2S(LoadInteger(EmpCarryTab, GetHandleId(c), 1)) + " harvester order " + OrderId2String(GetUnitCurrentOrder(h)) + " carryall at " + R2S(SquareRoot((GetUnitX(c) - GetUnitX(h)) * (GetUnitX(c) - GetUnitX(h)) + (GetUnitY(c) - GetUnitY(h)) * (GetUnitY(c) - GetUnitY(h)))) + " order " + OrderId2String(GetUnitCurrentOrder(c)) + " speed " + R2S(GetUnitMoveSpeed(c)) + " in range " + I2S(IntegerTertiaryOp(IsUnitInRange(c, h, 160.0), 1, 0)) + " c " + R2S(GetUnitX(c)) + "," + R2S(GetUnitY(c)) + " h " + R2S(GetUnitX(h)) + "," + R2S(GetUnitY(h)) + " busy " + I2S(IntegerTertiaryOp(IsUnitInGroup(c, EmpCarryBusy), 1, 0)) + " owner " + I2S(GetPlayerId(GetOwningPlayer(c)))
+endfunction
+
+function CarryRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit h
+    local unit c
+    local string array l
+    local integer i = 0
+    local group g = CreateGroup()
+    local unit u
+    local unit m
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    // only this probe's harvester: the start one goes
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpType(u) == '${harvesterId}' then
+            call RemoveUnit(u)
+        endif
+    endloop
+    call DestroyGroup(g)
+    call CreateUnit(Player(0), '${atRefinery}', x - 600.0, y + 600.0, 270.0)
+    set m = EmpNearestMine(x + 9000.0, y + 9000.0)
+    set h = CreateUnit(Player(0), '${harvesterId}', x, y, 0.0)
+    call IssueTargetOrder(h, "harvest", m)
+    set c = CreateUnit(Player(0), '${carryallId}', x + 400.0, y, 0.0)
+        loop
+        exitwhen i >= 60
+        call TriggerSleepAction(1.0)
+        set h = LoadUnitHandle(EmpCarryTab, GetHandleId(c), 0)
+        if h != null then
+            set l[i] = I2S(i) + "s st " + I2S(LoadInteger(EmpCarryTab, GetHandleId(c), 1)) + " c-h " + I2S(R2I(SquareRoot((GetUnitX(c) - GetUnitX(h)) * (GetUnitX(c) - GetUnitX(h)) + (GetUnitY(c) - GetUnitY(h)) * (GetUnitY(c) - GetUnitY(h))))) + " hid " + I2S(IntegerTertiaryOp(IsUnitHidden(h), 1, 0)) + " field " + I2S(R2I(SquareRoot((GetUnitX(m) - GetUnitX(h)) * (GetUnitX(m) - GetUnitX(h)) + (GetUnitY(m) - GetUnitY(h)) * (GetUnitY(m) - GetUnitY(h))))) + " gold " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)) + " ho " + OrderId2String(GetUnitCurrentOrder(h)) + " |"
+        else
+            set l[i] = I2S(i) + "s free"
+        endif
+        set i = i + 1
+    endloop
+    call PreloadGenClear()
+    call PreloadGenStart()
+    set i = 0
+    loop
+        exitwhen i >= 60
+        call Preload(l[i])
+        set i = i + 3
+    endloop
+    call PreloadGenEnd("DuneSmoke\\\\carryall.pld")
+endfunction`,
+  } : {}),
+  // --harvorders: the orders the engine gives a harvester through a harvest cycle (a refinery by a field)
+  ...(flag('--harvorders') ? {
+    extraStart: 'HarvOrdersRun',
+    extraFunctions: `function HarvOrdersLog takes nothing returns nothing
+    local integer n = LoadInteger(EmpVetUnit, -77, 1000)
+    if GetTriggerUnit() == LoadUnitHandle(EmpVetUnit, -77, 999) and n < 40 then
+        call SaveStr(EmpVetUnit, -77, n, I2S(EmpTick) + " " + OrderId2String(GetIssuedOrderId()) + " gold " + I2S(GetPlayerState(Player(0), PLAYER_STATE_RESOURCE_GOLD)))
+        call SaveInteger(EmpVetUnit, -77, 1000, n + 1)
+    endif
+endfunction
+
+function HarvOrdersRun takes nothing returns nothing
+    local trigger tr = CreateTrigger()
+    local unit m
+    local integer i = 0
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_ISSUED_ORDER, null)
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_ISSUED_TARGET_ORDER, null)
+    call TriggerRegisterPlayerUnitEvent(tr, Player(0), EVENT_PLAYER_UNIT_ISSUED_POINT_ORDER, null)
+    call TriggerAddAction(tr, function HarvOrdersLog)
+    call TriggerSleepAction(1.0)
+    set m = EmpNearestMine(0.0, 0.0)
+    call CreateUnit(Player(0), '${atRefinery}', GetUnitX(m) + 900.0, GetUnitY(m), 270.0)
+    call SaveUnitHandle(EmpVetUnit, -77, 999, CreateUnit(Player(0), '${harvesterId}', GetUnitX(m) + 600.0, GetUnitY(m) - 300.0, 0.0))
+    call IssueTargetOrder(LoadUnitHandle(EmpVetUnit, -77, 999), "harvest", m)
+    call TriggerSleepAction(70.0)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    loop
+        exitwhen i >= LoadInteger(EmpVetUnit, -77, 1000)
+        call Preload(LoadStr(EmpVetUnit, -77, i))
+        set i = i + 1
+    endloop
+    call PreloadGenEnd("DuneSmoke\\\\harvorders.pld")
 endfunction`,
   } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,

@@ -339,3 +339,12 @@ export const SAVED_BASE = { types: ['Barracks', 'Refinery', 'SmWindtrap', 'ConYa
 /** The explored map a territory keeps for the player (battle explored.j; Game.exe 0x47fd50 -> 0x495ea0
  * -> 0x47fbf0): tiles per stored integer (below the sign bit). */
 export const EXPLORED = { bits: 30 } as const;
+/** Carryalls carrying harvesters (battle carryall.j; Game.exe 1.09 class 7): the service tick (s), how
+ * near a carryall picks a harvester up and sets it down by its destination (WC3 units). The distance
+ * that makes a harvester ask is [General] MinCarryTileDist. */
+export const CARRYALL = { tick: 0.5, pickup: 160, drop: 256 } as const;
+/** [General] MinCarryTileDist when Rules.txt has none (its shipped value). */
+export const FALLBACK_MIN_CARRY_TILES = 10;
+/** Game.exe 1.09 0x467b00 (log 0x5fa5dc): the AI builds a carryall while it has more than `perCarryall`
+ * harvesters a carryall, over `credits` and over `units` units (0x44c670), at a hangar. */
+export const AI_CARRYALL = { perCarryall: 2, credits: 2000, units: 10 } as const;

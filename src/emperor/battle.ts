@@ -253,6 +253,15 @@ function battleSetup(o: BattleOptions): BattleSetup {
     isBuilder: PREFIXES.flatMap((h) => [o.units.ids.builders[h], o.units.ids.defenceBuilders[h]]).map((id) => `EmpType(b) == '${id}'`).join(' or '),
   }));
 
+  // ---- carryalls carry harvesters (Rules.txt Carryall, [General] MinCarryTileDist; carryall.j) ----
+  const carryalls = [...(o.rules?.objects.values() ?? [])].filter((x) => /^true$/i.test((x.raw.Carryall ?? '').trim())).map((x) => rc(x.name)).filter(isId);
+  fns.push(jass('carryall', {
+    harvester, WC3_UNITS_PER_TILE, spiceField: o.units.ids.spiceField,
+    isRefinery: refineries.filter(isId).map((r) => `t == '${r}'`).join(' or ') || 'false',
+    isCarryall: carryalls.map((c) => `t == '${c}'`).join(' or ') || 'false',
+    minCarryTiles: Number(o.rules?.general.MinCarryTileDist ?? 0) || C.FALLBACK_MIN_CARRY_TILES,
+  }));
+
   // ---- power (Rules.txt and Game.exe 1.09; src/jass/battle/power.j) ----
   fns.push(jass('power', {
     powerLines: [...o.units.objects]
@@ -522,6 +531,9 @@ endfunction`;
     ai,
     isBarracks: barracksOf.map((id) => `t == '${id}'`).join(' or '),
     isFactory: factoryOf.map((id) => `t == '${id}'`).join(' or '),
+    // the AI's carryalls (AI_CARRYALL): the type, its Cost, the hangars that build it
+    carryall: rc('Carryall') ?? '', carryallCost: o.rules?.objects.get('Carryall')?.cost ?? 0,
+    isHangar: PREFIXES.map((h) => rc(`${h}Hanger`)).filter(isId).map((id) => `t == '${id}'`).join(' or ') || 'false',
     costLines: [...produced.map((id) => `    call SaveInteger(EmpCostTab, '${id}', 0, ${costOf(id)})`), ...buildingCost].join('\n'),
     army: { attacker: o.rules?.reinforcements.attacker ?? C.FALLBACK_ARMY_VALUE, defender: o.rules?.reinforcements.defender ?? C.FALLBACK_ARMY_VALUE },
     money: o.rules?.campaignMoney ?? { attack: C.FALLBACK_CREDITS, defend: C.FALLBACK_CREDITS },

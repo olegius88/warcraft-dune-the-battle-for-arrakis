@@ -1721,6 +1721,25 @@ test('APCs carry five infantry who die with them', opts, () => {
   assert.ok(body('EmpApcLoaded').includes('GetTransportUnit()'));
 });
 
+// Carryalls (Rules.txt Carryall) were plain flying units: no harvester was ever carried. Game.exe 1.09
+// class 7: a harvester whose refinery / field is over MinCarryTileDist (10) tiles away asks; the nearest
+// idle carryall of its owner flies it there (0x53c040, 0x442aa0, 0x567f40); a carryall shot down takes
+// it along (0x560fc5). The AI builds one while it has more than 2 harvesters a carryall, over 2000
+// credits and over 10 units (0x467b00). Guaranteed now: both, in battle maps.
+test('carryalls carry harvesters, and the AI builds them', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'carryall', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpCarryIsCarryall').includes(`'${all.units.rawcode.get('Carryall')}'`) && body('EmpCarryIsCarryall').includes(`'${all.units.rawcode.get('IMDropShip')}'`));
+  assert.ok(body('EmpCarryFar').includes('> 10 * 128.0'), 'MinCarryTileDist');
+  assert.ok(body('EmpCarryDeath').includes('KillUnit(h)'), 'the harvester goes with a carryall shot down');
+  assert.ok(body('EmpBattleInit').includes('call EmpCarryInit()'));
+  const want = body('EmpAiCarryallWanted');
+  assert.ok(want.includes('harv > 2 * carry') && want.includes('EmpEnemyGold() <= 2000') && want.includes('EmpCount(1, 1) <= 10'), 'Game.exe 0x467b00: none unless over 2000 credits and 10 units');
+  assert.ok(body('EmpEnemyProduce').includes('EmpAiCarryallWanted()'), 'the AI builds them');
+});
+
 // In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an
 // invention) with nothing to build with: once it was beaten the battle was won. Game.exe 1.09 0x47f170
 // gives the side that attacks (and kept no base) an MCV at its start position (0x47f255) besides its
