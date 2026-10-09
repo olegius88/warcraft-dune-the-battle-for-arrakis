@@ -19,6 +19,7 @@ function EmpStart takes nothing returns nothing
     call EmpRideInit()
     call EmpTeleInit()
     call EmpProjInit()
+    call EmpSelectInit()
     call EmpSubhouseLimits()
     call EmpSpInit()
     call EmpUiInit()

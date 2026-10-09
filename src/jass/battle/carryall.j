@@ -9,10 +9,11 @@
 // 6 the field it was last sent to (a WC3 order's target cannot be read back: kept from the order
 // event; probe --carryall 2026-10-09: without it the carryall took it to the nearest field, over and
 // over).
-// TODO(units): Game.exe also calls a carryall for a harvester whose ground path is blocked (move result
-// 2); a WC3 harvester gives no such result, so only the distance asks. Carryalls are not selectable in
-// Emperor (Selectable=FALSE); here the player can select and order them. Risk: a harvester stuck behind
-// a wall walks on; a player's order takes a carryall off its service.
+// A harvester whose ground path is blocked asks too (Game.exe: move result 2); a WC3 harvester reports
+// none, so one with an errand that has not moved for C.CARRYALL.stuckChecks ticks away from its
+// destination counts as blocked (EmpCarryStuck; [harvester] 7 / 8 its last place, 9 the still ticks,
+// 10 = asked as blocked) and is picked up whatever the distance. Carryalls cannot be selected
+// (Rules.txt Selectable = FALSE: mission select.j). Test "a stuck harvester gets a carryall".
 // Feature test: test/emperor-mission.test.ts "carryall".
 
 function EmpCarryIsCarryall takes integer t returns boolean
@@ -76,6 +77,23 @@ function EmpCarryFar takes unit h returns boolean
     return SquareRoot((EmpCarryX - GetUnitX(h)) * (EmpCarryX - GetUnitX(h)) + (EmpCarryY - GetUnitY(h)) * (EmpCarryY - GetUnitY(h))) > {{minCarryTiles}} * {{real WC3_UNITS_PER_TILE}}
 endfunction
 
+// a harvester with an errand (EmpCarryX / Y set) standing still away from its destination
+function EmpCarryStuck takes unit h returns boolean
+    local integer hh = GetHandleId(h)
+    local real dx = GetUnitX(h) - LoadReal(EmpCarryTab, hh, 7)
+    local real dy = GetUnitY(h) - LoadReal(EmpCarryTab, hh, 8)
+    local integer n = 0
+    if HaveSavedReal(EmpCarryTab, hh, 7) and dx * dx + dy * dy < {{real C.CARRYALL.stuckMove}} * {{real C.CARRYALL.stuckMove}} then
+        set n = LoadInteger(EmpCarryTab, hh, 9) + 1
+    endif
+    call SaveReal(EmpCarryTab, hh, 7, GetUnitX(h))
+    call SaveReal(EmpCarryTab, hh, 8, GetUnitY(h))
+    call SaveInteger(EmpCarryTab, hh, 9, n)
+    set dx = EmpCarryX - GetUnitX(h)
+    set dy = EmpCarryY - GetUnitY(h)
+    return n >= {{C.CARRYALL.stuckChecks}} and dx * dx + dy * dy > {{real C.CARRYALL.stuckNear}} * {{real C.CARRYALL.stuckNear}}
+endfunction
+
 // the nearest carryall of p serving nobody
 function EmpCarryFree takes player p, real x, real y returns unit
     local group g = CreateGroup()
@@ -105,6 +123,8 @@ function EmpCarryRelease takes unit c returns nothing
     local unit h = LoadUnitHandle(EmpCarryTab, GetHandleId(c), 0)
     if h != null then
         call RemoveSavedHandle(EmpCarryTab, GetHandleId(h), 5)
+        call RemoveSavedBoolean(EmpCarryTab, GetHandleId(h), 10)
+        call RemoveSavedInteger(EmpCarryTab, GetHandleId(h), 9)
     endif
     call FlushChildHashtable(EmpCarryTab, GetHandleId(c))
     call GroupRemoveUnit(EmpCarryBusy, c)
@@ -127,9 +147,10 @@ function EmpCarryAsk takes nothing returns nothing
             call GroupRemoveUnit(g, h)
             if EmpAlive(h) and EmpType(h) == '{{harvester}}' and not HaveSavedHandle(EmpCarryTab, GetHandleId(h), 5) and IsUnitVisible(h, GetOwningPlayer(h)) then
                 set k = EmpCarryErrand(h)
-                if k > 0 and EmpCarryFar(h) then
+                if k > 0 and (EmpCarryFar(h) or EmpCarryStuck(h)) then
                     set c = EmpCarryFree(Player(i), GetUnitX(h), GetUnitY(h))
                     if c != null then
+                        call SaveBoolean(EmpCarryTab, GetHandleId(h), 10, not EmpCarryFar(h))
                         call SaveUnitHandle(EmpCarryTab, GetHandleId(c), 0, h)
                         call SaveInteger(EmpCarryTab, GetHandleId(c), 1, 1)
                         call SaveInteger(EmpCarryTab, GetHandleId(c), 4, k)
@@ -162,7 +183,7 @@ function EmpCarryWork takes unit c returns nothing
         if IsUnitInRange(c, h, {{real C.CARRYALL.pickup}}) then
             // there: still far from its destination? (0x442aa0) then up it goes
             set k = EmpCarryErrand(h)
-            if k == 0 or not EmpCarryFar(h) then
+            if k == 0 or (not EmpCarryFar(h) and not LoadBoolean(EmpCarryTab, GetHandleId(h), 10)) then
                 call EmpCarryRelease(c)
             else
                 call SaveInteger(EmpCarryTab, hc, 4, k)

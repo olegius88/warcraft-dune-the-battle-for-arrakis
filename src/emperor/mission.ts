@@ -376,6 +376,8 @@ function buildMission(p: MissionParams): BuiltMission {
     }
   }
   const replicaFire = !/^false$/i.test(String(p.rules?.general.ReplicaShouldFire ?? 'TRUE').split('//')[0]?.trim() ?? '');
+  // Rules.txt Selectable = FALSE types (mission select.j)
+  const unselectable = [...(p.rules ? p.rules.objects.values() : [])].filter((o) => /^false$/i.test((o.raw.Selectable ?? '').split('//')[0]?.trim() ?? '')).map((o) => p.units.rawcode.get(o.name)).filter((id): id is string => Boolean(id));
   const replicaDamage = (Number(p.rules?.general.ReplicaBulletDamage ?? 0) || RT.FALLBACK_REPLICA_DAMAGE) / DAMAGE_DIVISOR;
   // a replica's projection and vanish (ticks; projector.j EmpProjFade, Game.exe 0x571b20)
   const replicaIn = Number(p.rules?.general.ReplicaProjectionTime ?? 0) || 0;
@@ -559,7 +561,7 @@ function buildMission(p: MissionParams): BuiltMission {
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), tossScale: WC3_UNITS_PER_TILE / EMPEROR_TILE, boomKind: BOOM_KIND, wormLines: wormLines.join('\n'), teleLines: teleLines.join('\n'), projLines: projLines.join('\n'), replicaNoFire: !replicaFire, replicaDamage, replicaIn, replicaOut, WORM, sandTile: TERRAIN.ground[TEX.SAND], spiceTile: TERRAIN.ground[TEX.SPICE], burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), tossScale: WC3_UNITS_PER_TILE / EMPEROR_TILE, boomKind: BOOM_KIND, wormLines: wormLines.join('\n'), teleLines: teleLines.join('\n'), projLines: projLines.join('\n'), replicaNoFire: !replicaFire, replicaDamage, isUnselectable: unselectable.length ? unselectable.map((id) => `t == '${id}'`).join(' or ') : 'false', replicaIn, replicaOut, WORM, sandTile: TERRAIN.ground[TEX.SAND], spiceTile: TERRAIN.ground[TEX.SPICE], burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -586,6 +588,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('wormride'),
     jass('teleport'),
     jass('projector'),
+    jass('select'),
     jass('apc'),
     jass('subhouse'),
     jass('specials'),

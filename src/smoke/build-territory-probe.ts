@@ -429,6 +429,74 @@ endfunction`,
     call PreloadGenEnd("DuneSmoke\\\\apc.pld")
 endfunction`,
   } : {}),
+  // --carrystuck: a harvester sent to a field 8.6 tiles off (nearer than MinCarryTileDist), walled in
+  // counts as blocked: a carryall picks it up; a carryall the player selects is dropped from the selection
+  ...(flag('--carrystuck') ? {
+    extraStart: 'StuckRun',
+    extraFunctions: `function StuckRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit m = EmpNearestMine(x, y)
+    local unit h = CreateUnit(Player(0), '${harvesterId}', GetUnitX(m) + 1100.0, GetUnitY(m), 180.0)
+    local unit c = CreateUnit(Player(0), '${carryallId}', GetUnitX(m) + 1500.0, GetUnitY(m), 0.0)
+    local string s1
+    local string s2
+    local real d0
+    local group g = CreateGroup()
+    local unit u
+    local integer i
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    // only this probe's harvester
+    call GroupEnumUnitsOfPlayer(g, Player(0), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpType(u) == '${harvesterId}' and u != h then
+            call RemoveUnit(u)
+        endif
+    endloop
+    call DestroyGroup(g)
+    // walled in by a ring of ground pathing blockers 192 off, a blocker every 64: its way is blocked
+    set x = GetUnitX(h)
+    set y = GetUnitY(h)
+    set d0 = -192.0
+    loop
+        exitwhen d0 > 192.0
+        call CreateDestructable('YTpb', x + d0, y - 192.0, 0.0, 1.0, 0)
+        call CreateDestructable('YTpb', x + d0, y + 192.0, 0.0, 1.0, 0)
+        call CreateDestructable('YTpb', x - 192.0, y + d0, 0.0, 1.0, 0)
+        call CreateDestructable('YTpb', x + 192.0, y + d0, 0.0, 1.0, 0)
+        set d0 = d0 + 64.0
+    endloop
+    call IssueTargetOrder(h, "harvest", m)
+    call TriggerSleepAction(2.0)
+    set d0 = SquareRoot((GetUnitX(m) - GetUnitX(h)) * (GetUnitX(m) - GetUnitX(h)) + (GetUnitY(m) - GetUnitY(h)) * (GetUnitY(m) - GetUnitY(h)))
+    call SelectUnit(c, true)
+    call TriggerSleepAction(0.5)
+    set s1 = "carryall selected after 0.5 s " + I2S(IntegerTertiaryOp(IsUnitSelected(c, Player(0)), 1, 0)) + " harvester order " + OrderId2String(GetUnitCurrentOrder(h)) + " field at " + R2S(d0) + " speed " + R2S(GetUnitMoveSpeed(h))
+    // every 0.5 s for 8 s: the carryall's state while it serves this harvester, asked as blocked
+    set s2 = ""
+    set i = 0
+    loop
+        exitwhen i >= 16
+        call TriggerSleepAction(0.5)
+        if LoadUnitHandle(EmpCarryTab, GetHandleId(c), 0) == h then
+            set s2 = s2 + I2S(LoadInteger(EmpCarryTab, GetHandleId(c), 1)) + "/" + I2S(IntegerTertiaryOp(LoadBoolean(EmpCarryTab, GetHandleId(h), 10), 1, 0)) + " "
+        else
+            set s2 = s2 + "- "
+        endif
+        set i = i + 1
+    endloop
+    set s2 = "serving it (state / asked as blocked) " + s2 + "| carryall serves it " + I2S(IntegerTertiaryOp(LoadUnitHandle(EmpCarryTab, GetHandleId(c), 0) == h, 1, 0)) + " state " + I2S(LoadInteger(EmpCarryTab, GetHandleId(c), 1)) + " asked as blocked " + I2S(IntegerTertiaryOp(LoadBoolean(EmpCarryTab, GetHandleId(h), 10), 1, 0)) + " still ticks " + I2S(LoadInteger(EmpCarryTab, GetHandleId(h), 9)) + " field at " + R2S(SquareRoot((GetUnitX(m) - GetUnitX(h)) * (GetUnitX(m) - GetUnitX(h)) + (GetUnitY(m) - GetUnitY(h)) * (GetUnitY(m) - GetUnitY(h)))) + " hidden " + I2S(IntegerTertiaryOp(IsUnitHidden(h), 1, 0))
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call PreloadGenEnd("DuneSmoke\\\\carrystuck.pld")
+endfunction`,
+  } : {}),
   // --carryall: a player harvester sent to a spice field far off, a carryall by it: carried there
   ...(flag('--carryall') ? {
     extraStart: 'CarryRun',

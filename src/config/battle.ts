@@ -342,7 +342,10 @@ export const EXPLORED = { bits: 30 } as const;
 /** Carryalls carrying harvesters (battle carryall.j; Game.exe 1.09 class 7): the service tick (s), how
  * near a carryall picks a harvester up and sets it down by its destination (WC3 units). The distance
  * that makes a harvester ask is [General] MinCarryTileDist. */
-export const CARRYALL = { tick: 0.5, pickup: 160, drop: 256 } as const;
+/** Carryalls serving harvesters (battle carryall.j): the tick (s), pick-up and drop distances (WC3
+ * units). A harvester with an errand that moved less than stuckMove over stuckChecks ticks and is more
+ * than stuckNear from its destination counts as blocked (Game.exe asks on a blocked move, result 2). */
+export const CARRYALL = { tick: 0.5, pickup: 160, drop: 256, stuckChecks: 4, stuckMove: 4, stuckNear: 384 } as const;
 /** [General] MinCarryTileDist when Rules.txt has none (its shipped value). */
 export const FALLBACK_MIN_CARRY_TILES = 10;
 /** Game.exe 1.09 0x467b00 (log 0x5fa5dc): the AI builds a carryall while it has more than `perCarryall`

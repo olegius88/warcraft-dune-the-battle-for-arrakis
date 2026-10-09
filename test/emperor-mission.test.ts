@@ -1759,6 +1759,26 @@ test('carryalls carry harvesters, and the AI builds them', opts, () => {
   assert.ok(body('EmpEnemyProduce').includes('EmpAiCarryallWanted()'), 'the AI builds them');
 });
 
+// Regression: a harvester stuck behind a wall walked on (only the distance asked for a carryall), and the
+// player could select carryalls and order them off their service. Game.exe 1.09 also calls a carryall for
+// a harvester whose move ends blocked (move result 2, unitHarvester.cpp 0x56c0ad), and Rules.txt gives
+// carryalls (and worms, walls, the storm, scenery) Selectable = FALSE. A WC3 harvester reports no blocked path: here one with an errand that has
+// not moved over C.CARRYALL.stuckChecks checks and is not by its destination counts as blocked. Guaranteed
+// now: such a harvester asks too and is picked up whatever the distance; selecting a Selectable = FALSE
+// type drops it at once (mission select.j).
+test('a stuck harvester gets a carryall, and carryalls cannot be selected', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'carrystuck', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpCarryAsk').includes('EmpCarryFar(h) or EmpCarryStuck(h)'), 'blocked asks too');
+  assert.ok(body('EmpCarryWork').includes('not EmpCarryFar(h) and not LoadBoolean(EmpCarryTab, GetHandleId(h), 10)'), 'picked up though near');
+  const sel = body('EmpUnselectable');
+  for (const n of ['Carryall', 'IMDropShip', 'HKWall']) assert.ok(sel.includes(`'${all.units.rawcode.get(n)}'`), n);
+  assert.ok(!sel.includes(`'${all.units.rawcode.get('ATTrooper')}'`), 'others stay selectable');
+  assert.ok(body('EmpUnselect').includes('call SelectUnit(u, false)'), 'Selectable = FALSE');
+});
+
 // The Ix projector made no holograms. Game.exe 1.09 class 0x17: deployed, its order on a visible ground
 // unit of any side (Projectable) makes a replica of that type for its owner (0x570a70); a replica lives
 // the projector's Lifespan, vanishes at any hit or with its projector, its shots do ReplicaBulletDamage
