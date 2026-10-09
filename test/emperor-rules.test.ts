@@ -123,3 +123,14 @@ test('ai_difficulty.ini: a key missing in a tech level comes from [Tech1]', asyn
   assert.strictEqual(t[2]?.unitDelay, 875);
   assert.strictEqual(t[8]?.maxUnits, 22, 'levels without a section are Tech1');
 });
+
+// Regression: the turret's ammo was read from an "Ammo" key, which Rules.txt does not have: every
+// turret had 0. Game.exe 1.09 reads TurretBulletCount (turret parser 0x529c58 -> turret type +0x2c;
+// 0 = unlimited); the ornithopters carry 10 / 4 rounds a sortie. It did not show: nothing used it yet.
+test('turret ammo is TurretBulletCount', { skip: fs.existsSync(path.join(RAW_DIR, 'Rules.txt')) ? false : 'game data not extracted' }, () => {
+  const rules = loadRules(path.join(RAW_DIR, 'Rules.txt'));
+  const ammo = (unit: string): number[] => (rules.objects.get(unit)?.turrets ?? []).map((t) => t.ammo);
+  assert.deepStrictEqual(ammo('ATOrni'), [10]);
+  assert.deepStrictEqual(ammo('HKGunship'), [4]);
+  assert.deepStrictEqual(ammo('ATTrike'), [0], 'no TurretBulletCount: unlimited');
+});

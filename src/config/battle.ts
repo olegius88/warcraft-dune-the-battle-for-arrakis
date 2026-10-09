@@ -163,8 +163,10 @@ export const AI_MONEY = {
   shares: [[0, 100], [20, 80], [50, 60], [70, 30], [70, 50], [100, 0]] as ReadonlyArray<readonly [number, number]>,
   unitFloor: 500, expensive: 3, expensiveOneIn: 4, expensiveRollMax: 4 - 1,
 } as const;
-/** Game.exe 1.09 updates an AI side every second tick (0x428370); its 1-in-n starts (rand % n == 0 per
- * update) are a roll of AI_UPDATES_PER_TACTIC in n here, once a tactics tick. */
+/** Game.exe 1.09 updates an AI side every second tick (0x428370, run by the game step 0x47ea56: side i
+ * when (i xor tick) & 1 == 0; the update is the tactics manager step 0x44aba0 -> 0x44d040); its 1-in-n
+ * starts (rand % n == 0 per update) are a roll of AI_UPDATES_PER_TACTIC in n here, once a tactics tick.
+ * Counters the manager keeps in its own steps (n * 25 "seconds", 0x46c1a0) run at half the tick rate. */
 export const AI_UPDATES_PER_TACTIC = (AI_TACTIC_PERIOD * 25) / 2;
 /** Scouts (0x4582a0): the route's points NW, NE, SE, SW and the centre, `edge` tiles in (table 0x4584a0);
  * a scout at its point within `arrive` tiles, or idle, takes the next one; past the fifth one a point

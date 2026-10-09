@@ -60,8 +60,7 @@
 // 0x430786 (past 10 minutes a builder list entry of group 2 with +0x4 == 1 is refused on
 // rand % 2000 < skill: at most 0.45 % of the checks; group 2 / +0x4 not identified), 0x45b030 (a
 // tactic short of units takes them from another; on rand % 10 < skill also EXTRA units beyond its
-// teams' needs: Game.exe's tactics (built in code, 15 types, 0x45aac0; no AI script file in the game
-// data) are waves here), 0x468410 (an AI infiltrator next to a target deploys unless rand % 40 < skill;
+// teams' needs: Game.exe's tactics (15 types, 0x45aac0) are waves here), 0x468410 (an AI infiltrator next to a target deploys unless rand % 40 < skill;
 // the AI here makes no infiltrators, ENEMY_INFANTRY); off in the campaign: 0x450575 (a crate grab,
 // "Crate Get T", only where the setup's game type is 1: the campaign sets 2 / 3, 0x490435) and
 // 0x440613 (pattern triggers, rand % 75000 < skill); the unit AIs 0x463980 (AiUnitADP, "Attacking %s":
@@ -388,6 +387,14 @@ endfunction`;
     aiLines.push(`    set EmpAiUpgCount[${hi}] = ${list.length}`);
   });
   // ai_difficulty.ini by tech level (index 1..8): delays in seconds, counts, ticks of the first attack
+  // TODO(ai): Game.exe's attacks are script tactics (type 1): 217 STRATEGY files in the AI_DATA folders
+  // 1..7, SubHouse, CrossTech (all in RAW_DIR) with objectsets.txt, loaded by 0x43c420, parsed by
+  // 0x445900 (DESCRIPTION / TEAM / TARGET / STAGING / STEP SEND WAIT GOTO RUN TAUNT MONITOR), picked
+  // proactively by frequency (1: 51 %, 2: 30 %, 3: 15 %, 4: 4 %; 0x45b5f0) every GapBetweenNewScripts
+  // under MaxScriptsToRunAtOnce, or reactively against threats (0x44e100); teams by objectset from the
+  // reserves; LargeAttackModifier only sets the 1-in-5250 LARGE attack roll (0x44d1b5 -> 0x450f30).
+  // Here a wave of home units on GapBetweenNewScripts scaled by LargeAttackModifier stands for them.
+  // Risk: the enemy attacks with any units, in one shape, more or less often than Emperor's.
   ai.tech.forEach((t, lvl) => {
     if (lvl < 1) return;
     aiLines.push(`    set EmpAiTMax[${lvl}] = ${t.maxUnits}`, `    set EmpAiTBuildings[${lvl}] = ${t.numBuildings}`,
@@ -410,6 +417,10 @@ endfunction`;
   }
   aiLines.push(`    set EmpAiMcv = ${mcv ? `'${mcv}'` : 0}`, `    set EmpAiMcvCost = ${o.rules?.objects.get('MCV')?.cost ?? 0}`);
   // the ai.ini values SideAIBehaviour* re-tunes (forces.j EmpAiBehave)
+  // TODO(ai): DefenceTacticWanderDistance has no reader in Game.exe 1.09 (every caller of 0x431d80 /
+  // 0x431b60 checked): the home guard's chase radius EmpAiWander built on it is the port's own; Game.exe's
+  // defence teams fight intruders inside the base's megatiles (0x455220). Risk: the guard chases
+  // farther or nearer than Emperor's.
   aiLines.push(`    set EmpAiDefPct = ${ai.defencePercent}`, `    set EmpAiWander = ${ai.defenceWanderTiles}`,
     `    set EmpAiBuildsDef = ${ai.buildsDefences}`, `    set EmpAiScoutTeams = ${ai.scoutTeams}`);
   // the house's palace super weapon (src/emperor/superweapons.ts): charge type, palace, charge ticks

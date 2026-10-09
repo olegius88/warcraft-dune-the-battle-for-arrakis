@@ -37,6 +37,8 @@ export interface Turret {
   /** ticks between shots */
   reload: number;
   bullet: Bullet | null;
+  /** rounds a sortie (TurretBulletCount; Game.exe turret parser 0x529c58, 0 = unlimited; bug fixed
+   * 2026-10-09: an "Ammo" key was read, which Rules.txt has not) */
   ammo: number;
   /** TurretDisableIfUnitDeployed / ...Undeployed: the turret fires only in the other state of a
    * deployable unit (ATKindjal, ORMortar: DeployInf; ORKobra: Kobra) */
@@ -293,7 +295,7 @@ function loadRules(rulesPath: string): Rules {
     const s = sec(name);
     if (!s) return null;
     const t = baseValues(s).single;
-    return { name, reload: num(t.ReloadCount, 50), bullet: bullet(t.Bullet), ammo: num(t.Ammo),
+    return { name, reload: num(t.ReloadCount, 50), bullet: bullet(t.Bullet), ammo: num(t.TurretBulletCount),
       disableIfDeployed: bool(t.TurretDisableIfUnitDeployed), disableIfUndeployed: bool(t.TurretDisableIfUnitUndeployed) };
   };
 

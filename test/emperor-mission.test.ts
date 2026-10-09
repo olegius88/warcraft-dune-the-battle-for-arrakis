@@ -1581,6 +1581,10 @@ test('tactics start as in Game.exe: scout route, harvester and yard guards, no c
   const tac = body('EmpAiTactics');
   assert.ok(body('EmpAiScoutPoint').includes('EmpAiMapW - 4') && body('EmpAiScoutPoint').includes('EmpAiMapH - 4'), 'five points');
   assert.ok(tac.includes('call EmpAiScoutNext(u)') && !m.script.includes('function EmpAiRoam takes'), 'scouts on the route');
+  // Regression: the scout tactic waited for UnitsToBuildBeforeCreatingScoutTactic units produced in all;
+  // Game.exe asks the side's current unit count (0x44d040 -> 0x44c670): a side that lost its first
+  // units scouted at once in the port
+  assert.ok(tac.includes('if units >= 3 and scouts < EmpAiScoutTeams') && !tac.includes('EmpAiProduced >='), 'scouts by the current unit count');
   assert.ok(tac.includes('EmpAiStrength != 0 and EmpAiSkill >= 4') && tac.includes('GetRandomInt(0, 2999) < 25'), 'harvester guard start');
   assert.ok(tac.includes('EmpAiPersonality == 2') && tac.includes('(11 - EmpAiSkill) * 400') && tac.includes('GetRandomInt(0, 1499) < 25'), 'yard guard start');
   assert.ok(!tac.includes('EmpAiCYHit'), 'no invented yard alarm');

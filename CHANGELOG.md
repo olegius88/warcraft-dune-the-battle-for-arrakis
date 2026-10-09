@@ -204,6 +204,14 @@
   заканчивает сценарий (`0x42f230`). Проверено в игре: четыре шага, на пятом не хватило денег.
 
 ### Fixed
+- 2026-10-09 Боезапас турелей читался из несуществующего ключа `Ammo` (всегда 0); теперь из
+  `TurretBulletCount` (парсер турелей Game.exe `0x529c58`; у ATOrni 10, у HKGunship 4, 0 — без
+  ограничения). Тест «turret ammo is TurretBulletCount».
+- 2026-10-09 Тактика разведки ИИ ждала, пока будет произведено `UnitsToBuildBeforeCreatingScoutTactic`
+  юнитов за всё время; Game.exe смотрит на текущее число юнитов стороны (`0x44d040` → `0x44c670`).
+- 2026-10-09 Комментарии и TODO ИИ: сценарии атак Game.exe существуют (217 файлов STRATEGY в RAW_DIR,
+  `0x43c420`), у порта вместо них волны; `LargeAttackModifier` в Game.exe задаёт только шанс LARGE-атаки;
+  у `DefenceTacticWanderDistance` в Game.exe нет читателя. Шаг ИИ раз в два тика подтверждён (`0x428370`).
 - 2026-10-09 Урон атак — точно по Rules.txt: процент боеголовки атакующего для брони цели применяется во время
   игры ([damage.j](src/jass/mission/damage.j) `EmpDmgHit` на `EVENT_PLAYER_UNIT_DAMAGING`, `BlzSetEventDamage`;
   данные `EmpDmgTab` из [mission.ts](src/emperor/mission.ts)), таблица WC3 `DamageBonus*` нейтральная

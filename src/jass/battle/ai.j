@@ -1199,8 +1199,9 @@ function EmpAiTactics takes nothing returns nothing
     call DestroyGroup(g)
     set g = null
     set units = EmpAiUnitCount()
-    // a new scout (one unit per team) once enough units were made
-    if EmpAiProduced >= {{ai.unitsBeforeScout}} and scouts < EmpAiScoutTeams and best != null then
+    // a new scout (one unit per team) once the side has enough units (Game.exe 0x44d040 asks the current
+    // count, 0x44c670; bug fixed 2026-10-09: the units made in all were counted)
+    if units >= {{ai.unitsBeforeScout}} and scouts < EmpAiScoutTeams and best != null then
         call SaveInteger(EmpWaveTab, GetHandleId(best), 1, 1)
         call EmpAiScoutNext(best)
         call EmpAiLog("scout " + GetUnitName(best))
