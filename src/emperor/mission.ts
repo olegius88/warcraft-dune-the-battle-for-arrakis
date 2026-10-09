@@ -353,6 +353,19 @@ function buildMission(p: MissionParams): BuiltMission {
     burrowLines.push(`    call SaveBoolean(EmpBurrowTab, '${id}', 0, true)`);
     if (weaponOf(o)?.bullet?.antiAircraft) burrowLines.push(`    call SaveBoolean(EmpBurrowTab, '${id}', 2, true)`);
   }
+  // worm rides (wormride.j): callers -> their rider, riders (WormRider) -> their Resource
+  const wormLines: string[] = [];
+  for (const w of p.units.wormCallers ?? []) {
+    wormLines.push(`    call SaveInteger(EmpRideTab, '${w.type}', 0, '${w.rider}')`, `    call SaveBoolean(EmpRideTab, '${w.type}', 1, true)`, `    call SaveInteger(EmpRideTab, '${w.button}', 3, 1)`);
+  }
+  for (const o of p.rules ? p.rules.objects.values() : []) {
+    const id = p.units.rawcode.get(o.name);
+    const back = p.units.rawcode.get((o.raw.Resource ?? '').split(',')[0]?.split('//')[0]?.trim() ?? '');
+    if (id && back && /^true$/i.test((o.raw.WormRider ?? '').split('//')[0]?.trim() ?? '')) wormLines.push(`    call SaveInteger(EmpRideTab, '${id}', 0, '${back}')`, `    call SaveBoolean(EmpRideTab, '${id}', 2, true)`);
+  }
+  const gen = (k: string, d: number): number => Number(p.rules?.general[k] ?? 0) || d;
+  const WORM = { waitMin: gen('MinWormRideWaitDelay', RT.FALLBACK_WORM_WAIT[0]), waitRollMax: gen('MaxWormRideWaitDelay', RT.FALLBACK_WORM_WAIT[1]) - 1,
+    lifespan: gen('WormRiderLifespan', RT.FALLBACK_WORM_LIFESPAN), tick: RT.WORM_TICK, tickTicks: Math.round(RT.WORM_TICK * TICKS_PER_SECOND), noSand: RT.WORM_NO_SAND };
   // the infantry types (Rules.txt Infantry): what a knife form goes for
   if ((p.units.deploy ?? []).some((d) => d.auto > 0)) {
     for (const o of p.rules ? p.rules.objects.values() : []) {
@@ -516,7 +529,7 @@ function buildMission(p: MissionParams): BuiltMission {
     isTutorial: p.kind === 'tutorial', isStart: p.kind === 'start' && !p.standalone, isDefend: p.kind === 'defend',
     hasDebrief: debriefBlocks.length > 0, hasBriefingSpeech: briefingBlocks.length > 0,
     storyEnemyKnown: storyHouse !== null, storyEnemy: storyHouse ? HOUSE_ID[HOUSE_BY_CODE[storyHouse]] : -1,
-    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
+    hubMap: p.hubMap || '', kindId: KIND_ID[p.kind || 'attack'], territoryBattle: Boolean(p.territoryBattle), ...portScope, spLines: spLines.join('\n'), deviateSeconds: (sp?.deviateTicks ?? 0) / TICKS_PER_SECOND, wonLines, breakLines, subLines, extraStart: p.extraStart ?? '', swLines: swLines.join('\n'), dmgLines: dmgLines.join('\n'), deployLines: deployLines.join('\n'), boomLines: boomLines.join('\n'), wormLines: wormLines.join('\n'), WORM, sandTile: TERRAIN.ground[TEX.SAND], spiceTile: TERRAIN.ground[TEX.SPICE], burrowLines: burrowLines.join('\n'), dustTile: TERRAIN.ground[TEX.DUST], burrowGuard: (Number(p.rules?.general.GuardTileRange ?? 0) || RT.FALLBACK_GUARD_TILES) * WC3_UNITS_PER_TILE, swLimitLines: swLimitLines.join('\n'), vetLines: vetLines.join('\n'),
     musicList, jFirstTrack: str(p.music?.[0] ?? ''),
     jReportFile: str(`${RT.DEBUG_REPORT_DIR}\\${p.debugName || 'mission'}.pld`),
     name: p.name, briefing: p.briefing || '', pickScript, battleInit: battle.init, autoWinSeconds: p.autoWinSeconds || 0,
@@ -540,6 +553,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('deploy'),
     jass('detonate'),
     jass('burrow'),
+    jass('wormride'),
     jass('apc'),
     jass('subhouse'),
     jass('specials'),

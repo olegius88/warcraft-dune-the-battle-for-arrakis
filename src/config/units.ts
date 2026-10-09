@@ -138,3 +138,9 @@ export const DETONATE = {
 } as const;
 /** EITS: bombs it drops when it blows up (Game.exe 0x56916a: ten EITSBomb_B). */
 export const EITS_BOMBS = 10;
+/** The ADV Fremen's worm call button (units.ts wormCallers, mission wormride.j). */
+export const WORM_CALL = {
+  name: 'Призвать червя',
+  tooltip: 'Поставить тумпер и ждать червя: через время фримен оседлает его. Новый приказ отменяет вызов.',
+  button: [1, 2] as const,
+} as const;

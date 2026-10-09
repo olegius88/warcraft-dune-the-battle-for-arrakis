@@ -54,6 +54,9 @@
     boolean EmpBoomMines = false
     // dust scouts burrowed (mission burrow.j)
     hashtable EmpBurrowTab = null
+    // worm calls and riders (mission wormride.j)
+    hashtable EmpRideTab = null
+    group EmpRideAll = null
     // carryalls at work, their harvesters, a destination (battle carryall.j)
     hashtable EmpCarryTab = null
     group EmpCarryBusy = null

@@ -245,3 +245,10 @@ export const FALLBACK_GUARD_TILES = 12;
 /** An airborne mine's rocket hits within this radius of its aircraft (WC3 units; the rocket has no
  * BlastRadius: one target). */
 export const BOOM_MINE_HIT = 48;
+/** Worm rides (mission wormride.j): how often (s) the callers and riders are looked at, and the
+ * message when the ground is not sand. The waits come from [General] Min/MaxWormRideWaitDelay and
+ * WormRiderLifespan (ticks; FALLBACK_WORM_* without them). */
+export const WORM_TICK = 0.5;
+export const WORM_NO_SAND = 'Червя можно призвать только на песке.';
+export const FALLBACK_WORM_WAIT = [100, 2000] as const;
+export const FALLBACK_WORM_LIFESPAN = 1000;

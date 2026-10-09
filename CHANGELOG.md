@@ -42,6 +42,11 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 ADV Fremen призывают червя и ездят на нём ([wormride.j](src/jass/mission/wormride.j)). Как в Game.exe
+  (класс `0x11`, `0x566f30`; всадник `0x13`, `0x572a60`): кнопка «Призвать червя» на песке, через
+  `MinWormRideWaitDelay + rand % MaxWormRideWaitDelay` тиков фримен становится WormRider (новый приказ
+  отменяет вызов); всадник бродит, пока ему не приказали, а через `WormRiderLifespan` тиков снова фримен с
+  той же долей здоровья; ветеранство переходит. Пробник `--worm`.
 - 2026-10-09 ORADP — летающая мина ([detonate.j](src/jass/mission/detonate.j) `EmpBoomMineTick`). Раньше была
   безоружной. Как в Game.exe (`AirborneMine`, `0x5665e0`): при вражеском летуне в пределах MinRange снаряда
   HEATADP_B (10 клеток) выпускает Lifespan (5) ракет по 480 и гибнет. Пробник `--boom`: орнитоптер сбит.

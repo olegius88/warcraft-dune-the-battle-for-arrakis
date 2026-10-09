@@ -46,6 +46,10 @@ const atOrni = all.units.rawcode.get('ATOrni') as string;
 const hkYard = all.units.rawcode.get('HKConYard') as string;
 const dustScout = all.units.rawcode.get('ORDustScout') as string;
 const orAdp = all.units.rawcode.get('ORADP') as string;
+const advFremen = all.units.rawcode.get('FRADVFremen') as string;
+const wormRider = all.units.rawcode.get('WormRider') as string;
+const wormButton = all.units.wormCallers[0]?.button ?? '';
+const sandTile = TERRAIN.ground[TEX.SAND];
 const dustTile = TERRAIN.ground[TEX.DUST];
 const [hkDev, ixInf, orEits, orSab, atScout] = ['HKDevastator', 'IXInfiltrator', 'OREITS', 'ORSaboteur', 'ATScout'].map((n) => all.units.rawcode.get(n) as string);
 // --mcvai: a factory of each house
@@ -659,6 +663,68 @@ function BurrowRun takes nothing returns nothing
     call Preload(s2)
     call Preload(s3)
     call PreloadGenEnd("DuneSmoke\\\\burrow.pld")
+endfunction`,
+  } : {}),
+  // --worm: an ADV Fremen on sand calls a worm (the wait cut to 10 ticks), rides it (the ride cut to
+  // 50 ticks), and is an ADV Fremen again
+  ...(flag('--worm') ? {
+    extraStart: 'WormRun',
+    extraFunctions: `function WormRun takes nothing returns nothing
+    local real x = EmpMapMinX + 256.0
+    local real y
+    local boolean found = false
+    local unit u
+    local boolean cast
+    local string s1 = "no sand"
+    local string s2 = ""
+    local string s3 = ""
+    call FogEnable(false)
+    call FogMaskEnable(false)
+    call TriggerSleepAction(1.0)
+    loop
+        exitwhen x > EmpMapMaxX or found
+        set y = EmpMapMinY + 256.0
+        loop
+            exitwhen y > EmpMapMaxY or found
+            if GetTerrainType(x, y) == '${sandTile}' and GetTerrainType(x + 256.0, y) == '${sandTile}' and GetTerrainType(x, y + 256.0) == '${sandTile}' then
+                set found = true
+            else
+                set y = y + 256.0
+            endif
+        endloop
+        if not found then
+            set x = x + 256.0
+        endif
+    endloop
+    if found then
+        set u = CreateUnit(Player(0), '${advFremen}', x, y, 0.0)
+        call SetUnitLifePercentBJ(u, 50.0)
+        call TriggerSleepAction(0.5)
+        set cast = IssueImmediateOrder(u, "channel")
+        call TriggerSleepAction(1.5)
+        set s1 = "cast " + I2S(IntegerTertiaryOp(cast, 1, 0)) + " waiting " + I2S(LoadInteger(EmpRideTab, GetHandleId(u), 4)) + " caller " + I2S(IntegerTertiaryOp(LoadBoolean(EmpRideTab, EmpType(u), 1), 1, 0)) + " button " + I2S(LoadInteger(EmpRideTab, '${wormButton}', 3)) + " ability " + I2S(GetUnitAbilityLevel(u, '${wormButton}')) + " sand " + I2S(IntegerTertiaryOp(GetTerrainType(GetUnitX(u), GetUnitY(u)) == '${sandTile}', 1, 0)) + " in group " + I2S(IntegerTertiaryOp(IsUnitInGroup(u, EmpRideAll), 1, 0)) + " order " + OrderId2String(GetUnitCurrentOrder(u))
+        call SaveInteger(EmpRideTab, GetHandleId(u), 4, 10)
+        call TriggerSleepAction(2.0)
+        set s2 = "riders " + I2S(EmpCount(0, '${wormRider}')) + " fremen " + I2S(EmpCount(0, '${advFremen}'))
+        call GroupEnumUnitsOfPlayer(EmpTmpGroup, Player(0), null)
+        loop
+            set u = FirstOfGroup(EmpTmpGroup)
+            exitwhen u == null
+            call GroupRemoveUnit(EmpTmpGroup, u)
+            if EmpType(u) == '${wormRider}' then
+                set s2 = s2 + " rider life % " + R2S(GetUnitLifePercent(u)) + " order " + OrderId2String(GetUnitCurrentOrder(u))
+                call SaveInteger(EmpRideTab, GetHandleId(u), 5, 30)
+            endif
+        endloop
+        call TriggerSleepAction(3.0)
+        set s3 = "after the ride: riders " + I2S(EmpCount(0, '${wormRider}')) + " fremen " + I2S(EmpCount(0, '${advFremen}'))
+    endif
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload(s3)
+    call PreloadGenEnd("DuneSmoke\\\\worm.pld")
 endfunction`,
   } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,

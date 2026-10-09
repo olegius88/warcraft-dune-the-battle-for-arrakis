@@ -119,6 +119,8 @@ export interface UnitData {
   deploy: DeployType[];
   /** types that blow themselves up (Devastator, Infiltrator, EITS) and their buttons */
   detonators: Detonator[];
+  /** ADV Fremen: the worm call button, the WormRider it becomes (Resource) */
+  wormCallers: { type: string; button: string; rider: string }[];
 }
 
 /** A type that blows itself up on its deploy command (Game.exe 1.09 classes 0x1c Devastator, 0x1b
@@ -555,6 +557,20 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       leaves: kind === 'eits' ? rawcode.get('ORSaboteur') ?? '' : '',
     });
   }
+  // ADV Fremen (Rules.txt AdvancedFremen): a worm call button; it becomes its Resource (mission wormride.j)
+  const wormCallers: { type: string; button: string; rider: string }[] = [];
+  for (const obj of objects.filter((x) => x.emperor && flag(x.emperor as RulesObject, 'AdvancedFremen'))) {
+    const o = obj.emperor as RulesObject;
+    const rider = rawcode.get((o.raw.Resource ?? '').split(',')[0]?.split('//')[0]?.trim() ?? '');
+    if (!rider) continue;
+    const button = nextId(CUSTOM_ID.deployPrefix);
+    const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);
+    const b = channelButton(button, U.WORM_CALL.name, U.WORM_CALL.tooltip, icon);
+    abilities.push({ ...b, mods: [...b.mods.filter((m) => m.field !== ABILITY_FIELD.buttonX && m.field !== ABILITY_FIELD.buttonY),
+      { field: ABILITY_FIELD.buttonX, type: 'int', value: U.WORM_CALL.button[0] }, { field: ABILITY_FIELD.buttonY, type: 'int', value: U.WORM_CALL.button[1] }] });
+    obj.mods = withAbility(obj.mods, button);
+    wormCallers.push({ type: obj.id, button, rider });
+  }
   // Command card cells of the train / research buttons: without them a type keeps its stock base's
   // cell and types of the same base hide each other. Buildings with the most buttons first; each
   // button takes the first cell free in every building that shows it (test/emperor-mission.test.ts).
@@ -582,7 +598,7 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     else upgradeButtons.push([id, [x, y]]);
   }
   return {
-    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators,
+    objects, rawcode, ids, misc: combat.misc, icons: icons?.files ?? {}, portOrders, padOrders, vetRange, deploy, detonators, wormCallers,
     // the converted effects only when some are played (config EFFECT_PLAYED)
     models: Object.fromEntries([...Object.entries(models?.files ?? {}), ...(EFFECT_PLAYED.some(Boolean) ? Object.entries(effects?.set.files ?? {}) : [])]),
     effects: effectsOf(rules, rawcode, effects),

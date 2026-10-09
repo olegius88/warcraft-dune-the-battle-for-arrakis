@@ -1067,17 +1067,17 @@ test('territory battles have surface and vertical worms with the Rules.txt chanc
   assert.deepStrictEqual([w.surfaceChance, w.verticalChance, w.minLife, w.maxLife, w.disappearHealth, w.minTick, w.attractionRadius], [6000, 5000, 600, 1000, 25, 1000, 32]);
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const battle = buildMission({ scripts: [], meta, ...all, name: 'worms', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
-  assert.match(battle.script, /function EmpWormTick takes nothing returns nothing/);
+  assert.match(battle.script, /function EmpRideTick takes nothing returns nothing/);
   assert.ok(battle.script.includes('GetRandomInt(1, 6000) <= 25'), 'surface worm chance per second from ChanceOfSurfaceWorm');
   assert.ok(battle.script.includes('GetRandomInt(1, 5000) <= 25'), 'vertical worm chance per second from ChanceOfVerticalWorm');
   // per-type WormAttraction weights; TastyToWorms = False and GUMaker (-20) are never eaten
-  const weight = (name: string): RegExpExecArray | null => new RegExp(`call SaveInteger\\(EmpWormTab, '${all.units.rawcode.get(name)}', 0, (-?\\d+)\\)`).exec(battle.script);
+  const weight = (name: string): RegExpExecArray | null => new RegExp(`call SaveInteger\\(EmpRideTab, '${all.units.rawcode.get(name)}', 0, (-?\\d+)\\)`).exec(battle.script);
   assert.strictEqual(all.rules.objects.get('ATGeneral')?.tastyToWorms, false);
   if (all.units.rawcode.has('ATGeneral')) assert.strictEqual(weight('ATGeneral')?.[1], '0');
   assert.strictEqual(weight('GUMaker')?.[1], '-20');
   assert.ok(battle.script.includes('or not EmpOnSand(GetUnitX(EmpWorm), GetUnitY(EmpWorm)))'), 'a worm on rock goes under the sand');
   const story = buildMission({ scripts: [], meta, ...all, name: 'no-worms', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x' });
-  assert.ok(!story.script.includes('EmpWormTick'), 'no worms outside territory battles');
+  assert.ok(!story.script.includes('EmpRideTick'), 'no worms outside territory battles');
 });
 
 // Reinforcements (Rules.txt [General] UnitValue*Reinforcements, TicksBetweenReinforcements and the
@@ -1739,6 +1739,23 @@ test('carryalls carry harvesters, and the AI builds them', opts, () => {
   const want = body('EmpAiCarryallWanted');
   assert.ok(want.includes('harv > 2 * carry') && want.includes('EmpEnemyGold() <= 2000') && want.includes('EmpCount(1, 1) <= 10'), 'Game.exe 0x467b00: none unless over 2000 credits and 10 units');
   assert.ok(body('EmpEnemyProduce').includes('EmpAiCarryallWanted()'), 'the AI builds them');
+});
+
+// The ADV Fremen could not call a worm. Game.exe 1.09 class 0x11 (0x566f30): a thumper, MinWormRideWait
+// + rand % MaxWormRideWait ticks later a WormRider (its Resource) of its owner; the rider (0x13, 0x572a60)
+// wanders unless ordered and after WormRiderLifespan ticks is an ADV Fremen again with its share of
+// health. Guaranteed now: a worm call button and the same timings (mission wormride.j).
+test('ADV Fremen call worms and ride them for WormRiderLifespan', opts, () => {
+  const all = loadAll();
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const w = all.units.wormCallers.find((x) => x.type === id('FRADVFremen'));
+  assert.ok(w && w.rider === id('WormRider'));
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'worm', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(m.script.includes(`call SaveInteger(EmpRideTab, '${id('WormRider')}', 0, '${id('FRADVFremen')}')`), 'the rider turns back into an ADV Fremen');
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpRideCast').includes('100 + GetRandomInt(0, 1999)'), 'Min / MaxWormRideWaitDelay');
+  assert.ok(body('EmpRideTick').includes('call SaveInteger(EmpRideTab, GetHandleId(n), 5, 1000)'), 'WormRiderLifespan');
 });
 
 // The dust scout (ORDustScout, Rules.txt DustScout) never burrowed. Game.exe 1.09 class 0xc (0x568d10):
