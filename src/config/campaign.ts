@@ -104,6 +104,12 @@ export const CACHE_KEY = {
   resultTerritory: 'resultterr',
   resultKind: 'resultkind',
   outcome: 'outcome',
+  /** basePrefix + territory + "_" + house + "_" + field + k: the base the territory keeps for that house
+   * (battle forces.j EmpBaseSave / EmpBaseRestore; fields n count, t type, x / y / f position, facing) */
+  basePrefix: 'base',
+  /** spicePrefix + territory + "_" + field + k: the spice fields the territory keeps (battle
+   * spice-fields.j EmpSpiceSave / EmpSpiceRestore; n count, x / y position, a amount) */
+  spicePrefix: 'spice',
   /** enemy house of the home-world attack */
   homeAttackEnemy: 'haenemy',
   /** 1 = the last hub visit offered a counter-attack */

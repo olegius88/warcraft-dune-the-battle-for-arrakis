@@ -1434,7 +1434,8 @@ endfunction
 function EmpAiMinimalBase takes nothing returns nothing
     local integer t
     local integer n
-    if not EmpAiYardAlive() then
+    // a kept base with a yard (forces.j EmpBaseRestore): Game.exe 0x42ea80 finds it and adds nothing
+    if EmpBaseRestored or not EmpAiYardAlive() then
         return
     endif
 {{minBaseLines}}

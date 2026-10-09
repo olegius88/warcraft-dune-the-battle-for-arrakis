@@ -330,3 +330,7 @@ export const AI_DEPLOY = { keyX: 11, keyY: 12, keyStill: 13 } as const;
  * compares with an array of positions, [+0x34], not identified); the spiral goes `rings` rings of
  * `ringStep` tiles, one thread per ring (op limit). */
 export const AI_MCV = { freeTiles: 3, ringStep: 2, rings: 40 } as const;
+/** The base a territory keeps for its next battle (Game.exe 1.09 StoreSideBuildings 0x480200): the
+ * winner's buildings of these types (house prefix + name; lists at 0x4802af / 0x48035c / 0x4803f6), one
+ * of each, at their positions; an MCV alone is kept as the house's construction yard (0x481160). */
+export const SAVED_BASE = { types: ['Barracks', 'Refinery', 'SmWindtrap', 'ConYard', 'Factory', 'Hanger', 'Outpost'] as readonly string[] } as const;

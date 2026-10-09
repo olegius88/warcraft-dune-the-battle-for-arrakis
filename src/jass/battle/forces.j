@@ -29,6 +29,112 @@ function EmpCostData takes nothing returns nothing
 {{costLines}}
 endfunction
 
+// ---- the base a territory keeps (C.SAVED_BASE; Game.exe 1.09): at the end of a battle the lists of
+// both houses on the territory are cleared and the winner's is stored (0x490f50): one building of each
+// kept type at its position and facing (StoreSideBuildings 0x480200; no health, no units), an MCV
+// alone as the house's yard (0x481160). The defender of the next battle there gets its list back
+// (0x490bf0 -> 0x4807e0, full health), and a yard among it spares the minimal base (0x42ea80 finds
+// it). Kept in the campaign cache per territory and house (EmpBaseKey).
+// Feature test: test/emperor-mission.test.ts "a territory keeps the winner's base".
+function EmpBaseKeep takes integer h, integer t returns boolean
+{{baseKeep}}
+    return false
+endfunction
+
+function EmpBaseYardOf takes integer h returns integer
+{{baseYard}}
+    return 0
+endfunction
+
+function EmpBaseKey takes integer h, string f, integer k returns string
+    return {{KB}} + I2S(EmpTerritory) + "_" + I2S(h) + "_" + f + I2S(k)
+endfunction
+
+function EmpBaseSave takes boolean win returns nothing
+    local integer side = 1
+    local integer h = EmpEnemyHouse
+    local group g
+    local unit u
+    local unit mcv = null
+    local integer n = 0
+    local integer i
+    local integer t
+    local boolean dup
+    if not EmpInCampaign or EmpCache == null then
+        return
+    endif
+    if win then
+        set side = 0
+        set h = EmpPlayerHouse
+    endif
+    call StoreInteger(EmpCache, {{CAT}}, EmpBaseKey(EmpPlayerHouse, "n", 0), 0)
+    call StoreInteger(EmpCache, {{CAT}}, EmpBaseKey(EmpEnemyHouse, "n", 0), 0)
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, EmpSidePlayer(side), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        set t = EmpType(u)
+        if EmpAlive(u) and EmpBaseKeep(h, t) then
+            set dup = false
+            set i = 0
+            loop
+                exitwhen i >= n or dup
+                set dup = GetStoredInteger(EmpCache, {{CAT}}, EmpBaseKey(h, "t", i)) == t
+                set i = i + 1
+            endloop
+            if not dup then
+                call StoreInteger(EmpCache, {{CAT}}, EmpBaseKey(h, "t", n), t)
+                call StoreReal(EmpCache, {{CAT}}, EmpBaseKey(h, "x", n), GetUnitX(u))
+                call StoreReal(EmpCache, {{CAT}}, EmpBaseKey(h, "y", n), GetUnitY(u))
+                call StoreReal(EmpCache, {{CAT}}, EmpBaseKey(h, "f", n), GetUnitFacing(u))
+                set n = n + 1
+            endif
+{{#if mcv}}        elseif EmpAlive(u) and t == '{{mcv}}' then
+            set mcv = u
+{{/if}}        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    if n == 0 and mcv != null and EmpBaseYardOf(h) != 0 then
+        call StoreInteger(EmpCache, {{CAT}}, EmpBaseKey(h, "t", 0), EmpBaseYardOf(h))
+        call StoreReal(EmpCache, {{CAT}}, EmpBaseKey(h, "x", 0), GetUnitX(mcv))
+        call StoreReal(EmpCache, {{CAT}}, EmpBaseKey(h, "y", 0), GetUnitY(mcv))
+        call StoreReal(EmpCache, {{CAT}}, EmpBaseKey(h, "f", 0), {{FACING}})
+        set n = 1
+    endif
+    call StoreInteger(EmpCache, {{CAT}}, EmpBaseKey(h, "n", 0), n)
+    set mcv = null
+endfunction
+
+// the defender's kept base (side 0 in a defence battle, side 1 in an attack): true when it has the
+// house's construction yard
+function EmpBaseRestore takes integer side returns boolean
+    local integer h = EmpEnemyHouse
+    local integer n
+    local integer k = 0
+    local integer t
+    local boolean yard = false
+    if not EmpInCampaign or EmpCache == null then
+        return false
+    endif
+    if side == 0 then
+        set h = EmpPlayerHouse
+    endif
+    set n = GetStoredInteger(EmpCache, {{CAT}}, EmpBaseKey(h, "n", 0))
+    loop
+        exitwhen k >= n
+        set t = GetStoredInteger(EmpCache, {{CAT}}, EmpBaseKey(h, "t", k))
+        if t != 0 then
+            call CreateUnit(EmpSidePlayer(side), t, GetStoredReal(EmpCache, {{CAT}}, EmpBaseKey(h, "x", k)), GetStoredReal(EmpCache, {{CAT}}, EmpBaseKey(h, "y", k)), GetStoredReal(EmpCache, {{CAT}}, EmpBaseKey(h, "f", k)))
+            set yard = yard or t == EmpBaseYardOf(h)
+        endif
+        set k = k + 1
+    endloop
+    return yard
+endfunction
+
 // ---- starting forces / enemy base (territory battles). Armies are sets of the house's units worth
 // Rules.txt UnitValueAttacker (the side that attacks) / UnitValueDefender (the side that holds the
 // base), credits CampaignAttackMoney / CampaignDefendMoney.
@@ -43,7 +149,11 @@ function EmpStartForces takes nothing returns nothing
     // the defending side's minimal base (Game.exe 0x47f170 -> 0x42ea80, config MIN_BASE): its yard at the
     // start point moved; the rest where the AI's site code puts it once its map stands (ai.j
     // EmpAiMinimalBase)
-    set EmpAiYard = CreateUnit(Player(1), EmpAiYardType[EmpEnemyHouse], EmpBaseX[b] - {{real yardLeft}}, EmpBaseY[b] + {{real yardUp}}, {{FACING}})
+    // (a kept yard becomes EmpAiYard when ai.j EmpAiYardAlive looks for one)
+    set EmpBaseRestored = EmpBaseRestore(1)
+    if not EmpBaseRestored then
+        set EmpAiYard = CreateUnit(Player(1), EmpAiYardType[EmpEnemyHouse], EmpBaseX[b] - {{real yardLeft}}, EmpBaseY[b] + {{real yardUp}}, {{FACING}})
+    endif
     // ai.ini: the enemy keeps its units at its base between attack waves
     set EmpAIMode[1] = 8
     call EmpSpawnSet(1, {{army.defender}}, EmpBaseX[b], EmpBaseY[b], {{real C.BASE_GUARD_OFFSET}})
@@ -340,7 +450,10 @@ endfunction
 // ai.j EmpAiMcvTick). Its reinforcement sets come as in every territory battle.
 function EmpDefendStart takes nothing returns nothing
     local integer b = EmpBaseOfSide(0)
+    // the base the player kept here, else the minimal base
+    if not EmpBaseRestore(0) then
 {{playerBase}}
+    endif
     call CreateUnit(Player(0), '{{harvester}}', EmpBaseX[b] + {{real C.BASE_HARVESTER_OFFSET}}, EmpBaseY[b] - {{real C.BASE_HARVESTER_OFFSET}}, {{FACING}})
     call EmpSpawnSet(0, {{army.defender}}, EmpBaseX[b], EmpBaseY[b], {{real C.DEFEND_ARMY_SPREAD}})
     call SetCameraPositionForPlayer(Player(0), EmpBaseX[b], EmpBaseY[b])

@@ -32,10 +32,14 @@
 // campaign alliances and clear it for the computer (0x48ef86..0x48ef93, 0x48fa33..0x48fa60): only
 // skirmish lobbies give an AI sub-houses (0x47c1a0 "Changed AI side %d to subhouses %d, %d").
 // The defending enemy starts from Game.exe's minimal base (MIN_BASE, 0x42ea80), placed by the site code
-// (ai-map.j EmpAiPlace, 0x42a1e0 / 0x42a680). TODO(ai): the buildings a territory kept from earlier
-// battles (0x4807e0 <- 0x490bf0, the defender only) and the reserves (0x4809b0, UnitValueReserves per
-// stack of 0x490d60) are not carried between battles. Risk: later fights on a territory start from a
-// fresh base. In a defence battle the attacking AI starts with Game.exe's MCV (0x47f255),
+// (ai-map.j EmpAiPlace, 0x42a1e0 / 0x42a680), unless the territory kept its base from the last battle
+// there (forces.j EmpBaseSave / EmpBaseRestore, C.SAVED_BASE); its spice is kept too (spice-fields.j).
+// TODO(campaign): the player's reserves are not ported: Game.exe spawns UnitValueReserves worth of
+// house units, two veterancy levels up, at the entrance for every army stack the player selected on
+// neighbouring territories (0x4809b0, stacks counted by 0x490d60; the AI has none), and moves / removes
+// the stacks after the battle (0x491522). The hub has no army stacks (where they come from is not
+// traced). Also not kept: the explored map per house (0x47fd50 -> 0x495ea0) and the battle scorch
+// (0x534420 -> 0x495f60). Risk: the player fights without reserves. In a defence battle the attacking AI starts with Game.exe's MCV (0x47f255),
 // UnitValueAttacker units and CampaignAttackMoney (forces.j EmpDefendAttacker) and builds its base.
 // Builder state 3 is Game.exe's defence plan (ai-map.j, AI_PLAN / AI_MAP): walls along the contour of
 // a building cluster on the AI's map of tiles, turrets where the walls end at its roads. Of the 17
@@ -211,6 +215,7 @@ function battleSetup(o: BattleOptions): BattleSetup {
       `    call SaveInteger(EmpPadTab, '${p.id}', 2, ${p.unit ? `'${p.unit}'` : 0})`, `    call SaveInteger(EmpPadTab, '${p.id}', 3, ${p.cost})`].join('\n')).join('\n'),
   }));
   fns.push(jass('spice-fields', {
+    CAT: J_CACHE_CATEGORY, KS: str(CACHE_KEY.spicePrefix),
     fieldLines: clusters.map((c) => { const [x, y] = o.terrain.toWorld(c.x, c.y); return `    set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '${o.units.ids.spiceField}', ${real(x)}, ${real(y)}, ${FACING})\n    call SetResourceAmount(m, ${c.tiles * spiceValue})`; }).join('\n'),
     moundLines: (o.rules ? o.meta.spiceMounds ?? [] : []).map(([tx, ty]) => { const [x, y] = o.terrain.toWorld(tx, ty); return `    call EmpMoundAdd(${real(x)}, ${real(y)})`; }).join('\n'),
     mound, spiceValue, spiceField: o.units.ids.spiceField, spiceMound: o.units.ids.spiceMound, ART_ABILITY,
@@ -484,14 +489,20 @@ endfunction`;
     ...(C.AI_SKILL.lowPhases.includes(phase) ? ['        set low = 1'] : []),
     '    endif',
   ].join('\n')).join('\n');
+  // the base a territory keeps (SAVED_BASE): the types of each house, its construction yard
+  const keptOf = PREFIXES.map((h) => C.SAVED_BASE.types.map((s) => rc(h + s)).filter(isId));
+  const branch = (hi: number, ret: string): string => `    ${hi === 0 ? 'if' : 'elseif'} h == ${hi} then\n        return ${ret}`;
+  const baseKeep = keptOf.map((ids, hi) => branch(hi, ids.map((id) => `t == '${id}'`).join(' or ') || 'false')).join('\n') + '\n    endif';
+  const baseYard = PREFIXES.map((h, hi) => branch(hi, rc(`${h}ConYard`) ? `'${rc(`${h}ConYard`)}'` : '0')).join('\n') + '\n    endif';
   fns.push(jass('forces', {
+    baseKeep, baseYard, CAT: J_CACHE_CATEGORY, KB: str(CACHE_KEY.basePrefix),
     strongTech: tuneLines(BP.strong, true, '            '), campaignPhases,
     aggressiveTech: tuneLines(BP.aggressive, true, '            '), defensiveTech: tuneLines(BP.defensive, true, '            '),
     aggressiveSide: [tuneLines(BP.aggressive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.aggressive)].join('\n'),
     defensiveSide: [tuneLines(BP.defensive, false, '        '), ...setLines(C.AI_BEHAVIOUR_SET.defensive)].join('\n'),
     gapFactor: 100 / Math.max(1, ai.largeAttackModifier), TPS: TICKS_PER_SECOND,
     aiFunctions, storyAi: storyHouse >= 0, storyHouse,
-    harvester, playerBase, mcv: mcv ?? '',
+    harvester, playerBase, mcv: mcv ?? '', territoryBattle: o.territoryBattle,
     // the yard of the minimal base: MIN_BASE.yardShift tiles (left, up)
     yardLeft: -C.MIN_BASE.yardShift[0] * WC3_UNITS_PER_TILE, yardUp: C.MIN_BASE.yardShift[1] * WC3_UNITS_PER_TILE,
     vehMax: C.ENEMY_VEHICLES.length - 1, infMax: C.ENEMY_INFANTRY.length - 1,

@@ -11,6 +11,7 @@ import { ensureMap } from '../emperor/preview-map.ts';
 import { buildMission } from '../emperor/mission.ts';
 import { BUILD_DIR, RAW_DIR } from '../config/paths.ts';
 import { territoryMapPrefix } from '../config/story.ts';
+import { CACHE_CATEGORY } from '../config/campaign.ts';
 import { ART_ABILITY, TERRAIN, UNIT_FIELD } from '../config/wc3.ts';
 import { TEX } from '../config/terrain.ts';
 import { EFFECT_MAX_RADIUS } from '../config/models.ts';
@@ -259,6 +260,42 @@ function McvAiRun takes nothing returns nothing
     call Preload(s3)
     call Preload(s4)
     call PreloadGenEnd("DuneSmoke\\\\mcvai.pld")
+endfunction`,
+  } : {}),
+  // --basesave: the AI's base as the winner's (EmpBaseSave(false)), its buildings removed, then given
+  // back to the AI as the next defender (EmpBaseRestore(1)): kept types, counts and the yard
+  ...(flag('--basesave') ? {
+    extraStart: 'BaseSaveRun',
+    extraFunctions: `function BaseSaveRun takes nothing returns nothing
+    local group g = CreateGroup()
+    local unit u
+    local string s1
+    local string s2
+    local string s3
+    local boolean yard
+    call TriggerSleepAction(40.0)
+    set EmpInCampaign = true
+    set s1 = "before: ai buildings " + I2S(EmpCount(1, 2))
+    call EmpBaseSave(false)
+    set s2 = "saved " + I2S(GetStoredInteger(EmpCache, ${JSON.stringify(CACHE_CATEGORY)}, EmpBaseKey(EmpEnemyHouse, "n", 0)))
+    call GroupEnumUnitsOfPlayer(g, Player(1), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if IsUnitType(u, UNIT_TYPE_STRUCTURE) then
+            call RemoveUnit(u)
+        endif
+    endloop
+    call DestroyGroup(g)
+    set yard = EmpBaseRestore(1)
+    set s3 = "restored: ai buildings " + I2S(EmpCount(1, 2)) + " yard " + I2S(IntegerTertiaryOp(yard, 1, 0)) + " yards " + I2S(EmpCount(1, EmpAiYardType[EmpEnemyHouse]))
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call Preload(s3)
+    call PreloadGenEnd("DuneSmoke\\\\basesave.pld")
 endfunction`,
   } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,

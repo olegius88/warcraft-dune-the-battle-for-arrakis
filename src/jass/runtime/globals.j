@@ -49,6 +49,8 @@
     unit EmpDeployArgUnit = null
     boolean EmpDeployArgOn = false
     boolean EmpDeployAutoAny = false
+    // the defending AI got a kept base with a construction yard (battle forces.j EmpBaseRestore)
+    boolean EmpBaseRestored = false
     // attack damage by warhead (mission damage.j)
     hashtable EmpDmgTab = null
     // palace super weapons (helpers.j EmpSwStrike; data from mission superweapon.j)

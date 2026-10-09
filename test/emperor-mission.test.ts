@@ -1635,6 +1635,50 @@ test('ADV Sardaukar switch to the knife against infantry within MaxRange', opts,
   assert.ok(body('EmpDeployable').includes('11'), 'an automatic form is no deployable unit (AI, scripts)');
 });
 
+// Every battle on a territory started from a fresh base (TODO(ai) in battle.ts). Game.exe 1.09 keeps the
+// winner's base per territory and house: one building of each of Barracks, Refinery, SmWindtrap,
+// ConYard, Factory, Hanger, Outpost at its position (StoreSideBuildings 0x480200; no health, no
+// units; an MCV alone counts as a yard, 0x481160); the lists of both houses are cleared first
+// (0x490f50), and the defender of the next battle there gets its list back (0x490bf0 -> 0x4807e0),
+// a yard among it sparing the minimal base (0x42ea80). Guaranteed now: the same through the campaign
+// cache.
+test('a territory keeps the winner\'s base for its next battle', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const atk = buildMission({ scripts: [], meta, ...all, name: 'base atk', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (m: { script: string }, name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body(atk, 'EmpCampaignResult').includes('call EmpBaseSave(win)'), 'saved at the end of a territory battle');
+  const keep = body(atk, 'EmpBaseKeep');
+  for (const n of ['ATBarracks', 'ATRefinery', 'ATSmWindtrap', 'ATConYard', 'ATFactory', 'ATHanger', 'ATOutpost']) assert.ok(keep.includes(`'${all.units.rawcode.get(n)}'`), n);
+  assert.ok(!keep.includes(`'${all.units.rawcode.get('ATPalace')}'`), 'not the palace');
+  const save = body(atk, 'EmpBaseSave');
+  assert.ok(save.indexOf('EmpBaseKey(EmpPlayerHouse, "n", 0), 0)') < save.indexOf('GroupEnumUnitsOfPlayer'), 'both lists cleared first');
+  assert.ok(save.includes(`'${all.units.rawcode.get('MCV')}'`), 'an MCV alone counts as a yard');
+  const start = body(atk, 'EmpStartForces');
+  assert.ok(start.includes('set EmpBaseRestored = EmpBaseRestore(1)'), 'the defending AI gets its kept base');
+  assert.ok(body(atk, 'EmpAiMinimalBase').includes('if EmpBaseRestored'), 'a kept yard spares the minimal base');
+  const def = buildMission({ scripts: [], meta, ...all, name: 'base def', playerHouse: 'Atreides', kind: 'defend', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  assert.ok(body(def, 'EmpDefendStart').includes('if not EmpBaseRestore(0) then'), 'the defending player gets its kept base');
+  const story = buildMission({ scripts: [], meta, ...all, name: 'story', playerHouse: 'Atreides', kind: 'story', hubMap: 'AT_Hub.w3x' });
+  assert.ok(!body(story, 'EmpCampaignResult').includes('EmpBaseSave'), 'story maps keep nothing');
+});
+
+// Spice harvested on a territory came back in full at its next battle. Game.exe 1.09 saves each cell's
+// spice after every battle with the player, won or lost (0x480170 -> 0x495f10), and puts it back at the
+// next one there (0x491d80 -> 0x47edc6). Guaranteed now: each field's position and what is left in it
+// are kept per territory; kept fields replace the map's own.
+test('a territory keeps its spice for its next battle', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'spice', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  const result = body('EmpCampaignResult');
+  assert.ok(result.includes('call EmpSpiceSave()'), 'saved after the battle, win or loss');
+  assert.ok(body('EmpSpiceSave').includes('GetResourceAmount(u)'), 'what is left');
+  const fields = body('EmpSpiceFields');
+  assert.ok(fields.indexOf('if not EmpSpiceRestore() then') < fields.indexOf(`'${all.units.ids.spiceField}'`), 'kept fields replace the map\'s');
+});
+
 // In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an
 // invention) with nothing to build with: once it was beaten the battle was won. Game.exe 1.09 0x47f170
 // gives the side that attacks (and kept no base) an MCV at its start position (0x47f255) besides its

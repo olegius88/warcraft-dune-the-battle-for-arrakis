@@ -90,11 +90,65 @@ function EmpMoundDeath takes nothing returns nothing
     set u = null
 endfunction
 
+// ---- the spice a territory keeps: Game.exe 1.09 saves each cell's spice after every battle with the
+// player, won or lost (0x480170 -> 0x495f10, per territory), and puts it back at the next battle there
+// (0x491d80 -> 0x535c10 -> 0x47edc6). Here each field (blooms too) with what is left in it; a kept
+// territory's fields replace the map's own. Feature test: test/emperor-mission.test.ts "spice".
+function EmpSpiceKey takes string f, integer k returns string
+    return {{KS}} + I2S(EmpTerritory) + "_" + f + I2S(k)
+endfunction
+
+function EmpSpiceSave takes nothing returns nothing
+    local group g
+    local unit u
+    local integer n = 0
+    if not EmpInCampaign or EmpCache == null then
+        return
+    endif
+    set g = CreateGroup()
+    call GroupEnumUnitsOfPlayer(g, Player(PLAYER_NEUTRAL_PASSIVE), null)
+    loop
+        set u = FirstOfGroup(g)
+        exitwhen u == null
+        call GroupRemoveUnit(g, u)
+        if EmpAlive(u) and EmpType(u) == '{{spiceField}}' and GetResourceAmount(u) > 0 then
+            call StoreReal(EmpCache, {{CAT}}, EmpSpiceKey("x", n), GetUnitX(u))
+            call StoreReal(EmpCache, {{CAT}}, EmpSpiceKey("y", n), GetUnitY(u))
+            call StoreInteger(EmpCache, {{CAT}}, EmpSpiceKey("a", n), GetResourceAmount(u))
+            set n = n + 1
+        endif
+    endloop
+    call DestroyGroup(g)
+    set g = null
+    call StoreInteger(EmpCache, {{CAT}}, EmpSpiceKey("n", 0), n)
+endfunction
+
+// the kept fields, if the territory has kept any (true)
+function EmpSpiceRestore takes nothing returns boolean
+    local integer n
+    local integer k = 0
+    local unit m
+    if not EmpInCampaign or EmpCache == null or not HaveStoredInteger(EmpCache, {{CAT}}, EmpSpiceKey("n", 0)) then
+        return false
+    endif
+    set n = GetStoredInteger(EmpCache, {{CAT}}, EmpSpiceKey("n", 0))
+    loop
+        exitwhen k >= n
+        set m = CreateUnit(Player(PLAYER_NEUTRAL_PASSIVE), '{{spiceField}}', GetStoredReal(EmpCache, {{CAT}}, EmpSpiceKey("x", k)), GetStoredReal(EmpCache, {{CAT}}, EmpSpiceKey("y", k)), {{FACING}})
+        call SetResourceAmount(m, GetStoredInteger(EmpCache, {{CAT}}, EmpSpiceKey("a", k)))
+        set k = k + 1
+    endloop
+    set m = null
+    return true
+endfunction
+
 // ---- spice fields: one gold-mine-like field per spice cluster of the map ----
 function EmpSpiceFields takes nothing returns nothing
     local unit m
     local trigger tr = CreateTrigger()
+    if not EmpSpiceRestore() then
 {{fieldLines}}
+    endif
     set EmpMoundTab = InitHashtable()
     call TriggerRegisterPlayerUnitEvent(tr, Player(PLAYER_NEUTRAL_PASSIVE), EVENT_PLAYER_UNIT_DEATH, null)
     call TriggerAddAction(tr, function EmpMoundDeath)

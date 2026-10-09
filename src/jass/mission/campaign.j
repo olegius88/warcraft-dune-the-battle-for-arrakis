@@ -49,6 +49,9 @@ function EmpCampaignResult takes boolean win returns nothing
 {{/if}}{{#if wonLines}}    if win then
 {{wonLines}}
     endif
+{{/if}}{{#if territoryBattle}}    // the winner's base stays on the territory (battle forces.j)
+    call EmpBaseSave(win)
+    call EmpSpiceSave()
 {{/if}}    call SaveGameCache(EmpCache)
     if win then
         call EmpShow("Победа! Возвращение на карту Арракиса...")
