@@ -1694,6 +1694,29 @@ test('a territory keeps the player\'s explored map', opts, () => {
   assert.ok(body('EmpBattleInit').includes('call EmpExploreRestore()'));
 });
 
+// The APCs (ATAPC, ORAPC, IMAPC; Rules.txt APC) carried nobody. Game.exe 1.09 class 0xf: 5 passengers
+// (hardcoded, 0x5672f0), infantry of the same player only (0x55e8a0), inside they are hidden and do
+// not fire, unload one at a time on command 0xA (0x567782), and die with the APC (0x560fde).
+// Guaranteed now: APC types carry a 5-place cargo hold with Load / Unload; only infantry fits (cargo
+// size 1, every other unit more than the hold); passengers die with the APC (mission apc.j).
+test('APCs carry five infantry who die with them', opts, () => {
+  const all = loadAll();
+  const id = (n: string): string => all.units.rawcode.get(n) as string;
+  const field = (i: string, f: string): string => all.units.objects.find((o) => o.id === i)?.mods.filter((m) => m.field === f).map((m) => String(m.value)).at(-1) ?? '';
+  const abil = field(id('ATAPC'), 'uabi').split(',');
+  assert.ok(abil.includes(all.units.ids.apcCargo) && abil.includes('Aloa') && abil.includes('Adro'), `cargo hold, load, unload: ${abil}`);
+  for (const n of ['ORAPC', 'IMAPC']) assert.ok(field(id(n), 'uabi').split(',').includes(all.units.ids.apcCargo), n);
+  assert.strictEqual(field(id('ATInfantry'), 'ucar'), '1', 'infantry fits');
+  assert.ok(Number(field(id('ATTrike'), 'ucar')) > 5, 'a vehicle does not');
+  const w3a = all.units.w3a.toString('latin1');
+  assert.ok(w3a.includes(`Sch3${all.units.ids.apcCargo}`) && w3a.includes('Car1\0\0\0\0\u0001\0\0\0\u0001\0\0\0\u0005\0\0\0'), 'Cargo Capacity 5');
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'apc', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(body('EmpApcDeath').includes('KillUnit'), 'passengers die with the APC');
+  assert.ok(body('EmpApcLoaded').includes('GetTransportUnit()'));
+});
+
 // In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an
 // invention) with nothing to build with: once it was beaten the battle was won. Game.exe 1.09 0x47f170
 // gives the side that attacks (and kept no base) an MCV at its start position (0x47f255) besides its

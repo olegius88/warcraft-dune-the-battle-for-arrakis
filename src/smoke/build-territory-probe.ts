@@ -37,6 +37,7 @@ const kindjalToggle = kindjalDeploy?.deploy ?? '';
 // --knife: the ADV Sardaukar and an Atreides infantryman
 const advSard = all.units.rawcode.get('IMADVSardaukar') as string;
 const atInf = all.units.rawcode.get('ATInfantry') as string;
+const atApc = all.units.rawcode.get('ATAPC') as string;
 // --mcvai: a factory of each house
 const factoryOf = { AT: all.units.rawcode.get('ATFactory') as string, HK: all.units.rawcode.get('HKFactory') as string, OR: all.units.rawcode.get('ORFactory') as string };
 // --fxgrid: the played effects with their kind (0 death, 1 muzzle, 2 hit), once each
@@ -351,6 +352,62 @@ function ExploreRun takes nothing returns nothing
     call Preload(s2)
     call Preload(s3)
     call PreloadGenEnd("DuneSmoke\\\\explore.pld")
+endfunction`,
+  } : {}),
+  // --apc: an ATAPC told to load six infantrymen and a trike: five ride, the sixth and the trike stay;
+  // the APC killed: its passengers die
+  ...(flag('--apc') ? {
+    extraStart: 'ApcRun',
+    extraFunctions: `function ApcRun takes nothing returns nothing
+    local real x = GetStartLocationX(GetPlayerStartLocation(Player(0)))
+    local real y = GetStartLocationY(GetPlayerStartLocation(Player(0)))
+    local unit a
+    local unit array p
+    local integer i = 0
+    local integer inside = 0
+    local integer alive = 0
+    local string s1
+    local string s2
+    call TriggerSleepAction(2.0)
+    set a = CreateUnit(Player(0), '${atApc}', x, y, 0.0)
+    loop
+        exitwhen i >= 6
+        set p[i] = CreateUnit(Player(0), '${atInf}', x + 300.0, y + i * 60.0, 0.0)
+        set i = i + 1
+    endloop
+    set p[6] = CreateUnit(Player(0), '${trike}', x - 300.0, y, 0.0)
+    set i = 0
+    loop
+        exitwhen i > 6
+        call IssueTargetOrder(a, "load", p[i])
+        call TriggerSleepAction(2.5)
+        set i = i + 1
+    endloop
+    set i = 0
+    loop
+        exitwhen i > 6
+        if IsUnitInTransport(p[i], a) then
+            set inside = inside + 1
+        endif
+        set i = i + 1
+    endloop
+    set s1 = "inside " + I2S(inside) + " trike inside " + I2S(IntegerTertiaryOp(IsUnitInTransport(p[6], a), 1, 0)) + " sixth inside " + I2S(IntegerTertiaryOp(IsUnitInTransport(p[5], a), 1, 0))
+    call KillUnit(a)
+    call TriggerSleepAction(2.0)
+    set i = 0
+    loop
+        exitwhen i > 5
+        if EmpAlive(p[i]) then
+            set alive = alive + 1
+        endif
+        set i = i + 1
+    endloop
+    set s2 = "after the APC died, infantry alive " + I2S(alive)
+    call PreloadGenClear()
+    call PreloadGenStart()
+    call Preload(s1)
+    call Preload(s2)
+    call PreloadGenEnd("DuneSmoke\\\\apc.pld")
 endfunction`,
   } : {}),
   // --knife: an ADV Sardaukar with enemy infantry 8 tiles off (the gun), then 3 tiles off (the knife,

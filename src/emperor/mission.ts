@@ -518,6 +518,7 @@ function buildMission(p: MissionParams): BuiltMission {
     jass('superweapon'),
     jass('damage'),
     jass('deploy'),
+    jass('apc'),
     jass('subhouse'),
     jass('specials'),
     jass('starport'),

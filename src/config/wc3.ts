@@ -48,6 +48,8 @@ export const UNIT_FIELD = {
   /** Art - Required Animation Names (WurstStdlib2 objediting/UnitObjEditing.wurst
    * setRequiredAnimationNames) */
   animationNames: 'uani',
+  /** Movement - Transported Size (WurstStdlib2 UnitObjEditing.wurst setTransportedSize) */
+  cargoSize: 'ucar',
 } as const;
 
 /** Ability object data fields (war3map.w3a). */
@@ -70,6 +72,8 @@ export const ABILITY_FIELD = {
   channelArtDuration: 'Ncl4',
   channelDisableOthers: 'Ncl5',
   channelOrder: 'Ncl6',
+  /** Cargo Hold: Cargo Capacity (AbilityObjEditing.wurst AbilityDefinitionCargoHoldTransport, column 1) */
+  cargoCapacity: 'Car1',
   /** hero ability flag and level count (level 0) */
   hero: 'aher',
   levels: 'alev',
@@ -123,6 +127,11 @@ export const ABILITY = {
    * data and after BlzSetAbilityIntegerLevelField, and no bearform order was taken (probe --deploy,
    * 2026-10-09) */
   channel: 'ANcl',
+  /** Cargo Hold (Transport), Load (Goblin Zeppelin), Unload (Goblin Zeppelin): WurstStdlib2
+   * _wurst/assets/AbilityIds.wurst cargoHoldTransport / load / unload; the APC (units.ts) */
+  cargoHold: 'Sch3',
+  load: 'Aloa',
+  unload: 'Adro',
 } as const;
 
 /** Stock abilities whose art (GetAbilityEffectById, common.j) is used for effects, so the model
@@ -185,6 +194,8 @@ export const CUSTOM_ID = {
    * unit, every Emperor unit has an empty upgrade list (units.ts, F.upgrades) */
   upgradeBase: 'Rhme',
   harvestAbility: 'A000',
+  /** the APC's cargo hold (Sch3 with APC.capacity) */
+  apcCargo: 'A001',
   spiceField: 'xS00',
   spiceMound: 'xS01',
   territoryMarker: 'xM00',

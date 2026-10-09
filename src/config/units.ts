@@ -122,3 +122,7 @@ export const DEPLOY = {
    * SEQUENCE_MAP) */
   animation: 'alternate',
 } as const;
+/** APC (Rules.txt APC; Game.exe 1.09 class 0xf): 5 passengers, hardcoded (0x5672f0, no Rules key);
+ * only infantry boards (0x55e8a0): an infantry type takes infantrySize of the hold, every other unit
+ * otherSize, more than the hold (units.ts, WC3 Transported Size). */
+export const APC = { capacity: 5, infantrySize: 1, otherSize: 6 } as const;

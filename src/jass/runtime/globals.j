@@ -46,6 +46,9 @@
     boolean EmpTmpLose = false
     // deployable units: type -> toggle / deployed copy (mission deploy.j)
     hashtable EmpDeployTab = null
+    // APC passengers (mission apc.j)
+    hashtable EmpApcTab = null
+    group EmpApcAll = null
     unit EmpDeployArgUnit = null
     boolean EmpDeployArgOn = false
     boolean EmpDeployAutoAny = false

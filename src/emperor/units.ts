@@ -47,6 +47,8 @@ export interface UnitIds {
   mcvBuilders: Record<string, string>;
   /** territory marker of the Arrakis hub */
   territoryMarker: string;
+  /** the APC's cargo hold (config APC) */
+  apcCargo: string;
 }
 
 /** Building upgrade (Rules.txt UpgradeCost): a custom WC3 upgrade the building researches. */
@@ -270,6 +272,8 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
       real(F.scale, models?.model.has(o.name) ? 1 : scale), real(F.selectionScale, scale),
     ];
     if (o.category !== 'Building' && o.speed > 0) mods.push(int(F.moveSpeed, S.moveSpeed(o.speed)));
+    // only infantry fits an APC (config APC)
+    if (o.category === 'Unit') mods.push(int(F.cargoSize, o.infantry ? U.APC.infantrySize : U.APC.otherSize));
     // Emperor's own sidebar icon (src/emperor/icons.ts)
     const icon = icons?.icon.get(o.name);
     if (icon) mods.push(str(F.icon, icon));
@@ -288,11 +292,13 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
   // ---- economy / construction objects (ids fixed so the runtime can refer to them) ----
   const HARVEST_ABILITY = CUSTOM_ID.harvestAbility; // Ahar with Emperor capacity
   // Territory marker of the Arrakis hub map: invulnerable, unarmed, house-coloured tower.
-  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, spiceMound: CUSTOM_ID.spiceMound, builders: {}, defenceBuilders: {}, allyBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker };
+  const ids: UnitIds = { harvestAbility: HARVEST_ABILITY, spiceField: CUSTOM_ID.spiceField, spiceMound: CUSTOM_ID.spiceMound, builders: {}, defenceBuilders: {}, allyBuilders: {}, mcvBuilders: {}, territoryMarker: CUSTOM_ID.territoryMarker, apcCargo: CUSTOM_ID.apcCargo };
   const abilities: ObjectDef[] = [{ base: ABILITY.harvest, id: HARVEST_ABILITY, mods: [
     { field: ABILITY_FIELD.harvestGold, type: 'int', value: U.HARVEST_CAPACITY, level: 1, column: 3 },
     { field: ABILITY_FIELD.harvestLumber, type: 'int', value: 0, level: 1, column: 2 },
     { field: ABILITY_FIELD.name, type: 'string', value: U.HARVEST_ABILITY_NAME },
+  ] }, { base: ABILITY.cargoHold, id: CUSTOM_ID.apcCargo, mods: [
+    { field: ABILITY_FIELD.cargoCapacity, type: 'int', value: U.APC.capacity, level: 1, column: 1 },
   ] }];
   // Spice field = gold mine (amount set at spawn by the runtime)
   const [tintR, tintG, tintB] = U.SPICE_FIELD_TINT;
@@ -367,6 +373,9 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     } else if (superweaponKind(o)) {
       // invulnerable, and none of the stock unit's requirements
       obj.mods.push(str(F.abilities, ABILITY.invulnerable), str(F.requires, ''));
+    } else if (/^true$/i.test((o.raw.APC ?? '').trim())) {
+      // APC: carries infantry (config APC, mission apc.j)
+      obj.mods.push(str(F.abilities, [ids.apcCargo, ABILITY.load, ABILITY.unload].join(',')));
     } else if (/^MCV$/.test(o.name)) {
       // MCV builds (and is consumed by) a construction yard: runtime removes it on construct start.
       obj.mods.push(str(F.abilities, ABILITY.build), str(F.builds, HOUSE_CODES.map((c) => rawcode.get(`${c}ConYard`)).join(',')));

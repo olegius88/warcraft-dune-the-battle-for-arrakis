@@ -42,6 +42,12 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 APC (ATAPC, ORAPC, IMAPC) возят пехоту ([apc.j](src/jass/mission/apc.j), `APC` в
+  [config/units.ts](src/config/units.ts)). Раньше они никого не возили. Как в Game.exe (класс `0xf`): 5 мест
+  (`0x5672f0`, в Rules ключа нет), садится только пехота (`0x55e8a0`), внутри пассажиры скрыты и не
+  стреляют, высадка по команде. При гибели APC пассажиры гибнут (`0x560fde`). WC3 высаживает груз раньше
+  события смерти, поэтому список пассажиров обновляется по таймеру. Пробник `--apc`: сели 5, шестой и
+  трайк — нет; после гибели APC погибли пятеро.
 - 2026-10-09 Территория помнит базу победителя и спайс между битвами ([forces.j](src/jass/battle/forces.j)
   `EmpBaseSave` / `EmpBaseRestore`, [spice-fields.j](src/jass/battle/spice-fields.j) `EmpSpiceSave` /
   `EmpSpiceRestore`, `SAVED_BASE` в [config/battle.ts](src/config/battle.ts)). Раньше каждая битва на

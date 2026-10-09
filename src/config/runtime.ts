@@ -229,3 +229,5 @@ export const SPEECH_BRIEFING_SECTION = 'Briefing';
 export const SPEECH_DEBRIEFING_SECTION = 'Debriefing';
 export const DEBRIEF_WIN_SUFFIXES: readonly string[] = ['win', 'debrief'];
 export const DEBRIEF_LOSE_SUFFIXES: readonly string[] = ['lose'];
+/** How often (s) the APCs' passenger lists are brought up to date (mission apc.j EmpApcTick). */
+export const APC_TICK = 0.25;
