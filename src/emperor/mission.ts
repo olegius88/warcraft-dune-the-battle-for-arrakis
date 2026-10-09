@@ -328,7 +328,7 @@ function buildMission(p: MissionParams): BuiltMission {
   for (const d of p.units.deploy ?? []) {
     const warhead = d.weapon.bullet?.warhead?.name;
     if (warhead) dmgLines.push(...pctLines(d.deployed, RT.DMG_PCT_KEY, warhead).map((l) => l.replace('EmpSwTab', 'EmpDmgTab')));
-    deployLines.push(`    call EmpDeployRegister('${d.type}', '${d.deployed}', '${d.deploy}', '${d.undeploy}', '${d.toDeployed}', '${d.toNormal}', ${real(Math.max(1, d.weapon.bullet?.range ?? 1) * RANGE_PER_TILE)})`);
+    deployLines.push(`    call EmpDeployRegister('${d.type}', '${d.deployed}', '${d.deploy}', '${d.undeploy}', '${d.toDeployed}', '${d.toNormal}', ${real(Math.max(1, d.weapon.bullet?.range ?? 1) * RANGE_PER_TILE)}, ${real(d.deploySeconds)}, ${real(d.undeploySeconds)})`);
   }
   const sws = p.rules ? superweapons(p.rules) : [];
   if (sws.length) {

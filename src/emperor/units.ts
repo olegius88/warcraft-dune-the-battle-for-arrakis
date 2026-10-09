@@ -128,6 +128,9 @@ export interface DeployType {
   toDeployed: string;
   toNormal: string;
   weapon: Turret;
+  /** seconds a deploy / an undeploy take: the model's animations (models.ts deploy), 0 without */
+  deploySeconds: number;
+  undeploySeconds: number;
 }
 
 /** A unit type's copy with ExtraRange percent more range, and the Chaos ability that turns a unit of
@@ -458,10 +461,11 @@ function buildUnitData(rules: Rules, displayName: (name: string) => string = (n)
     const w = weaponOf(o, true);
     if (!w?.bullet) continue;
     const d: DeployType = { type: obj.id, deployed: nextId(CUSTOM_ID.unitPrefix), deploy: nextId(CUSTOM_ID.deployPrefix), undeploy: nextId(CUSTOM_ID.deployPrefix),
-      toDeployed: nextId(CUSTOM_ID.deployMorphPrefix), toNormal: nextId(CUSTOM_ID.deployMorphPrefix), weapon: w };
+      toDeployed: nextId(CUSTOM_ID.deployMorphPrefix), toNormal: nextId(CUSTOM_ID.deployMorphPrefix), weapon: w,
+      deploySeconds: models?.deploy.get(o.name)?.[0] ?? 0, undeploySeconds: models?.deploy.get(o.name)?.[1] ?? 0 };
     objects.push({ base: obj.base, id: d.deployed, emperor: null, mods: withAbility([
       ...obj.mods.filter((m) => !WEAPON_FIELDS.includes(m.field) && m.field !== F.moveSpeed),
-      ...weaponMods(o, w, w.bullet), int(F.moveSpeed, U.DEPLOY.moveSpeed),
+      ...weaponMods(o, w, w.bullet), int(F.moveSpeed, U.DEPLOY.moveSpeed), str(F.animationNames, U.DEPLOY.animation),
     ], d.undeploy) });
     obj.mods = withAbility(obj.mods, d.deploy);
     const icon = obj.mods.filter((m) => m.field === F.icon).map((m) => String(m.value)).at(-1);

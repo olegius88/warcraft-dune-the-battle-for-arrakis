@@ -23,7 +23,7 @@ const n = Number(process.argv[2] ?? 7);
 const args = process.argv.slice(3);
 const names = args.filter((a) => !a.startsWith('--'));
 const flag = (f: string): boolean => args.includes(f);
-const all = loadAll();
+const all = loadAll({ models: flag('--models') });
 const trike = all.units.rawcode.get('ATTrike') as string;
 const trikeOrder = [...all.units.portOrders].find(([, real]) => real === trike)?.[0] as string;
 // --vetrange: the trike's own attack range (WC3 units)
@@ -40,7 +40,7 @@ const fxShown = [...new Map([...all.units.effects.values()].flatMap((fx) => fx.m
 const meta = readMeta(path.join(ensureMap(territoryMapPrefix(n))[0] as string, 'test.xbf'));
 const scripts = names.map((s, i) => ({ tok: fs.readFileSync(path.join(RAW_DIR, `${s}.tok`)), phase: i + 1, name: s }));
 const m = buildMission({
-  scripts, meta, ...all, name: `Territory ${n}`, playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x', debugName: `Territory${n}`,
+  scripts, meta, ...all, name: `Territory ${n}`, playerHouse: 'Atreides', kind: flag('--defend') ? 'defend' : 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x', debugName: `Territory${n}`,
   ...(flag('--briefing') && names[0] ? { briefing: all.ctx.textByKey(names[0]) ?? '' } : {}),
   ...(flag('--no-icons') ? { iconsInMap: false } : {}), ...(flag('--autowin') ? { autoWinSeconds: 15 } : {}),
   // --storm: a sandstorm at once; units of the enemy at it; is it there, does it move, what it does

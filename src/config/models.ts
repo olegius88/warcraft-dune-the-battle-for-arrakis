@@ -31,7 +31,13 @@ export const SEQUENCE_MAP: ReadonlyArray<readonly [string, string, boolean]> = [
   ['Move', 'Walk', true],
   ['Fire 0', 'Attack', false],
   ['Fire 1', 'Attack - 2', false],
-  ['Deployed Fire', 'Attack - 3', false],
+  // deployable units (units.ts deploy): the deployed copy requires "alternate" (DEPLOY_ANIMATION),
+  // the morph plays Morph / Morph Alternate for the time the deploy takes (MODEL_DEPLOY_ANIMS)
+  ['Deploy Gun', 'Morph', false],
+  ['Undeploy Gun', 'Morph Alternate', false],
+  ['Deployed Idle 0', 'Stand Alternate', true],
+  ['Deploy Gun Hold', 'Stand Alternate', true],
+  ['Deployed Fire', 'Attack Alternate', false],
   ['Explode', 'Death', false],
   ['Blow Up 1', 'Death', false],
   ['Shot 1', 'Death', false],
@@ -40,6 +46,10 @@ export const SEQUENCE_MAP: ReadonlyArray<readonly [string, string, boolean]> = [
   ['Fly', 'Walk', true],
   ['Hover', 'Stand', true],
 ];
+
+/** The Emperor animations of a deploy and an undeploy: Game.exe 1.09 changes the state when they end
+ * (0x568750 / 0x56de70 via 0x563c50), so their lengths are the time each takes (models.ts deploy). */
+export const MODEL_DEPLOY_ANIMS = ['Deploy Gun', 'Undeploy Gun'] as const;
 
 /** Draw both sides of every face (thin parts such as flags and wings are single sheets). */
 export const TWO_SIDED = true;

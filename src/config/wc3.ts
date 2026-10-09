@@ -45,6 +45,9 @@ export const UNIT_FIELD = {
   /** Art - Model File: an .mdl path, the game loads the .mdx next to it (seen in game 2026-10-07,
    * src/smoke/build-model-probe.ts: a .mdx path draws nothing) */
   model: 'umdl',
+  /** Art - Required Animation Names (WurstStdlib2 objediting/UnitObjEditing.wurst
+   * setRequiredAnimationNames) */
+  animationNames: 'uani',
 } as const;
 
 /** Ability object data fields (war3map.w3a). */

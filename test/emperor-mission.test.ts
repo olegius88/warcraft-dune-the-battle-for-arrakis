@@ -188,7 +188,7 @@ test('deployable units get a deployed type with the deployed turret and a morph 
   assert.ok(w3a.includes(`Sca1${kd.toNormal}`) && w3a.includes(`Cha1\u0003\0\0\0\u0001\0\0\0\0\0\0\0${kd.type}\0`), 'Chaos morph back');
   const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
   const m = buildMission({ scripts: [], meta, ...all, name: 'deploy', playerHouse: 'Atreides', kind: 'attack', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
-  assert.ok(m.script.includes(`call EmpDeployRegister('${kd.type}', '${kd.deployed}', '${kd.deploy}', '${kd.undeploy}', '${kd.toDeployed}', '${kd.toNormal}', ${12 * RANGE_PER_TILE}.0)`), 'deployed type registered');
+  assert.ok(m.script.includes(`call EmpDeployRegister('${kd.type}', '${kd.deployed}', '${kd.deploy}', '${kd.undeploy}', '${kd.toDeployed}', '${kd.toNormal}', ${12 * RANGE_PER_TILE}.0, 0.0, 0.0)`), 'deployed type registered (no converted models here: at once)');
   // 80mmGun_W (Kindjal_B) vs LMG_W (Pistol_B): the deployed copy has its own percentages
   assert.notStrictEqual(all.rules.sections.get('80mmgun_w')?.entries.find(([a]) => a === 'Heavy')?.[1], all.rules.sections.get('lmg_w')?.entries.find(([a]) => a === 'Heavy')?.[1]);
   assert.ok(m.script.includes(`call SaveInteger(EmpDmgTab, '${kd.deployed}', ${RT.DMG_PCT_KEY + 1}, `), 'deployed weapon percentages');
@@ -1607,6 +1607,24 @@ test('the AI builds an emergency MCV and deploys its MCVs as Game.exe does', opt
   assert.ok(tick.indexOf('EmpAiMcvFree(GetUnitX(u), GetUnitY(u), u)') < tick.indexOf('GetUnitCurrentOrder(u) == 0'), 'deploys where it fits before it moves');
   assert.ok(tick.includes('EmpAiBaseUnused(b)') && tick.includes('ExecuteFunc("EmpAiMcvRingRun")'), 'unused base position, then the spiral');
   assert.ok(body('EmpAiHomeUnit').includes('EmpType(u) != EmpAiMcv'), 'the MCV is no home guard');
+});
+
+// In a defence battle the attacker came as one wave of units 45 s after the start (EmpDefendWave, an
+// invention) with nothing to build with: once it was beaten the battle was won. Game.exe 1.09 0x47f170
+// gives the side that attacks (and kept no base) an MCV at its start position (0x47f255) besides its
+// UnitValueAttacker army and CampaignAttackMoney. Guaranteed now: the attacking AI starts with them at
+// its entrance and runs the battle AI (its MCV deploys, it builds, produces and attacks).
+test('a defence battle: the attacking AI starts with an MCV, its army and credits', opts, () => {
+  const all = loadAll();
+  const meta = readMeta(path.join(ensureMap('#T9 ')[0] as string, 'test.xbf'));
+  const m = buildMission({ scripts: [], meta, ...all, name: 'defend', playerHouse: 'Atreides', kind: 'defend', territoryBattle: true, hubMap: 'AT_Hub.w3x' });
+  const body = (name: string): string => m.script.slice(m.script.indexOf(`function ${name} `), m.script.indexOf('endfunction', m.script.indexOf(`function ${name} `)));
+  assert.ok(!m.script.includes('EmpDefendWave'), 'no invented wave');
+  const atk = body('EmpDefendAttacker');
+  assert.ok(atk.includes(`CreateUnit(Player(1), '${all.units.rawcode.get('MCV')}', EmpEntrX[e], EmpEntrY[e]`) && atk.includes('call SetPlayerStateBJ(Player(1), PLAYER_STATE_RESOURCE_GOLD, 5000)'), 'MCV and CampaignAttackMoney');
+  const init = body('EmpBattleInit');
+  assert.ok(init.indexOf('call EmpDefendAttacker()') < init.indexOf('call EmpAiInit()') && init.includes('call EmpAiStartPace()'), 'the battle AI runs');
+  assert.ok(!init.includes('call EmpAiMinimalBase()') && !body('EmpAiInit').includes('call EmpAiMinimalBase()'), 'no minimal base for the attacker');
 });
 
 // The AI never deployed its Kindjals, Mortars and Kobras (no deploy at all before). Game.exe 1.09 gives

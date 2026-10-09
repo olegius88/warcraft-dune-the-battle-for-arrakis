@@ -42,6 +42,18 @@
     тиков (навык 9), два охранника, разведчик.
 
 ### Added
+- 2026-10-09 Оборонительная битва: атакующий ИИ стартует у своего входа с MCV, армией UnitValueAttacker и
+  CampaignAttackMoney, дальше играет как обычный ИИ ([forces.j](src/jass/battle/forces.j) `EmpDefendAttacker`).
+  Раньше через 45 с приходила одна придуманная волна (`EmpDefendWave`), а после её разгрома битва была
+  выиграна. В `Game.exe` 1.09 (`0x47f170`) нападающая сторона без сохранённой базы получает MCV в своей
+  стартовой точке (`0x47f255`). Тест «a defence battle…», пробник `--defend`: MCV развернулся, ИИ строит
+  НПЗ, ветряк, фабрику, заставу, казармы.
+- 2026-10-09 Анимации и длительность развёртывания ([models.ts](src/emperor/models.ts) `deploy`,
+  `SEQUENCE_MAP` / `MODEL_DEPLOY_ANIMS` в [config/models.ts](src/config/models.ts)). `Deploy Gun` /
+  `Undeploy Gun` стали `Morph` / `Morph Alternate`, развёрнутые стойка и выстрел — `Stand` / `Attack Alternate`
+  (у копии `uani = alternate`). Раньше `Deployed Fire` был четвёртой обычной атакой и играл у неразвёрнутого
+  юнита. Пока идёт анимация, юнит ничего не делает, тип меняется в её конце, как в Game.exe
+  (`0x568750` / `0x56de70`): Kindjal 2,48 / 2,96 с, Mortar 2,32 / 2,2 с, Kobra 2,0 / 1,6 с.
 - 2026-10-09 Экстренный MCV и развёртывание MCV компьютером (`AI_MCV` в [config/battle.ts](src/config/battle.ts),
   [forces.j](src/jass/battle/forces.j) `EmpAiEmergencyMcv`, [ai.j](src/jass/battle/ai.j) `EmpAiMcvTick`). Раньше ИИ,
   потерявший стройплощадку, больше ничего не строил.

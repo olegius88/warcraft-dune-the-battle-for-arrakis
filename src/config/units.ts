@@ -118,4 +118,7 @@ export const DEPLOY = {
   undeployTooltip: 'Свернуть оружие, чтобы двигаться.',
   button: [0, 2] as const,
   moveSpeed: 0,
+  /** animation property the deployed copy requires (its Stand / Attack / Morph Alternate, config
+   * SEQUENCE_MAP) */
+  animation: 'alternate',
 } as const;

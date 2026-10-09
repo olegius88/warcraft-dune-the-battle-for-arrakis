@@ -214,6 +214,34 @@ test('unit data: a converted model goes into the model field, at scale 1', { ski
   assert.ok(data.models['Emperor\\Models\\AT_Trike.mdx'], 'the model file comes with the unit data');
 });
 
+// A deployed Kindjal deployed at once and stood like an undeployed one; "Deployed Fire" was a fourth
+// attack ('Attack - 3') that an undeployed unit played at random. Game.exe 1.09 waits for the deploy /
+// undeploy animation to end before the state changes (0x568750 / 0x56de70 via 0x563c50). Guaranteed
+// now: Deploy Gun / Undeploy Gun become Morph / Morph Alternate, the deployed idle and fire become the
+// Alternate stand and attack (the deployed copy requires "alternate"), and their lengths go to the
+// unit data as the time a deploy and an undeploy take.
+test('XBF -> MDX: deploy animations and their lengths for the deployed form', { skip: fs.existsSync(archive + '.RFH') ? false : 'Emperor not installed' }, async () => {
+  const path = await import('node:path');
+  const { loadArtIni } = await import('../src/emperor/artini.ts');
+  const { buildModels } = await import('../src/emperor/models.ts');
+  const { loadRules } = await import('../src/emperor/rules.ts');
+  const { buildUnitData } = await import('../src/emperor/units.ts');
+  const { RAW_DIR } = await import('../src/config/paths.ts');
+  const models = buildModels(['ATKindjal'], loadArtIni(path.join(RAW_DIR, 'ArtIni.txt')));
+  // Deploy Gun 322-384, Undeploy Gun 496-570 at 40 ms a frame
+  assert.deepStrictEqual(models.deploy.get('ATKindjal'), [2.48, 2.96]);
+  const file = Object.keys(models.files).find((f) => f.endsWith('.mdx')) as string;
+  const m = new MdlxModel();
+  m.load(new Uint8Array(models.files[file] as Buffer));
+  const names = (m.sequences as Array<{ name: string }>).map((s) => s.name);
+  for (const n of ['Morph', 'Morph Alternate', 'Stand Alternate', 'Attack Alternate']) assert.ok(names.includes(n), `${n} in ${names.join(', ')}`);
+  assert.ok(!names.includes('Attack - 3'), 'the deployed fire is no plain attack');
+  const data = buildUnitData(loadRules(path.join(RAW_DIR, 'Rules.txt')), (n) => n, undefined, models);
+  const d = data.deploy.find((x) => x.type === data.rawcode.get('ATKindjal'));
+  assert.deepStrictEqual([d?.deploySeconds, d?.undeploySeconds], [2.48, 2.96]);
+  assert.strictEqual(data.objects.find((o) => o.id === d?.deployed)?.mods.filter((x) => x.field === 'uani').at(-1)?.value, 'alternate');
+});
+
 // House colour: Emperor recolours the saturated blue panels of its "=" textures to the side's
 // colour (ArtIni.txt Recolor); converted models showed them blue for every side. Now they use the
 // WC3 team colour: a team colour layer under the texture, whose blue panels are transparent.

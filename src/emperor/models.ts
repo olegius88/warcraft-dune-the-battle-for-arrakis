@@ -12,7 +12,7 @@ import { readTga } from '../wc3/tga.ts';
 import { writeBlpImage, resize, pow2Ceil } from '../wc3/blp.ts';
 import { writeMdx } from '../wc3/mdx.ts';
 import { gameData } from '../config/paths.ts';
-import { MODEL_PATH, MAX_TEXTURE_SIZE, HOUSE_COLOUR_TEXTURE, HOUSE_COLOUR_PIXEL, COLOUR_KEY_PIXEL, WEAPON_ATTACHMENT } from '../config/models.ts';
+import { MODEL_PATH, MODEL_DEPLOY_ANIMS, MS_PER_FRAME, MAX_TEXTURE_SIZE, HOUSE_COLOUR_TEXTURE, HOUSE_COLOUR_PIXEL, COLOUR_KEY_PIXEL, WEAPON_ATTACHMENT } from '../config/models.ts';
 
 export interface ModelSet {
   /** Emperor object name -> value of the unit model field */
@@ -23,11 +23,14 @@ export interface ModelSet {
   failed: Map<string, string>;
   /** objects whose converted model has a weapon attachment (a #fire node: model.ts) */
   weapon: Set<string>;
+  /** objects whose model has the deploy animations: seconds a deploy and an undeploy take
+   * (config MODEL_DEPLOY_ANIMS, at MS_PER_FRAME) */
+  deploy: Map<string, [number, number]>;
 }
 
 /** Convert the models of the given objects (those ArtIni.txt gives an Xaf whose _H0 file exists). */
 function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archive = gameData('3DDATA0001')): ModelSet {
-  const set: ModelSet = { model: new Map(), files: {}, failed: new Map(), weapon: new Set() };
+  const set: ModelSet = { model: new Map(), files: {}, failed: new Map(), weapon: new Set(), deploy: new Map() };
   const armed = new Set<string>(); // archive model files with a weapon attachment
   const index = readIndex(archive + '.RFH');
   const byLower = new Map(index.map((e) => [e.name.toLowerCase(), e.name]));
@@ -81,6 +84,9 @@ function buildModels(names: Iterable<string>, art: Map<string, ArtEntry>, archiv
     }
     set.model.set(obj, field);
     if (armed.has(file)) set.weapon.add(obj);
+    const anims = readAnimations(xbf.get(file) as Buffer);
+    const len = MODEL_DEPLOY_ANIMS.map((n) => anims.get(n)?.[0]).map((r) => (r ? (Math.abs(r.end - r.start) * MS_PER_FRAME) / 1000 : 0));
+    if (len.every((s) => s > 0)) set.deploy.set(obj, len as [number, number]);
   }
   return set;
 }
